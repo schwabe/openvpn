@@ -1784,42 +1784,45 @@ multi_client_connect_call_plugin_v1 (struct multi_context *m,
     ASSERT (m);
     ASSERT (mi);
     ASSERT (option_types_found);
+    struct client_connect_defer_state *ccs = &(mi->client_connect_defer_state);
 
     /* deprecated callback, use a file for passing back return info */
     if (plugin_defined(mi->context.plugins, OPENVPN_PLUGIN_CLIENT_CONNECT))
     {
         struct argv argv = argv_new();
-        struct gc_arena gc = gc_new();
-        const char *dc_file =
-            platform_create_temp_file(mi->context.options.tmp_dir, "cc", &gc);
-
-        if (!dc_file)
+        if (!ccs_gen_config_file (mi) ||
+            !ccs_gen_deferred_ret_file (mi))
         {
             ret = CC_RET_FAILED;
             goto cleanup;
         }
 
-        argv_printf(&argv, "%s", dc_file);
-        if (plugin_call(mi->context.plugins, OPENVPN_PLUGIN_CLIENT_CONNECT,
-                        &argv, NULL, mi->context.c2.es)
-            != OPENVPN_PLUGIN_FUNC_SUCCESS)
+        argv_printf(&argv, "%s", ccs->config_file);
+        int plug_ret = plugin_call(mi->context.plugins,
+                               OPENVPN_PLUGIN_CLIENT_CONNECT,
+                               &argv, NULL, mi->context.c2.es);
+        if (plug_ret == OPENVPN_PLUGIN_FUNC_SUCCESS)
         {
-            msg(M_WARN, "WARNING: client-connect plugin call failed");
-            ret=CC_RET_FAILED;
+            multi_client_connect_post(m, mi, ccs->config_file,
+                                      option_types_found);
+            ret = CC_RET_SUCCEEDED;
+        }
+        else if (plug_ret == OPENVPN_PLUGIN_FUNC_DEFERRED)
+        {
+            ret = CC_RET_DEFERRED;
         }
         else
         {
-            multi_client_connect_post(m, mi, dc_file, option_types_found);
-            ret = CC_RET_SUCCEEDED;
-        }
-
-        if (!platform_unlink(dc_file))
-        {
-            msg(D_MULTI_ERRORS, "MULTI: problem deleting temporary file: %s",
-                dc_file);
+            msg(M_WARN, "WARNING: client-connect plugin call failed");
+            ret = CC_RET_FAILED;
         }
 
     cleanup:
+        if (ret != CC_RET_SUCCEEDED)
+        {
+            ccs_delete_config_file (mi);
+            ccs_delete_deferred_ret_file (mi);
+        }
         argv_reset(&argv);
         gc_free(&gc);
     }
