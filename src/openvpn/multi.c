@@ -2065,7 +2065,22 @@ multi_client_connect_source_ccd (struct multi_context *m,
                                      &gc);
 
         /* try common-name file */
-        if (platform_test_file(ccd_file))
+        if (!platform_test_file(ccd_file))
+        {
+            ccd_file = NULL;
+        }
+        /* try default file */
+        {
+            ccd_file = platform_gen_path(mi->context.options.client_config_dir,
+                                         CCD_DEFAULT,
+                                         &gc);
+            if (!platform_test_file(ccd_file))
+            {
+                ccd_file = NULL;
+            }
+        }
+
+        if (ccd_file)
         {
             options_server_import(&mi->context.options,
                                   ccd_file,
@@ -2073,22 +2088,6 @@ multi_client_connect_source_ccd (struct multi_context *m,
                                   CLIENT_CONNECT_OPT_MASK,
                                   option_types_found,
                                   mi->context.c2.es);
-        }
-        else /* try default file */
-        {
-            ccd_file = platform_gen_path(mi->context.options.client_config_dir,
-                                         CCD_DEFAULT,
-                                         &gc);
-
-            if (platform_test_file(ccd_file))
-            {
-                options_server_import(&mi->context.options,
-                                      ccd_file,
-                                      D_IMPORT_ERRORS|M_OPTERR,
-                                      CLIENT_CONNECT_OPT_MASK,
-                                      option_types_found,
-                                      mi->context.c2.es);
-            }
         }
         gc_free(&gc);
     }
