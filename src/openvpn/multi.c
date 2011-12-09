@@ -2110,28 +2110,51 @@ multi_client_connect_source_ccd (struct multi_context *m,
     return ret;
 }
 
-static inline bool
-cc_check_return(int* cc_succeeded_count,
-                enum client_connect_return ret)
+typedef enum client_connect_return (*client_connect_handler)
+  (struct multi_context *m, struct multi_instance *mi,
+   unsigned int *option_types_found);
+
+struct client_connect_handlers
 {
-    if (ret == CC_RET_SUCCEEDED)
-    {
-        (*cc_succeeded_count)++;
-        return true;
-    }
-    else if (ret == CC_RET_FAILED)
-    {
-        return false;
-    }
-    else if (ret == CC_RET_SKIPPED)
-    {
-        return true;
-    }
-    else
-    {
-        ASSERT(0);
-    }
+  client_connect_handler main;
+  client_connect_handler deferred;
+};
+
+static enum client_connect_return
+multi_client_connect_fail (struct multi_context *m, struct multi_instance *mi,
+                           unsigned int *option_types_found)
+{
+    /* Called null call-back.  This should never happen. */
+    return CC_RET_FAILED;
 }
+
+static const struct client_connect_handlers client_connect_handlers[] = {
+    {
+        .main = multi_client_connect_source_ccd,
+        .deferred = multi_client_connect_fail
+    },
+    {
+        .main = multi_client_connect_call_plugin_v1,
+        .deferred = multi_client_connect_fail
+    },
+    {
+        .main = multi_client_connect_call_plugin_v2,
+        .deferred = multi_client_connect_fail
+    },
+    {
+        .main = multi_client_connect_call_script,
+        .deferred = multi_client_connect_fail
+    },
+    {
+        .main = multi_client_connect_mda,
+        .deferred = multi_client_connect_fail
+    },
+    {
+        .main = NULL,
+        .deferred = NULL
+        /* End of list sentinel.  */
+    }
+};
 
 /*
  * Called as soon as the SSL/TLS connection authenticates.
@@ -2148,32 +2171,85 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
     if (tls_authentication_status(mi->context.c2.tls_multi, 0)
         == TLS_AUTHENTICATION_SUCCEEDED)
     {
-        typedef enum client_connect_return
-            (*multi_client_connect_handler)
-            (struct multi_context *m, struct multi_instance *mi,
-             unsigned int *option_types_found);
+        bool from_deferred;
 
-        multi_client_connect_handler handlers[] = {
-            multi_client_connect_source_ccd,
-            multi_client_connect_call_plugin_v1,
-            multi_client_connect_call_plugin_v2,
-            multi_client_connect_call_script,
-            multi_client_connect_mda,
-            NULL
-        };
-
-        unsigned int option_types_found = 0;
-
-        int cc_succeeded = true; /* client connect script status */
-        int cc_succeeded_count = 0;
         enum client_connect_return ret;
+
+        struct client_connect_defer_state* defer_state =
+            &(mi->client_connect_defer_state);
+
+        /* We are called for the first time */
+        if (mi->client_connect_status == CC_STATUS_NOT_ESTABLISHED)
+        {
+            defer_state->cur_handler_index = 0;
+            defer_state->option_types_found = 0;
+            /* Initially we have no handler that has returned a result */
+            mi->client_connect_status = CC_STATUS_DEFERRED_NO_RESULT;
+            from_deferred = false;
+        }
+        else
+        {
+            from_deferred = true;
+        }
 
         multi_client_connect_early_setup (m, mi);
 
-        for (int i = 0;cc_succeeded && handlers[i];i++)
+        bool cc_succeeded=true;
+
+        while (cc_succeeded &&
+               client_connect_handlers[defer_state->cur_handler_index]
+               .main != NULL)
         {
-            ret = handlers[i](m, mi, &option_types_found);
-            cc_succeeded = cc_check_return(&cc_succeeded_count, ret);
+            client_connect_handler handler;
+            if (from_deferred)
+            {
+                handler = client_connect_handlers
+                    [defer_state->cur_handler_index].deferred;
+            }
+            else
+            {
+                handler = client_connect_handlers
+                    [defer_state->cur_handler_index].main;
+            }
+
+            ret = handler(m, mi, &(defer_state->option_types_found));
+            if (ret == CC_RET_SUCCEEDED)
+            {
+                /*
+                 * Remember that we already had at least one handler
+                 * returning a result should go to into defered state
+                 */
+                mi->client_connect_status = CC_STATUS_DEFERRED_RESULT;
+            }
+            else if (ret == CC_RET_SKIPPED)
+            {
+                /*
+                 * Move on with the next handler without modifying any
+                 * other state
+                 */
+            }
+            else if (ret == CC_RET_DEFERRED)
+            {
+                /*
+                 * we already set client_connect_status to DEFERRED_RESULT or
+                 * DEFERRED_NO_RESULT and increased index. We just return
+                 * from the function as having client_connect_status
+                  */
+                return;
+            }
+            else if (ret == CC_RET_FAILED)
+            {
+                 /*
+                  * One handler failed. We abort the chain and set the final
+                  * result to failed
+                  */
+                cc_succeeded = false;
+            }
+            else
+            {
+                ASSERT(0);
+            }
+            (defer_state->cur_handler_index)++;
         }
 
         /*
@@ -2185,21 +2261,24 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
             msg(D_MULTI_ERRORS, "MULTI: client has been rejected due to"
                 "'disable' directive");
             cc_succeeded = false;
-            cc_succeeded_count = 0;
         }
 
         if (cc_succeeded)
         {
-            multi_client_connect_late_setup (m, mi, option_types_found);
+            multi_client_connect_late_setup (m, mi,
+                                             mi->client_connect_defer_state.
+                                             option_types_found);
         }
         else
         {
+            bool at_least_one_cc_succeeded =
+                (mi->client_connect_status == CC_STATUS_DEFERRED_RESULT);
             /* set context-level authentication flag */
             mi->context.c2.context_auth =
-                cc_succeeded_count ? CAS_PARTIAL : CAS_FAILED;
+                at_least_one_cc_succeeded ? CAS_PARTIAL : CAS_FAILED;
         }
 
-        /* set flag so we don't get called again */
+        /* set flag so we do not get called again */
         mi->client_connect_status = CC_STATUS_ESTABLISHED;
 
         /* increment number of current authenticated clients */
