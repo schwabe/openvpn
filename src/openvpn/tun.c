@@ -48,6 +48,7 @@
 #include "win32.h"
 
 #include "memdbg.h"
+#include <string.h>
 
 #ifdef WIN32
 
@@ -772,6 +773,40 @@ do_ifconfig (struct tuntap *tt,
       tt->did_ifconfig = true;
 
 #endif /*ENABLE_IPROUTE*/
+#elif defined(TARGET_ANDROID)
+        
+        
+        if (do_ipv6) {
+            struct user_pass up6;    
+            struct buffer out6 = alloc_buf_gc (64, &gc);
+            buf_printf (&out6, "%s/%d", ifconfig_ipv6_local,tt->netbits_ipv6);
+            strcpy(up6.username, buf_bptr(&out6));
+            management_query_user_pass(management, &up6 , "IFCONFIG6", GET_USER_PASS_NEED_OK,(void*) 0);
+        }
+
+        struct user_pass up;    
+        struct buffer out = alloc_buf_gc (64, &gc);
+        char* top;
+        switch(tt->topology) {
+            case TOP_NET30:
+                top = "net30";
+                break;
+            case TOP_P2P:
+                top="p2p";
+                break;
+            case TOP_SUBNET:
+                top="subnet";
+                break;
+            default:
+                top="undef";
+        }
+        
+        buf_printf (&out, "%s %s %d %s", ifconfig_local, ifconfig_remote_netmask, tun_mtu,top);
+        strcpy(up.username, buf_bptr(&out));
+        management_query_user_pass(management, &up , "IFCONFIG", GET_USER_PASS_NEED_OK,(void*) 0);
+
+
+        
 #elif defined(TARGET_SOLARIS)
 
       /* Solaris 2.6 (and 7?) cannot set all parameters in one go...
@@ -1376,8 +1411,59 @@ close_tun_generic (struct tuntap *tt)
 
 #endif
 
-#if defined(TARGET_LINUX)
+#if defined (TARGET_ANDROID)
+void
+open_tun (const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt)
+{
+    int i;
+    struct user_pass up;
+    struct gc_arena gc = gc_new ();
+    
+    for (i = 0; i < tt->options.dns_len; ++i) {
+        strcpy(up.username, print_in_addr_t(tt->options.dns[i], 0, &gc));
+        management_query_user_pass(management, &up , "DNSSERVER", GET_USER_PASS_NEED_OK,(void*) 0);
+    }
 
+    if(tt->options.domain) {
+        strcpy(up.username , tt->options.domain);
+        management_query_user_pass(management, &up , "DNSDOMAIN", GET_USER_PASS_NEED_OK,(void*) 0);
+    }
+    
+    strcpy(up.username , dev);
+    management_query_user_pass(management, &up , "OPENTUN", GET_USER_PASS_NEED_OK,(void*) 0);
+
+    tt->fd = management->connection.lastfdreceived;
+    management->connection.lastfdreceived=-1;
+    
+    if( (tt->fd < 0) || ! (strcmp("ok",up.password)==0)) {
+        msg (M_ERR, "ERROR: Cannot open TUN");
+    }
+    gc_free (&gc);
+}
+
+void
+close_tun (struct tuntap *tt)
+{
+    if (tt)
+    {
+        close_tun_generic (tt);
+        free (tt);
+    }
+}
+
+int
+write_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+    return write (tt->fd, buf, len);
+}
+
+int
+read_tun (struct tuntap* tt, uint8_t *buf, int len)
+{
+    return read (tt->fd, buf, len);
+}
+
+#elif defined(TARGET_LINUX)
 #ifdef HAVE_LINUX_IF_TUN_H	/* New driver support */
 
 #ifndef HAVE_LINUX_SOCKIOS_H

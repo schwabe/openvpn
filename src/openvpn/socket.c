@@ -38,6 +38,7 @@
 #include "ps.h"
 #include "manage.h"
 #include "misc.h"
+#include "manage.h"
 
 #include "memdbg.h"
 
@@ -725,6 +726,15 @@ create_socket (struct link_socket *sock)
     {
       ASSERT (0);
     }
+#ifdef TARGET_ANDROID
+    struct user_pass up;
+    strcpy(up.username ,__func__);
+    management->connection.fdtosend = sock->sd;
+    management_query_user_pass(management, &up , "PROTECTFD", GET_USER_PASS_NEED_OK,(void*) 0);
+
+
+#endif
+    
 }
 
 /*

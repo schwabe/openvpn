@@ -1342,6 +1342,17 @@ add_route (struct route *r,
   argv_msg (D_ROUTE, &argv);
   status = openvpn_execve_check (&argv, es, 0, "ERROR: Linux route add command failed");
 
+#elif defined (TARGET_ANDROID)
+
+    struct user_pass up;    
+    struct buffer out = alloc_buf_gc (64, &gc);
+
+    buf_printf (&out, "%s %s", network, netmask);
+
+    strcpy(up.username, buf_bptr(&out));
+    management_query_user_pass(management, &up , "ROUTE", GET_USER_PASS_NEED_OK,(void*) 0);
+
+
 #elif defined (WIN32)
   {
     DWORD ai = TUN_ADAPTER_INDEX_INVALID;
@@ -1613,6 +1624,15 @@ add_route_ipv6 (struct route_ipv6 *r6, const struct tuntap *tt, unsigned int fla
   argv_msg (D_ROUTE, &argv);
   status = openvpn_execve_check (&argv, es, 0, "ERROR: Linux route -6/-A inet6 add command failed");
 
+#elif defined (TARGET_ANDROID)
+    struct user_pass up;    
+    struct buffer out = alloc_buf_gc (64, &gc);
+    
+    buf_printf (&out, "%s/%d", network, r6->netbits);
+    
+    strcpy(up.username, buf_bptr(&out));
+    management_query_user_pass(management, &up , "ROUTE6", GET_USER_PASS_NEED_OK,(void*) 0);
+
 #elif defined (WIN32)
 
   /* netsh interface ipv6 add route 2001:db8::/32 MyTunDevice */
@@ -1872,7 +1892,8 @@ delete_route (struct route *r,
 
   argv_msg (D_ROUTE, &argv);
   openvpn_execve_check (&argv, es, 0, "ERROR: OpenBSD/NetBSD route delete command failed");
-
+#elif defined(TARGET_ANDROID)
+  msg (M_NONFATAL, "Sorry, deleting routes on Android is not possible. The VpnService API allows routes to be set on connect only.");
 #else
   msg (M_FATAL, "Sorry, but I don't know how to do 'route' commands on this operating system.  Try putting your routes in a --route-up script");
 #endif
@@ -2422,7 +2443,7 @@ show_routes (int msglev)
   gc_free (&gc);
 }
 
-#elif defined(TARGET_LINUX)
+#elif defined(TARGET_LINUX) || defined(TARGET_ANDROID)
 
 void
 get_default_gateway (struct route_gateway_info *rgi)
