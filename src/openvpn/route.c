@@ -301,6 +301,7 @@ init_route (struct route *r,
     ret = openvpn_getaddrinfo(GETADDR_RESOLVE | GETADDR_WARN_ON_SIGNAL,
                               ro->network, NULL, 0, NULL, AF_INET, network_list);
 
+
   status = (ret == 0);
 
   if (!status)
