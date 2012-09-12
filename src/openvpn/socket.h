@@ -98,7 +98,7 @@ struct link_socket_actual
 struct link_socket_addr
 {
   struct openvpn_sockaddr local;
-  struct openvpn_sockaddr remote;   /* initial remote */
+  struct addrinfo* remote_list;   /* initial remote */
   struct link_socket_actual actual; /* reply to this address */
 };
 
@@ -610,13 +610,35 @@ link_socket_actual_defined (const struct link_socket_actual *act)
 static inline bool
 addr_match (const struct openvpn_sockaddr *a1, const struct openvpn_sockaddr *a2)
 {
-  switch(a1->addr.sa.sa_family) {
+    switch(a1->addr.sa.sa_family) {
+        case AF_INET:
+            return a1->addr.in4.sin_addr.s_addr == a2->addr.in4.sin_addr.s_addr;
+        case AF_INET6:
+            return IN6_ARE_ADDR_EQUAL(&a1->addr.in6.sin6_addr, &a2->addr.in6.sin6_addr);
+    }
+    ASSERT(0);
+    return false;
+}
+
+static inline bool
+addrlist_match (const struct openvpn_sockaddr *a1, const struct addrinfo *addrlist)
+{
+  const struct addrinfo *curele;
+  for (curele = addrlist; curele; curele=curele->ai_next) {
+
+    switch(a1->addr.sa.sa_family) {
     case AF_INET:
-      return a1->addr.in4.sin_addr.s_addr == a2->addr.in4.sin_addr.s_addr;
+      if (a1->addr.in4.sin_addr.s_addr == ((struct sockaddr_in*)curele->ai_addr)->sin_addr.s_addr)
+        return true;
+      break;
     case AF_INET6:
-      return IN6_ARE_ADDR_EQUAL(&a1->addr.in6.sin6_addr, &a2->addr.in6.sin6_addr);
+      if (IN6_ARE_ADDR_EQUAL(&a1->addr.in6.sin6_addr, &((struct sockaddr_in6*) curele->ai_addr)->sin6_addr))
+        return true;
+      break;
+    default:
+      ASSERT(0);
+    }
   }
-  ASSERT(0);
   return false;
 }
 
@@ -632,6 +654,34 @@ addr_host (const struct openvpn_sockaddr *addr)
     return 0;
   return ntohl (addr->addr.in4.sin_addr.s_addr);
 }
+
+
+static inline bool
+addrlist_port_match (const struct openvpn_sockaddr *a1, const struct addrinfo *a2)
+{
+    const struct addrinfo *curele;
+    for(curele=a2;curele;curele = curele->ai_next) {
+        switch(a1->addr.sa.sa_family) {
+            case AF_INET:
+            if (curele->ai_family == AF_INET
+                && a1->addr.in4.sin_addr.s_addr == ((struct sockaddr_in*)curele->ai_addr)->sin_addr.s_addr
+                && a1->addr.in4.sin_port == ((struct sockaddr_in*)curele->ai_addr)->sin_port)
+                return true;
+                break;
+            case AF_INET6:
+                if (curele->ai_family == AF_INET6
+                && IN6_ARE_ADDR_EQUAL(&a1->addr.in6.sin6_addr, &((struct sockaddr_in6*) curele->ai_addr)->sin6_addr)
+                && a1->addr.in6.sin6_port == ((struct sockaddr_in6*) curele->ai_addr)->sin6_port)
+                    return true;
+                break;
+            default:
+                ASSERT(0);
+        }
+    }
+    return false;
+}
+
+
 
 static inline bool
 addr_port_match (const struct openvpn_sockaddr *a1, const struct openvpn_sockaddr *a2)
@@ -650,12 +700,23 @@ addr_port_match (const struct openvpn_sockaddr *a1, const struct openvpn_sockadd
 
 static inline bool
 addr_match_proto (const struct openvpn_sockaddr *a1,
-		  const struct openvpn_sockaddr *a2,
+                      const struct openvpn_sockaddr *a2,
+                      const int proto)
+{
+    return link_socket_proto_connection_oriented (proto)
+    ? addr_match (a1, a2)
+    : addr_port_match (a1, a2);
+}
+
+
+static inline bool
+addrlist_match_proto (const struct openvpn_sockaddr *a1,
+		  struct addrinfo *addr_list,
 		  const int proto)
 {
   return link_socket_proto_connection_oriented (proto)
-    ? addr_match (a1, a2)
-    : addr_port_match (a1, a2);
+    ? addrlist_match (a1, addr_list)
+    : addrlist_port_match (a1, addr_list);
 }
 
 static inline void
@@ -774,9 +835,9 @@ link_socket_verify_incoming_addr (struct buffer *buf,
 	case AF_INET:
 	  if (!link_socket_actual_defined (from_addr))
 	    return false;
-	  if (info->remote_float || !addr_defined (&info->lsa->remote))
+	  if (info->remote_float || !info->lsa->remote_list)
 	    return true;
-	  if (addr_match_proto (&from_addr->dest, &info->lsa->remote, info->proto))
+	  if (addrlist_match_proto (&from_addr->dest, info->lsa->remote_list, info->proto))
 	    return true;
       }
     }
@@ -818,8 +879,8 @@ link_socket_set_outgoing_addr (const struct buffer *buf,
 	   || !addr_match_proto (&act->dest, &lsa->actual.dest, info->proto))
 	  /* address undef or address == remote or --float */
 	  && (info->remote_float
-	      || !addr_defined (&lsa->remote)
-	      || addr_match_proto (&act->dest, &lsa->remote, info->proto))
+	      || !lsa->remote_list)
+	      || addrlist_match_proto (&act->dest, lsa->remote_list, info->proto)
 	  )
 	{
 	  link_socket_connection_initiated (buf, info, act, common_name, es);
