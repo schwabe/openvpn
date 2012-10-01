@@ -186,15 +186,15 @@ openvpn_getaddrinfo (unsigned int flags,
       const char *fmt;
       int level = 0;
       
-      fmt = "RESOLVE: Cannot resolve host address: %s: %s";
+      fmt = "RESOLVE: Cannot resolve host address: %s:%s (%s)";
       if ((flags & GETADDR_MENTION_RESOLVE_RETRY)
           && !resolve_retry_seconds)
-        fmt = "RESOLVE: Cannot resolve host address: %s: %s (I would have retried this name query if you had specified the --resolv-retry option.)";
+        fmt = "RESOLVE: Cannot resolve host address: %s:%s (%s) (I would have retried this name query if you had specified the --resolv-retry option.)";
 
       if (!(flags & GETADDR_RESOLVE) || status == EAI_FAIL)
         {
-          msg (msglevel, "RESOLVE: Cannot parse IP address: %s:%s",
-               print_hostname,print_servname);
+          msg (msglevel, "RESOLVE: Cannot parse IP address: %s:%s (%s)",
+               print_hostname,print_servname, gai_strerror(status));
           goto done;
         }
 
