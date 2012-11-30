@@ -411,7 +411,7 @@ init_tun (const char *dev,       /* --dev option */
 	  const char *ifconfig_ipv6_local_parm,     /* --ifconfig parm 1 IPv6 */
 	  int         ifconfig_ipv6_netbits_parm,
 	  const char *ifconfig_ipv6_remote_parm,    /* --ifconfig parm 2 IPv6 */
-	  in_addr_t local_public,
+	  struct addrinfo *local_public,
 	  struct addrinfo *remote_public,
 	  const bool strict_warn,
 	  struct env_set *es)
@@ -473,12 +473,15 @@ init_tun (const char *dev,       /* --dev option */
 	   * If local_public or remote_public addresses are defined,
 	   * make sure they do not clash with our virtual subnet.
 	   */
-
-	  check_addr_clash ("local",
+          
+          for(curele=remote_public;curele;curele=curele->ai_next) {
+            if(curele->ai_family == AF_INET)
+              check_addr_clash ("local",
 			    tt->type,
-			    local_public,
+                            ((struct sockaddr_in*)curele->ai_addr)->sin_addr.s_addr,
 			    tt->local,
 			    tt->remote_netmask);
+          }
 
 	  for (curele=remote_public;curele;curele=curele->ai_next) {
 	    if (curele->ai_family == AF_INET)
