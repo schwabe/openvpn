@@ -726,16 +726,26 @@ create_socket (struct link_socket *sock)
     {
       ASSERT (0);
     }
-#ifdef TARGET_ANDROID
-    struct user_pass up;
-    strcpy(up.username ,__func__);
-    management->connection.fdtosend = sock->sd;
-    msg(M_DEBUG, "Protecting socket fd %d", sock->sd);
-    management_query_user_pass(management, &up , "PROTECTFD", GET_USER_PASS_NEED_OK,(void*) 0);
-
-#endif
     
 }
+
+#ifdef TARGET_ANDROID
+static void protect_fd_nonlocal (int fd, struct sockaddr* addr)
+{
+    if (addr_local (addr)) {
+        msg(M_DEBUG, "Address is local, not protecting socket fd %d", fd);
+        return;
+    }
+    
+    struct user_pass up;
+    strcpy(up.username ,__func__);
+    management->connection.fdtosend = fd;
+    msg(M_DEBUG, "Protecting socket fd %d", fd);
+    management_query_user_pass(management, &up , "PROTECTFD", GET_USER_PASS_NEED_OK,(void*) 0);
+
+}
+#endif
+    
 
 /*
  * Functions used for establishing a TCP stream connection.
@@ -933,6 +943,7 @@ openvpn_connect (socket_descriptor_t sd,
 
 #ifdef CONNECT_NONBLOCK
   set_nonblock (sd);
+  protect_fd_nonlocal(sd, &remote->addr.sa);
   status = connect (sd, &remote->addr.sa, af_addr_size(remote->addr.sa.sa_family));
   if (status)
     status = openvpn_errno ();
@@ -1713,6 +1724,10 @@ link_socket_init_phase2 (struct link_socket *sock,
 	  if (*signal_received)
 	    goto done;
 	}
+      else if (sock->info.proto == PROTO_UDPv4 || sock->info.proto == PROTO_UDPv6)
+        {
+          protect_fd_nonlocal (sock->sd, &sock->info.lsa->actual.dest.addr.sa);
+        }
 #endif
 
       if (*signal_received)
