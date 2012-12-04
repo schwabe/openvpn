@@ -692,16 +692,25 @@ create_socket (struct link_socket *sock)
     /* set socket to --mark packets with given value */
     socket_set_mark (sock->sd, sock->mark);
     
+}
+
 #ifdef TARGET_ANDROID
+static void protect_fd_nonlocal (int fd, struct sockaddr* addr)
+{
+    if (addr_local (addr)) {
+        msg(M_DEBUG, "Address is local, not protecting socket fd %d", fd);
+        return;
+    }
+    
     struct user_pass up;
     strcpy(up.username ,__func__);
-    management->connection.fdtosend = sock->sd;
-    msg(M_DEBUG, "Protecting socket fd %d", sock->sd);
+    management->connection.fdtosend = fd;
+    msg(M_DEBUG, "Protecting socket fd %d", fd);
     management_query_user_pass(management, &up , "PROTECTFD", GET_USER_PASS_NEED_OK,(void*) 0);
 
+}
 #endif
     
-}
 
 /*
  * Functions used for establishing a TCP stream connection.
@@ -926,6 +935,8 @@ openvpn_connect (socket_descriptor_t sd,
 
 #ifdef CONNECT_NONBLOCK
   set_nonblock (sd);
+
+  protect_fd_nonlocal(sd, remote);
   status = connect (sd, remote, af_addr_size(remote->sa_family));
   if (status)
     status = openvpn_errno ();
