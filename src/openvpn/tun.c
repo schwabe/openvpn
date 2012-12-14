@@ -413,8 +413,8 @@ init_tun (const char *dev,       /* --dev option */
 	  const char *ifconfig_ipv6_local_parm,     /* --ifconfig parm 1 IPv6 */
 	  int         ifconfig_ipv6_netbits_parm,
 	  const char *ifconfig_ipv6_remote_parm,    /* --ifconfig parm 2 IPv6 */
-	  in_addr_t local_public,
-	  in_addr_t remote_public,
+	  struct addrinfo *local_public,
+	  struct addrinfo *remote_public,
 	  const bool strict_warn,
 	  struct env_set *es)
 {
@@ -468,24 +468,31 @@ init_tun (const char *dev,       /* --dev option */
        */
       if (strict_warn)
 	{
+          struct addrinfo *curele;
 	  ifconfig_sanity_check (tt->type == DEV_TYPE_TUN, tt->remote_netmask, tt->topology);
 
 	  /*
 	   * If local_public or remote_public addresses are defined,
 	   * make sure they do not clash with our virtual subnet.
 	   */
-
-	  check_addr_clash ("local",
+          
+          for(curele=remote_public;curele;curele=curele->ai_next) {
+            if(curele->ai_family == AF_INET)
+              check_addr_clash ("local",
 			    tt->type,
-			    local_public,
+                            ((struct sockaddr_in*)curele->ai_addr)->sin_addr.s_addr,
 			    tt->local,
 			    tt->remote_netmask);
+          }
 
-	  check_addr_clash ("remote",
-			    tt->type,
-			    remote_public,
-			    tt->local,
-			    tt->remote_netmask);
+          for(curele=remote_public;curele;curele=curele->ai_next) {
+            if(curele->ai_family == AF_INET)
+              check_addr_clash ("remote",
+                                tt->type,
+                                ((struct sockaddr_in*)curele->ai_addr)->sin_addr.s_addr,
+			        tt->local,
+			        tt->remote_netmask);
+          }
 
 	  if (tt->type == DEV_TYPE_TAP || (tt->type == DEV_TYPE_TUN && tt->topology == TOP_SUBNET))
 	    check_subnet_conflict (tt->local, tt->remote_netmask, "TUN/TAP adapter");

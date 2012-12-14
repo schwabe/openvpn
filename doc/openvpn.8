@@ -456,13 +456,9 @@ possess a built-in reliability layer.
 .\"*********************************************************
 .TP
 .B \-\-connect-retry n
-For
-.B \-\-proto tcp-client,
-take
+Wait
 .B n
-as the
-number of seconds to wait
-between connection retries (default=5).
+seconds  between connection attempts (default=5).
 .\"*********************************************************
 .TP
 .B \-\-connect-timeout n
@@ -474,12 +470,15 @@ seconds (default=10).
 .\"*********************************************************
 .TP
 .B \-\-connect-retry-max n
-For
-.B \-\-proto tcp-client,
-take
 .B n
-as the
-number of retries of connection attempt (default=infinite).
+specifies the number of times all 
+.B \-\-remote 
+respectively 
+.B <connection>
+statements are tried. Specifiying 
+.B n
+as one would try each entry exactly once. A sucessful connection 
+resets the counter. (default=umlimited).
 .\"*********************************************************
 .TP
 .B \-\-show-proxy-settings
@@ -651,18 +650,18 @@ peer on its new IP address.
 .\"*********************************************************
 .TP
 .B \-\-port port
-TCP/UDP port number for both local and remote.  The current
+TCP/UDP port number or port name for both local and remote.  The current
 default of 1194 represents the official IANA port number
 assignment for OpenVPN and has been used since version 2.0-beta17.
 Previous versions used port 5000 as the default.
 .\"*********************************************************
 .TP
 .B \-\-lport port
-TCP/UDP port number for bind.
+TCP/UDP port number or name for bind.
 .\"*********************************************************
 .TP
 .B \-\-rport port
-TCP/UDP port number for remote.
+TCP/UDP port number or name for remote.
 .\"*********************************************************
 .TP
 .B \-\-bind
@@ -5696,7 +5695,7 @@ Set on program initiation and reset on SIGHUP.
 .\"*********************************************************
 .TP
 .B local_port
-The local port number, specified by
+The local port number or name, specified by
 .B \-\-port
 or
 .B \-\-lport.
