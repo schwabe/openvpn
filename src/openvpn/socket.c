@@ -674,7 +674,7 @@ create_socket (struct link_socket *sock)
 
 #ifdef ENABLE_SOCKS
       if (sock->socks_proxy)
-	sock->ctrl_sd = create_socket_tcp (AF_INET);
+	sock->ctrl_sd = create_socket_tcp (ai_family);
 #endif
     }
   else if (ai_proto == IPPROTO_TCP)
@@ -685,6 +685,12 @@ create_socket (struct link_socket *sock)
     {
       ASSERT (0);
     }
+    /* set socket buffers based on --sndbuf and --rcvbuf options */
+    socket_set_buffers (sock->sd, &sock->socket_buffer_sizes);
+    
+    /* set socket to --mark packets with given value */
+    socket_set_mark (sock->sd, sock->mark);
+    
 #ifdef TARGET_ANDROID
   /* pass socket FD to management interface to pass on to VPNService API
    * as "protected socket" (exempt from being routed into tunnel)
@@ -895,7 +901,8 @@ socket_bind (socket_descriptor_t sd,
           break;
     }
   if (!cur)
-      msg (M_FATAL, "%s: Socket bind failed: No addr to bind has no v4/v6 record", prefix);
+      msg (M_FATAL, "%s: Socket bind failed: Addr to bind has no %s record",
+           prefix, addr_family_name(ai_family));
     
   if (bind (sd, cur->ai_addr, cur->ai_addrlen))
     {
@@ -1143,7 +1150,7 @@ static void bind_local (struct link_socket *sock)
     if (sock->bind_local)
       {
 #ifdef ENABLE_SOCKS
-        if (sock->socks_proxy && sock->info.proto == PROTO_UDP && sock->info.af == AF_INET)
+        if (sock->socks_proxy && sock->info.proto == PROTO_UDP)
             socket_bind (sock->ctrl_sd, sock->info.lsa->bind_local,
                          sock->info.lsa->actual.ai_family, "SOCKS");
         else
@@ -1280,23 +1287,34 @@ link_socket_new (void)
 }
 
 void
-create_new_socket (struct link_socket* sock, int mark)
+create_new_socket (struct link_socket* sock)
 {
    if (sock->bind_local) {
       resolve_bind_local (sock, sock->info.af);
   }
   resolve_remote (sock, 1, NULL, NULL);
-  create_socket (sock);
-
-  /* set socket buffers based on --sndbuf and --rcvbuf options */
-  socket_set_buffers (sock->sd, &sock->socket_buffer_sizes);
+  /*
+   * In P2P or server mode we must create the socket even when resolving
+   * the remote site fails/is not specified. */
     
-  /* set socket to --mark packets with given value */
-  socket_set_mark (sock->sd, mark);
-
-  if (sock->bind_local)
-    bind_local(sock);
+  if (sock->info.af && sock->info.lsa->actual.ai_family==0 && sock->bind_local)
+    {
+      /* Copy sock parameters from bind addr */
+      set_actual_address (&sock->info.lsa->actual, sock->info.lsa->bind_local);
+      /* clear destination set by set_actual_address */
+      CLEAR(sock->info.lsa->actual.dest);
+    }
     
+  /* 
+   * Create the socket early if socket should be bound
+   */
+  if (sock->bind_local && sock->info.lsa->actual.ai_family)
+    {
+      create_socket (sock);
+
+      if (sock->bind_local)
+          bind_local(sock);
+    }
 }
 
 
@@ -1363,6 +1381,7 @@ link_socket_init_phase1 (struct link_socket *sock,
   sock->socket_buffer_sizes.sndbuf = sndbuf;
 
   sock->sockflags = sockflags;
+  sock->mark = mark;
 
   sock->info.proto = proto;
   sock->info.af = af;
@@ -1438,7 +1457,7 @@ link_socket_init_phase1 (struct link_socket *sock,
     }
   else if (mode != LS_MODE_TCP_ACCEPT_FROM)
     {
-      create_new_socket (sock, mark);
+      create_new_socket (sock);
     }
 }
 
@@ -1712,8 +1731,28 @@ link_socket_init_phase2 (struct link_socket *sock,
     }
   else
     {
+      /* Second chance to resolv/create socket */
       resolve_remote (sock, 2, &remote_dynamic,  &sig_info->signal_received);
+      
+      /* If socket has not already been created create it now */
+      if (sock->sd == SOCKET_UNDEFINED)
+        {
+          if (sock->info.lsa->actual.ai_family)
+            {
+              create_socket (sock);
+            }
+          else
+            {
+              msg (M_WARN, "Could not determine IPv4/IPv6 protocol");
+              sig_info->signal_received = SIGUSR1;
+              goto done;
+            }
+          
+          if (sock->bind_local)
+              bind_local(sock);
+        }
 
+      
       if (sig_info && sig_info->signal_received)
         goto done;
 
@@ -2167,6 +2206,8 @@ print_sockaddr_ex (const struct sockaddr *sa,
       salen = sizeof (struct sockaddr_in6);
       addr_is_defined = !IN6_IS_ADDR_UNSPECIFIED(&((struct sockaddr_in6*) sa)->sin6_addr);
       break;
+    case AF_UNSPEC:
+      return "[AF_UNSPEC]";
     default:
       ASSERT(0);
     }
