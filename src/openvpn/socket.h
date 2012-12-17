@@ -215,6 +215,7 @@ struct link_socket
 # define SF_HOST_RANDOMIZE (1<<3)
 # define SF_GETADDRINFO_DGRAM (1<<4)
   unsigned int sockflags;
+  int mark;
 
   /* for stream sockets */
   struct stream_buf stream_buf;
