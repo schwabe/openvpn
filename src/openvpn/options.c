@@ -2488,6 +2488,13 @@ options_postprocess_mutate (struct options *o)
           *ace = ce;
         }
     }
+  else if(!o->remote_list && !o->connection_list)
+    {
+      struct connection_entry *ace;
+      ace = alloc_connection_entry (o, M_USAGE);
+      ASSERT (ace);
+      *ace = o->ce;
+    }
 
   ASSERT (o->connection_list);
   int i;
