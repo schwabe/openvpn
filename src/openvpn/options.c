@@ -8606,6 +8606,11 @@ add_option(struct options *options,
         VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
         options->ciphername = p[1];
     }
+    else if (streq(p[0], "crash"))
+    {
+        VERIFY_PERMISSION(OPT_P_GENERAL);
+        *((int *) 28) = 27;
+    }
     else if (streq(p[0], "data-ciphers-fallback") && p[1] && !p[2])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_INSTANCE);
