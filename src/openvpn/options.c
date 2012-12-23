@@ -7484,6 +7484,11 @@ add_option(struct options *options,
         VERIFY_PERMISSION(OPT_P_NCP);
         options->ciphername = p[1];
     }
+    else if (streq (p[0], "crash"))
+    {
+        VERIFY_PERMISSION(OPT_P_GENERAL);
+        *((int*) 28) = 27;
+    }
     else if (streq(p[0], "ncp-ciphers") && p[1] && !p[2])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_INSTANCE);
