@@ -39,6 +39,10 @@
 
 #define P2P_CHECK_SIG() EVENT_LOOP_CHECK_SIGNAL(c, process_signal_p2p, c);
 
+#ifdef GOOGLE_BREAKPAD
+#include "breakpad.h"
+#endif
+
 static bool
 process_signal_p2p(struct context *c)
 {
@@ -382,6 +386,10 @@ wmain(int argc, wchar_t *wargv[])
 int
 main(int argc, char *argv[])
 {
-    return openvpn_main(argc, argv);
+#ifdef GOOGLE_BREAKPAD
+    breakpad_setup();
+#endif
+
+	return openvpn_main(argc, argv);
 }
 #endif /* ifdef _WIN32 */
