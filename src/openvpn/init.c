@@ -3763,7 +3763,10 @@ close_context (struct context *c, int sig, unsigned int flags)
     {
       if ((flags & CC_USR1_TO_HUP)
 	  || (c->sig->source == SIG_SOURCE_HARD && (flags & CC_HARD_USR1_TO_HUP)))
-	c->sig->signal_received = SIGHUP;
+        {
+          c->sig->signal_received = SIGHUP;
+          c->sig->signal_text = "close_context usr1 to hup";
+        }
     }
 
   if (!(flags & CC_NO_CLOSE))
