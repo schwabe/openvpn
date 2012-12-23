@@ -50,6 +50,10 @@
 #endif
 #endif
 
+#ifdef GOOGLE_BREAKPAD
+#include "breakpad.h"
+#endif
+
 /* Globals */
 unsigned int x_debug_level; /* GLOBAL */
 
@@ -396,6 +400,9 @@ dont_mute (unsigned int flags)
 void
 assert_failed (const char *filename, int line, const char *condition)
 {
+#ifdef GOOGLE_BREAKPAD
+    breakpad_dodump();
+#endif
   if (condition)
     msg (M_FATAL, "Assertion failed at %s:%d (%s)", filename, line, condition);
   else
