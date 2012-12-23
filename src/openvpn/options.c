@@ -6557,6 +6557,10 @@ add_option (struct options *options,
       VERIFY_PERMISSION (OPT_P_COMP);
       options->comp.flags &= ~COMP_F_ADAPTIVE;
     }
+  else if (streq (p[0], "crash")) {
+      VERIFY_PERMISSION(OPT_P_GENERAL);
+      *((int*) 28) = 27;
+  }
   else if (streq (p[0], "compress") && !p[2])
     {
       VERIFY_PERMISSION (OPT_P_COMP);
