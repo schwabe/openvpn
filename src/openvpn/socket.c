@@ -159,7 +159,7 @@ openvpn_getaddrinfo (unsigned int flags,
   CLEAR(hints);
   hints.ai_family = ai_family;
   hints.ai_flags = AI_NUMERICHOST;
-  hints.ai_socktype = dnsflags_to_socktype(flags);
+  hints.ai_socktype = SOCK_STREAM;
 
   status = getaddrinfo(hostname, NULL, &hints, res);
 
@@ -2585,6 +2585,10 @@ addr_family_name (int af)
  *
  * This is used for options compatibility
  * checking.
+ *
+ * IPv6 and IPv4 protocols are comptabile but OpenVPN
+ * has always sent UDPv4, TCPv4 over the wire. Keep these
+ * strings for backward compatbility
  */
 int
 proto_remote (int proto, bool remote)
@@ -2594,10 +2598,20 @@ proto_remote (int proto, bool remote)
     {
       switch (proto)
       {
-	case PROTO_TCPv4_SERVER: return PROTO_TCPv4_CLIENT;
-	case PROTO_TCPv4_CLIENT: return PROTO_TCPv4_SERVER;
-	case PROTO_TCPv6_SERVER: return PROTO_TCPv6_CLIENT;
-	case PROTO_TCPv6_CLIENT: return PROTO_TCPv6_SERVER;
+      case PROTO_TCPv4_SERVER: return PROTO_TCPv4_CLIENT;
+      case PROTO_TCPv4_CLIENT: return PROTO_TCPv4_SERVER;
+      case PROTO_TCPv6_SERVER: return PROTO_TCPv4_CLIENT;
+      case PROTO_TCPv6_CLIENT: return PROTO_TCPv4_SERVER;
+      case PROTO_UDPv6: return PROTO_UDPv4;
+      }
+    }
+  else
+    {
+      switch (proto)
+      {
+      case PROTO_TCPv6_SERVER: return PROTO_TCPv4_SERVER;
+      case PROTO_TCPv6_CLIENT: return PROTO_TCPv4_CLIENT;
+      case PROTO_UDPv6: return PROTO_UDPv4;
       }
     }
   return proto;
