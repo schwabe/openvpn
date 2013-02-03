@@ -785,15 +785,15 @@ setenv_str_ex (struct env_set *es,
   ASSERT (es);
 
   if (val_tmp)
-	{
-	  const char *str = construct_name_value (name_tmp, val_tmp, &gc);
-	  env_set_add (es, str);
+    {
+      const char *str = construct_name_value (name_tmp, val_tmp, &gc);
+      env_set_add (es, str);
 #if DEBUG_VERBOSE_SETENV
-	  msg (M_INFO, "SETENV_ES '%s'", str);
+      msg (M_INFO, "SETENV_ES '%s'", str);
 #endif
-	}
+    }
   else
-	env_set_del (es, name_tmp);
+    env_set_del (es, name_tmp);
 
   gc_free (&gc);
 }
