@@ -230,7 +230,7 @@ plugin_init_item (struct plugin *p, const struct plugin_option *o)
   if (!p->handle)
     msg (M_ERR, "PLUGIN_INIT: could not load plugin shared object %s: %s", p->so_pathname, dlerror());
 
-# define PLUGIN_SYM(var, name, flags) libdl_resolve_symbol (p->handle, (void*)&p->var, name, p->so_pathname, flags)
+# define PLUGIN_SYM(var, name, flags) libdl_resolve_symbol (p->handle, (void**)&p->var, name, p->so_pathname, flags)
 
 #else
 
@@ -325,7 +325,7 @@ plugin_vlog (openvpn_plugin_log_flags_t flags, const char *name, const char *for
       msg_flags |= M_NOIPREFIX;
 
       gc_init (&gc);
-      msg_fmt = gc_malloc (ERR_BUF_SIZE, false, &gc);
+      msg_fmt = (char *) gc_malloc (ERR_BUF_SIZE, false, &gc);
       openvpn_snprintf (msg_fmt, ERR_BUF_SIZE, "PLUGIN %s: %s", name, format);
       x_msg_va (msg_flags, msg_fmt, arglist);
 

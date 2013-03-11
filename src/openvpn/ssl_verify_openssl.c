@@ -52,7 +52,7 @@ verify_callback (int preverify_ok, X509_STORE_CTX * ctx)
   struct gc_arena gc = gc_new();
 
   /* get the tls_session pointer */
-  ssl = X509_STORE_CTX_get_ex_data (ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
+  ssl = (SSL *) X509_STORE_CTX_get_ex_data (ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
   ASSERT (ssl);
   session = (struct tls_session *) SSL_get_ex_data (ssl, mydata_index);
   ASSERT (session);
@@ -241,7 +241,7 @@ x509_get_serial (openvpn_x509_cert_t *cert, struct gc_arena *gc)
 unsigned char *
 x509_get_sha1_hash (X509 *cert, struct gc_arena *gc)
 {
-  char *hash = gc_malloc(SHA_DIGEST_LENGTH, false, gc);
+  unsigned char *hash = (unsigned char *) gc_malloc(SHA_DIGEST_LENGTH, false, gc);
   memcpy(hash, cert->sha1_hash, SHA_DIGEST_LENGTH);
   return hash;
 }
@@ -260,7 +260,7 @@ x509_get_subject (X509 *cert, struct gc_arena *gc)
    */
   if (compat_flag (COMPAT_FLAG_QUERY | COMPAT_NAMES))
     {
-      subject = gc_malloc (256, false, gc);
+      subject = (char *) gc_malloc (256, false, gc);
       X509_NAME_oneline (X509_get_subject_name (cert), subject, 256);
       subject[255] = '\0';
       return subject;
@@ -280,7 +280,7 @@ x509_get_subject (X509 *cert, struct gc_arena *gc)
   BIO_get_mem_ptr (subject_bio, &subject_mem);
 
   maxlen = subject_mem->length + 1;
-  subject = gc_malloc (maxlen, false, gc);
+  subject = (char *) gc_malloc (maxlen, false, gc);
 
   memcpy (subject, subject_mem->data, maxlen);
   subject[maxlen - 1] = '\0';

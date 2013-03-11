@@ -71,7 +71,7 @@ alloc_buf (size_t size)
 #ifdef DMALLOC
   buf.data = openvpn_dmalloc (file, line, size);
 #else
-  buf.data = calloc (1, size);
+  buf.data = (uint8_t*) calloc (1, size);
 #endif
   check_malloc_return(buf.data);
 
@@ -547,7 +547,7 @@ string_alloc (const char *str, struct gc_arena *gc)
         ret = openvpn_dmalloc (file, line, n);
         memset(ret, 0, n);
 #else
-        ret = calloc(1, n);
+        ret =  (char *) calloc(1, n);
 #endif
         check_malloc_return(ret);
       }
@@ -1041,7 +1041,7 @@ buffer_list_aggregate (struct buffer_list *bl, const size_t max)
 	  struct buffer_entry *e = bl->head, *f;
 
 	  ALLOC_OBJ_CLEAR (f, struct buffer_entry);
-	  f->buf.data = malloc (size);
+	  f->buf.data = (uint8_t *) malloc (size);
 	  check_malloc_return (f->buf.data);
 	  f->buf.capacity = size;
 	  for (i = 0; e && i < count; ++i)

@@ -737,7 +737,7 @@ establish_http_proxy_passthru (struct http_proxy_info *p,
 	      if (opaque)
 		{
 		  const int len = strlen(opaque)+16;
-		  opaque_kv = gc_malloc(len, false, &gc);
+		  opaque_kv = (char * ) gc_malloc(len, false, &gc);
 		  openvpn_snprintf (opaque_kv, len, ", opaque=\"%s\"", opaque);
 		}
 

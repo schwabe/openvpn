@@ -113,7 +113,7 @@ struct route_option_list *
 clone_route_option_list (const struct route_option_list *src, struct gc_arena *a)
 {
   const size_t rl_size = array_mult_safe (sizeof(struct route_option), src->capacity, sizeof(struct route_option_list));
-  struct route_option_list *ret = gc_malloc (rl_size, false, a);
+  struct route_option_list *ret = (struct route_option_list *) gc_malloc (rl_size, false, a);
   memcpy (ret, src, rl_size);
   return ret;
 }
@@ -122,7 +122,7 @@ struct route_ipv6_option_list *
 clone_route_ipv6_option_list (const struct route_ipv6_option_list *src, struct gc_arena *a)
 {
   const size_t rl_size = array_mult_safe (sizeof(struct route_ipv6_option), src->capacity, sizeof(struct route_ipv6_option_list));
-  struct route_ipv6_option_list *ret = gc_malloc (rl_size, false, a);
+  struct route_ipv6_option_list *ret = (struct route_ipv6_option_list *) gc_malloc (rl_size, false, a);
   memcpy (ret, src, rl_size);
   return ret;
 }

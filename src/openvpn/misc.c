@@ -1746,7 +1746,7 @@ argv_term (const char **f)
     {
       char *ret;
       ASSERT (termlen > 0);
-      ret = malloc (termlen + 1);
+      ret = (char *) malloc (termlen + 1);
       check_malloc_return (ret);
       memcpy (ret, term, termlen);
       ret[termlen] = '\0';
@@ -2007,7 +2007,7 @@ argv_test (void)
 const char *
 sanitize_control_message(const char *src, struct gc_arena *gc)
 {
-  char *ret = gc_malloc (strlen(src)+1, false, gc);
+  char *ret = (char *) gc_malloc (strlen(src)+1, false, gc);
   char *dest = ret;
   bool redact = false;
   int skip = 0;

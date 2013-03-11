@@ -3083,7 +3083,7 @@ options_warning_extract_parm1 (const char *option_string,
 {
   struct gc_arena gc = gc_new ();
   struct buffer b = string_alloc_buf (option_string, &gc);
-  char *p = gc_malloc (OPTION_PARM_SIZE, false, &gc);
+  char *p = (char *) gc_malloc (OPTION_PARM_SIZE, false, &gc);
   const char *ret;
   
   buf_parse (&b, ' ', p, OPTION_PARM_SIZE);
@@ -3115,7 +3115,7 @@ options_warning_safe_scan2 (const int msglevel,
       struct gc_arena gc = gc_new ();
       struct buffer b2 = *b2_src;
       const char *p1_prefix = options_warning_extract_parm1 (p1, &gc);
-      char *p2 = gc_malloc (OPTION_PARM_SIZE, false, &gc);
+      char *p2 = (char *) gc_malloc (OPTION_PARM_SIZE, false, &gc);
 
       while (buf_parse (&b2, delim, p2, OPTION_PARM_SIZE))
 	{
@@ -3162,7 +3162,7 @@ options_warning_safe_scan1 (const int msglevel,
 {
   struct gc_arena gc = gc_new ();
   struct buffer b = *b1_src;
-  char *p = gc_malloc (OPTION_PARM_SIZE, true, &gc);
+  char *p = (char *) gc_malloc (OPTION_PARM_SIZE, true, &gc);
 
   while (buf_parse (&b, delim, p, OPTION_PARM_SIZE))
       options_warning_safe_scan2 (msglevel, delim, report_inconsistent, p, b2_src, b1_name, b2_name);
@@ -3563,7 +3563,7 @@ parse_line (const char *line,
 	  if (state == STATE_DONE)
 	    {
 	      /* ASSERT (parm_len > 0); */
-	      p[ret] = gc_malloc (parm_len + 1, true, gc);
+	      p[ret] = (char *) gc_malloc (parm_len + 1, true, gc);
 	      memcpy (p[ret], parm, parm_len);
 	      p[ret][parm_len] = '\0';
 	      state = STATE_INITIAL;

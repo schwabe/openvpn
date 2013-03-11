@@ -115,7 +115,7 @@ update_options_ce_post (struct options *options)
 static bool
 management_callback_proxy_cmd (void *arg, const char **p)
 {
-  struct context *c = arg;
+  struct context *c = (struct context *) arg;
   struct connection_entry *ce = &c->options.ce;
   struct gc_arena *gc = &c->c2.gc;
   bool ret = false;

@@ -133,7 +133,7 @@ x509_get_serial (x509_cert *cert, struct gc_arena *gc)
   char *buf = NULL;
   size_t len = cert->serial.len * 3 + 1;
 
-  buf = gc_malloc(len, true, gc);
+  buf = (char *) gc_malloc(len, true, gc);
 
   if(x509parse_serial_gets(buf, len-1, &cert->serial) < 0)
     buf = NULL;
@@ -144,7 +144,7 @@ x509_get_serial (x509_cert *cert, struct gc_arena *gc)
 unsigned char *
 x509_get_sha1_hash (x509_cert *cert, struct gc_arena *gc)
 {
-  unsigned char *sha1_hash = gc_malloc(SHA_DIGEST_LENGTH, false, gc);
+  unsigned char *sha1_hash = (unsigned char *) gc_malloc(SHA_DIGEST_LENGTH, false, gc);
   sha1(cert->tbs.p, cert->tbs.len, sha1_hash);
   return sha1_hash;
 }

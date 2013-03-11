@@ -829,7 +829,7 @@ wide_cmd_line (const struct argv *a, struct gc_arena *gc)
 	maxlen = len;
     }
 
-  work = gc_malloc (maxlen + 1, false, gc);
+  work = (char *) gc_malloc (maxlen + 1, false, gc);
   check_malloc_return (work);
   buf = alloc_buf_gc (nchars, gc);
 
@@ -914,7 +914,7 @@ WCHAR *
 wide_string (const char* utf8, struct gc_arena *gc)
 {
   int n = MultiByteToWideChar (CP_UTF8, 0, utf8, -1, NULL, 0);
-  WCHAR *ucs16 = gc_malloc (n * sizeof (WCHAR), false, gc);
+  WCHAR *ucs16 = (WCHAR *) gc_malloc (n * sizeof (WCHAR), false, gc);
   MultiByteToWideChar (CP_UTF8, 0, utf8, -1, ucs16, n);
   return ucs16;
 }

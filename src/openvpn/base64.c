@@ -137,7 +137,7 @@ openvpn_base64_decode(const char *str, void *data, int size)
     unsigned char *q;
     unsigned char *e = NULL;
 
-    q = data;
+    q = (unsigned char*) data;
     if (size >= 0)
       e = q + size;
     for (p = str; *p && (*p == '=' || strchr(base64_chars, *p)); p += 4) {
