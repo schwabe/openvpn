@@ -1434,7 +1434,6 @@ link_socket_init_phase1 (struct link_socket *sock,
   /* or in Socks proxy mode? */
   else if (sock->socks_proxy)
     {
-      ASSERT (sock->info.af == AF_INET);
       ASSERT (!sock->inetd);
 
       /* the proxy server */
