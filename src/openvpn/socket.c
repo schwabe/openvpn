@@ -1806,7 +1806,6 @@ link_socket_init_phase2 (struct link_socket *sock,
 #ifdef TARGET_ANDROID
       protect_fd_nonlocal (sock->sd, &sock->info.lsa->actual.dest.addr.sa);
 #endif
-    }
       if (sig_info && sig_info->signal_received)
 	goto done;
     }
