@@ -1468,7 +1468,7 @@ do_open_tun (struct context *c)
       if (oldtunfd >=0 && android_method == ANDROID_OPEN_AFTER_CLOSE)
         close(oldtunfd);
       
-      if (android_method != ANDROID_KEEP_OLD_TUN)
+      if (oldtunfd >=0 && android_method != ANDROID_KEEP_OLD_TUN)
 #endif
       /* open the tun device */
       open_tun (c->options.dev, c->options.dev_type, c->options.dev_node,
