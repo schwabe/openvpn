@@ -1463,12 +1463,18 @@ do_open_tun (struct context *c)
         do_route (&c->options, c->c1.route_list, c->c1.route_ipv6_list,
                   c->c1.tuntap, c->plugins, c->c2.es);
       }
-
+#ifdef TARGET_ANDROID
+      int android_method = managment_android_persisttun_action (man);
+      if (oldtunfd >=0 && android_method == ANDROID_OPEN_AFTER_CLOSE)
+        close(oldtunfd);
+      
+      if (android_method != ANDROID_KEEP_OLD_TUN)
+#endif
       /* open the tun device */
       open_tun (c->options.dev, c->options.dev_type, c->options.dev_node,
 		c->c1.tuntap);
 #ifdef TARGET_ANDROID
-      if (oldtunfd>=0)
+      if (oldtunfd>=0 && android_method == ANDROID_OPEN_BEFORE_CLOSE)
         close(oldtunfd);
 #endif
       /* set the hardware address */
