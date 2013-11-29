@@ -186,8 +186,10 @@ struct link_socket
 
   const char *remote_host;
   const char *remote_port;
+  struct addrinfo *preresolved_remote;
   const char *local_host;
   const char *local_port;
+  struct addrinfo *preresolved_local;
   bool bind_local;
 
 # define INETD_NONE   0
@@ -207,8 +209,6 @@ struct link_socket
   struct socket_buffer_size socket_buffer_sizes;
 
   int mtu;                      /* OS discovered MTU, or 0 if unknown */
-
-  bool did_resolve_remote;
 
 # define SF_USE_IP_PKTINFO (1<<0)
 # define SF_TCP_NODELAY (1<<1)
@@ -298,6 +298,8 @@ int openvpn_connect (socket_descriptor_t sd,
 		     int connect_timeout,
 		     volatile int *signal_received);
 
+
+
 /*
  * Initialize link_socket object.
  */
@@ -306,8 +308,10 @@ void
 link_socket_init_phase1 (struct link_socket *sock,
 			 const char *local_host,
 			 const char *local_port,
+                         struct addrinfo *local_preresolved,
 			 const char *remote_host,
 			 const char *remote_port,
+                         struct addrinfo *remote_preresolved,
 			 int proto,
 			 sa_family_t af,
 			 bool bind_ipv6_only,
@@ -895,15 +899,16 @@ link_socket_set_outgoing_addr (const struct buffer *buf,
     {
       struct link_socket_addr *lsa = info->lsa;
       if (
-	  (
 	   /* new or changed address? */
 	   (!info->connection_established
-	    || !addr_match_proto (&act->dest, &lsa->actual.dest, info->proto))
+	    || !addr_match_proto (&act->dest, &lsa->actual.dest, info->proto)
+            )
+            &&
 	   /* address undef or address == remote or --float */
-	   && (info->remote_float
-	       || !lsa->remote_list))
-	  || addrlist_match_proto (&act->dest, lsa->remote_list, info->proto)
-	  )
+	   (info->remote_float ||
+                (!lsa->remote_list || addrlist_match_proto (&act->dest, lsa->remote_list, info->proto))
+            )
+          )
 	{
 	  link_socket_connection_initiated (buf, info, act, common_name, es);
 	}

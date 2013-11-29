@@ -91,7 +91,6 @@ struct gc_entry
                                  *   linked list. */
 };
 
-
 /**
  * Garbage collection arena used to keep track of dynamically allocated
  * memory.
