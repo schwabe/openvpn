@@ -1,4 +1,4 @@
-/*
+    /*
  *  OpenVPN -- An application to securely tunnel IP networks
  *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
@@ -306,9 +306,9 @@ init_connection_list (struct context *c)
 /*
  * Clear the remote address list
  */
-static void clear_remote_addrlist (struct link_socket_addr *lsa)
+static void clear_remote_addrlist (struct link_socket_addr *lsa, bool freeaddr)
 {
-    if (lsa->remote_list) {
+    if (lsa->remote_list && freeaddr) {
         freeaddrinfo(lsa->remote_list);
     }
     lsa->remote_list = NULL;
@@ -348,13 +348,12 @@ next_connection_entry (struct context *c)
              * this is broken probably ever since connection lists and multiple
              * remote existed
              */
-
             if (!c->options.persist_remote_ip)
-                clear_remote_addrlist (&c->c1.link_socket_addr);
+                clear_remote_addrlist (&c->c1.link_socket_addr, !c->options.resolve_in_advance);
             else
                 c->c1.link_socket_addr.current_remote =
                 c->c1.link_socket_addr.remote_list;
-
+            
             /*
              * Increase the number of connection attempts
              * If this is connect-retry-max * size(l)
@@ -560,6 +559,8 @@ context_init_1 (struct context *c)
  }
 #endif
 
+  if (c->options.resolve_in_advance)
+      do_preresolve(c);
 }
 
 void
@@ -2686,8 +2687,10 @@ do_init_socket_1 (struct context *c, const int mode)
   link_socket_init_phase1 (c->c2.link_socket,
 			   c->options.ce.local,
 			   c->options.ce.local_port,
+			   c->options.ce.preresolved_local,
 			   c->options.ce.remote,
 			   c->options.ce.remote_port,
+			   c->options.ce.preresolved_remote,
 			   c->options.ce.proto,
 			   c->options.ce.af,
 			   c->options.ce.bind_ipv6_only,
@@ -2908,7 +2911,7 @@ do_close_link_socket (struct context *c)
            || c->options.no_advance))
          )))
     {
-      clear_remote_addrlist(&c->c1.link_socket_addr);
+      clear_remote_addrlist(&c->c1.link_socket_addr, !c->options.resolve_in_advance);
     }
 
     /* Clear the remote actual address when persist_remote_ip is not in use */
@@ -2916,7 +2919,7 @@ do_close_link_socket (struct context *c)
       CLEAR (c->c1.link_socket_addr.actual);
 
   if (!(c->sig->signal_received == SIGUSR1 && c->options.persist_local_ip)) {
-    if (c->c1.link_socket_addr.bind_local)
+    if (c->c1.link_socket_addr.bind_local && !c->options.resolve_in_advance)
         freeaddrinfo(c->c1.link_socket_addr.bind_local);
     c->c1.link_socket_addr.bind_local=NULL;
   }
@@ -3359,6 +3362,13 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
 	goto sig;
     }
 
+  if (c->options.resolve_in_advance)
+    {
+      do_preresolve(c);
+      if (IS_SIG (c))
+	goto sig;
+    }
+
   /* map in current connection entry */
   next_connection_entry (c);
 
@@ -3433,7 +3443,7 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   /* allocate our socket object */
   if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
     do_link_socket_new (c);
-
+    
 #ifdef ENABLE_FRAGMENT
   /* initialize internal fragmentation object */
   if (options->ce.fragment && (c->mode == CM_P2P || child))
