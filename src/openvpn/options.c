@@ -799,6 +799,7 @@ init_options (struct options *o, const bool init_gc)
   o->route_delay_window = 30;
   o->max_routes = MAX_ROUTES_DEFAULT;
   o->resolve_retry_seconds = RESOLV_RETRY_INFINITE;
+  o->resolve_in_advance = false;
   o->proto_force = -1;
 #ifdef ENABLE_OCC
   o->occ = true;
@@ -1372,6 +1373,7 @@ show_connection_entry (const struct connection_entry *o)
   SHOW_BOOL (remote_float);
   SHOW_BOOL (bind_defined);
   SHOW_BOOL (bind_local);
+  SHOW_BOOL (bind_ipv6_only);
   SHOW_INT (connect_retry_seconds);
   SHOW_INT (connect_timeout);
 
@@ -1497,6 +1499,7 @@ show_settings (const struct options *o)
 #endif
 
   SHOW_INT (resolve_retry_seconds);
+  SHOW_BOOL (resolve_in_advance);
 
   SHOW_STR (username);
   SHOW_STR (groupname);
@@ -4541,6 +4544,15 @@ add_option (struct options *options,
 	options->resolve_retry_seconds = RESOLV_RETRY_INFINITE;
       else
 	options->resolve_retry_seconds = positive_atoi (p[1]);
+    }
+  else if (streq (p[0], "preresolve") || streq (p[0], "ip-remote-hint"))
+    {
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      options->resolve_in_advance = true;
+      /* Note the ip-remote-hint and the argument p[1] are for
+	 backward compatibility */
+      if (p[1])
+	options->ip_remote_hint=p[1];
     }
   else if (streq (p[0], "connect-retry") && p[1])
     {
