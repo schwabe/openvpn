@@ -1409,8 +1409,6 @@ show_connection_entry (const struct connection_entry *o)
 static void
 show_connection_entries (const struct options *o)
 {
-  msg (D_SHOW_PARMS, "Connection profiles [default]:");
-  show_connection_entry (&o->ce);
  if (o->connection_list)
    {
      const struct connection_list *l = o->connection_list;
@@ -1420,6 +1418,11 @@ show_connection_entries (const struct options *o)
 	 msg (D_SHOW_PARMS, "Connection profiles [%d]:", i);
 	 show_connection_entry (l->array[i]);
        }
+   }
+ else
+   {
+     msg (D_SHOW_PARMS, "Connection profiles [default]:");
+     show_connection_entry (&o->ce);
    }
   msg (D_SHOW_PARMS, "Connection profiles END");
 }
