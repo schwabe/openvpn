@@ -536,6 +536,46 @@ add_block_local_item (struct route_list *rl,
 }
 
 static void
+add_unblock_local (struct route_list *rl)
+{
+  const int rgi_needed = (RGI_ADDR_DEFINED|RGI_NETMASK_DEFINED);
+
+  if (rl->flags & RG_UNBLOCK_LOCAL && rl->n+1 < rl->capacity
+      && (rl->rgi.flags & rgi_needed) == rgi_needed)
+    {
+      /* unblock access to local subnet */
+      struct route_ipv4 r;
+      int i;
+
+      CLEAR(r);
+      r.flags = RT_DEFINED;
+      r.network = rl->rgi.gateway.addr & rl->rgi.gateway.netmask;
+      r.netmask = rl->rgi.gateway.netmask;
+      r.gateway = rl->rgi.gateway.addr;
+      rl->routes[rl->n++] = r;
+
+      /* Additional local networks */
+      for (i = 0; i < rl->rgi.n_addrs; ++i)
+	{
+	  const struct route_gateway_address *gwa = &rl->rgi.addrs[i];
+
+	  /* omit the add/subnet in &rl->rgi which we processed above */
+	  if ((!((rl->rgi.gateway.addr & rl->rgi.gateway.netmask) == (gwa->addr & gwa->netmask)
+		 && rl->rgi.gateway.netmask == gwa->netmask))  && rl->n+1 < rl->capacity)
+	    {
+	      CLEAR(r);
+	      r.flags = RT_DEFINED;
+	      r.network = gwa->addr & gwa->netmask;
+	      r.netmask = gwa->netmask;
+	      r.gateway = gwa->addr;
+	      rl->routes[rl->n++] = r;
+	    }
+	}
+    }
+}
+
+
+static void
 add_block_local (struct route_list *rl)
 {
   const int rgi_needed = (RGI_ADDR_DEFINED|RGI_NETMASK_DEFINED);
@@ -565,6 +605,8 @@ add_block_local (struct route_list *rl)
 	}
     }
 }
+
+
 
 bool
 init_route_list (struct route_list *rl,
@@ -634,6 +676,8 @@ init_route_list (struct route_list *rl,
 	}
     }
 
+
+  add_unblock_local (rl);
   if (rl->flags & RG_ENABLE)
     {
       add_block_local (rl);
