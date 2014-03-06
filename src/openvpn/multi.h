@@ -171,6 +171,10 @@ struct multi_context {
 
   struct context top;           /**< Storage structure for process-wide
                                  *   configuration. */
+    
+  /* Contexts belonging to the listening sockets and udp sockets */
+  struct context* topcontexts[64];
+  int numtopcontext;
 
   /*
    * Timer object for stale route check
@@ -227,7 +231,7 @@ void multi_uninit (struct multi_context *m);
 void multi_top_init (struct multi_context *m, const struct context *top, const bool alloc_buffers);
 void multi_top_free (struct multi_context *m);
 
-struct multi_instance *multi_create_instance (struct multi_context *m, const struct mroute_addr *real);
+struct multi_instance *multi_create_instance (struct multi_context *m, const struct mroute_addr *real, struct context *top);
 void multi_close_instance (struct multi_context *m, struct multi_instance *mi, bool shutdown);
 
 bool multi_process_timeout (struct multi_context *m, const unsigned int mpp_flags);

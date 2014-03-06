@@ -95,6 +95,7 @@ struct connection_entry
   bool bind_defined;
   bool bind_ipv6_only;
   bool bind_local;
+  int proto_version;
   int connect_retry_seconds;
   int connect_timeout;
   bool connect_timeout_defined;
@@ -208,6 +209,7 @@ struct options
   bool no_advance;
   /* Counts the number of unsuccessful connection attempts */
   unsigned int unsuccessful_attempts;
+  bool connection_list_is_listen;
 
 #if ENABLE_MANAGEMENT
   struct http_proxy_options *http_proxy_override;
@@ -633,6 +635,7 @@ struct options
 #define OPT_P_SOCKFLAGS       (1<<26)
 #define OPT_P_CONNECTION      (1<<27)
 #define OPT_P_PEER_ID         (1<<28)
+
 
 #define OPT_P_DEFAULT   (~(OPT_P_INSTANCE|OPT_P_PULL_MODE))
 

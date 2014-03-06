@@ -55,18 +55,21 @@
 /*
  * Special tags passed to event.[ch] functions
  */
-#define MTCP_SOCKET      ((void*)1)
-#define MTCP_TUN         ((void*)2)
-#define MTCP_SIG         ((void*)3) /* Only on Windows */
+#define MTCP_TUN         ((void*)1)
+#define MTCP_SIG         ((void*)2) /* Only on Windows */
 #ifdef ENABLE_MANAGEMENT
-# define MTCP_MANAGEMENT ((void*)4)
+# define MTCP_MANAGEMENT ((void*)3)
 #endif
+#define MTCP_SOCKET_N    ((void*)4)
+/* top context indices */
 
 #ifdef ENABLE_ASYNC_PUSH
 #define MTCP_FILE_CLOSE_WRITE ((void*)5)
 #endif
 
-#define MTCP_N           ((void*)16) /* upper bound on MTCP_x */
+#define MTCP_N           ((void*)1024) /* upper bound on MTCP_x */
+
+#define MAX_TOPSOCKETS  (MTCP_N - MTCP_SOCKET_N)
 
 struct ta_iow_flags
 {
@@ -109,19 +112,19 @@ pract (int action)
 }
 
 static struct multi_instance *
-multi_create_instance_tcp (struct multi_context *m)
+multi_create_instance_tcp (struct multi_context *m, struct context *top)
 {
   struct gc_arena gc = gc_new ();
   struct multi_instance *mi = NULL;
   struct hash *hash = m->hash;
 
-  mi = multi_create_instance (m, NULL);
+  mi = multi_create_instance (m, NULL, top);
   if (mi)
     {
       struct hash_element *he;
       const uint32_t hv = hash_value (hash, &mi->real);
       struct hash_bucket *bucket = hash_bucket (hash, hv);
-  
+
       he = hash_lookup_fast (hash, bucket, &mi->real, hv);
 
       if (he)
@@ -243,7 +246,6 @@ multi_tcp_wait (const struct context *c,
 		struct multi_tcp *mtcp)
 {
   int status;
-  socket_set_listen_persistent (c->c2.link_socket, mtcp->es, MTCP_SOCKET);
   tun_set (c->c1.tuntap, mtcp->es, EVENT_READ, MTCP_TUN, &mtcp->tun_rwflags);
 #ifdef ENABLE_MANAGEMENT
   if (management)
@@ -269,6 +271,7 @@ multi_tcp_context (struct multi_context *m, struct multi_instance *mi)
   if (mi)
     return &mi->context;
   else
+      /* TODO (schwabe): Check if we should return secondary top */
     return &m->top;
 }
 
@@ -632,14 +635,26 @@ multi_tcp_process_io (struct multi_context *m)
 		multi_tcp_action (m, NULL, TA_TUN_READ, false);
 	    }
 	  /* new incoming TCP client attempting to connect? */
-	  else if (e->arg == MTCP_SOCKET)
+	  else if (e->arg >= MTCP_SOCKET_N)
 	    {
+              /* Between MTCP_SOCKET_N and MTCP_N */
+              /* Get context of the listing socket */
+              struct context* top = m->topcontexts[e->arg-MTCP_SOCKET_N];
 	      struct multi_instance *mi;
-	      ASSERT (m->top.c2.link_socket);
-	      socket_reset_listen_persistent (m->top.c2.link_socket);
-	      mi = multi_create_instance_tcp (m);
-	      if (mi)
-		multi_tcp_action (m, mi, TA_INITIAL, false);
+	      ASSERT (top->c2.link_socket);
+	      /* Fix me, should be secondary top, is clone */
+              ASSERT (top->mode == CM_TOP || top->mode == CM_SECONDARY_TOP
+		      || top->mode == CM_TOP_CLONE);
+              
+	      socket_reset_listen_persistent (top->c2.link_socket);
+              if (top->c2.link_socket->info.proto == PROTO_UDP) {
+		  /* TODO schwabe */
+                  //process
+              } else {
+                  mi = multi_create_instance_tcp (m, top);
+                  if (mi)
+                      multi_tcp_action (m, mi, TA_INITIAL, false);
+              }
 	    }
 	  /* signal received? */
 	  else if (e->arg == MTCP_SIG)
@@ -687,7 +702,7 @@ tunnel_server_tcp (struct context *top)
   init_instance_handle_signals (top, top->es, CC_HARD_USR1_TO_HUP);
   if (IS_SIG (top))
     return;
-  
+    
   /* initialize global multi_context object */
   multi_init (&multi, top, true, MC_SINGLE_THREADED);
 
@@ -697,6 +712,25 @@ tunnel_server_tcp (struct context *top)
   /* initialize management interface */
   init_management_callback_multi (&multi);
 
+
+    multi.numtopcontext=1;
+    multi.topcontexts[0]=&multi.top;
+
+
+    for (;multi.numtopcontext<6;multi.numtopcontext++) {
+    /* Use the fact that after initialising a context the connection entries
+     * will go to the next entry */
+	ALLOC_OBJ( multi.topcontexts[multi.numtopcontext], struct context);
+    inherit_context_child (multi.topcontexts[multi.numtopcontext], &multi.top, CM_SECONDARY_TOP);
+//    inherit_context_top(&test, top);
+
+//    init_instance_handle_signals (&test, test.es, CC_HARD_USR1_TO_HUP);
+//    init_instance_handle_signals (&test2, test.es, CC_HARD_USR1_TO_HUP);
+}
+    if (IS_SIG (top))
+        return;
+
+    
   /* finished with initialization */
   initialization_sequence_completed (top, ISC_SERVER); /* --mode server --proto tcp-server */
 
@@ -711,10 +745,24 @@ tunnel_server_tcp (struct context *top)
   /* per-packet event loop */
   while (true)
     {
+      int i;
       perf_push (PERF_EVENT_LOOP);
 
       /* wait on tun/socket list */
       multi_get_timeout (&multi, &multi.top.c2.timeval);
+
+      /* put top sockets into event set */
+      for (i=0;i<multi.numtopcontext;i++) {
+          if (false && multi.topcontexts[i]->c2.link_socket->info.proto == PROTO_UDP) {
+	      p2mp_iow_flags (multi);
+
+          } else {
+              struct context *mc = multi.topcontexts[i];
+              socket_set_listen_persistent (mc->c2.link_socket, multi.mtcp->es,
+                                            MTCP_SOCKET_N+i);
+          }
+      }
+
       status = multi_tcp_wait (&multi.top, multi.mtcp);
       MULTI_CHECK_SIG (&multi);
 

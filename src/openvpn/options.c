@@ -1965,7 +1965,7 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
   if (ce->socks_proxy_server && ce->proto == PROTO_TCP_SERVER)
     msg (M_USAGE, "--socks-proxy can not be used in TCP Server mode");
 
-  if (ce->proto == PROTO_TCP_SERVER && (options->connection_list->len > 1))
+  if (ce->proto == PROTO_TCP_SERVER && !options->connection_list_is_listen)
     msg (M_USAGE, "TCP server mode allows at most one --remote address");
 
 #if P2MP_SERVER
@@ -2000,10 +2000,14 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 	msg (M_USAGE, "--socks-proxy cannot be used with --mode server");
       /* <connection> blocks force to have a remote embedded, so we check for the
        * --remote and bail out if it  is present */
-       if (options->connection_list->len >1 ||
-                  options->connection_list->array[0]->remote)
-          msg (M_USAGE, "<connection> cannot be used with --mode server");
-
+      if (options->connection_list && !options->connection_list_is_listen) 
+	{
+	  /* <connection> blocks force to have a remote embedded, so we check for the
+	   * --remote and bail out if it  is present */
+	  if (options->connection_list->len >1 ||
+	      options->connection_list->array[0]->remote)
+	    msg (M_USAGE, "<connection> cannot be used with --mode server");
+	}
 #if 0
       if (options->tun_ipv6)
 	msg (M_USAGE, "--tun-ipv6 cannot be used with --mode server");
@@ -2099,6 +2103,8 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
              "tcp-nodelay in the server configuration instead.");
       if (options->auth_user_pass_verify_script)
 	msg (M_USAGE, "--auth-user-pass-verify requires --mode server");
+      if (options->connection_list_is_listen)
+          msg (M_USAGE, "<listen> requires --mode server");
 #if PORT_SHARE
       if (options->port_share_host || options->port_share_port)
 	msg (M_USAGE, "--port-share requires TCP server mode (--mode server --proto tcp-server)");
@@ -4464,10 +4470,16 @@ add_option (struct options *options,
 	  struct options sub;
 	  struct connection_entry *e;
 
+          if (options->connection_list_is_listen)
+            {
+              msg (msglevel, "'connection' and 'listen' block are mutally exclusive" );
+              goto err;
+            }
+          
 	  init_options (&sub, true);
 	  sub.ce = options->ce;
 	  read_config_string ("[CONNECTION-OPTIONS]", &sub, p[2], msglevel, OPT_P_CONNECTION, option_types_found, es);
-	  if (!sub.ce.remote)
+          if (!sub.ce.remote)
 	    {
 	      msg (msglevel, "Each 'connection' block must contain exactly one 'remote' directive");
 	      goto err;
@@ -4518,6 +4530,34 @@ add_option (struct options *options,
 
       options->ignore_unknown_option[i] = NULL;
     }
+#if P2MP_SERVER
+  else if (streq (p[0], "listen") && p[1])
+    {
+      VERIFY_PERMISSION (OPT_P_GENERAL);
+      if (streq (p[1], INLINE_FILE_TAG) && p[2])
+	{
+	  struct options sub;
+	  struct connection_entry *e;
+
+	  if (options->connection_list && !options->connection_list_is_listen )
+	    {
+	      msg (msglevel, "'connection' and 'listen' bloack are mutally exclusive" );
+	      goto err;
+	    }
+	  options->connection_list_is_listen=true;
+
+	  init_options (&sub, true);
+	  sub.ce = options->ce;
+	  read_config_string ("[LISTEN-OPTIONS]", &sub, p[2], msglevel, OPT_P_CONNECTION, option_types_found, es);
+	  e = alloc_connection_entry (options, msglevel);
+	  if (!e)
+	    goto err;
+	  *e = sub.ce;
+	  gc_transfer (&options->gc, &sub.gc);
+	  uninit_options (&sub);
+	}
+    }
+#endif
 #if ENABLE_MANAGEMENT
   else if (streq (p[0], "http-proxy-override") && p[1] && p[2] && !p[4])
     {

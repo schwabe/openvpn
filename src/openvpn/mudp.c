@@ -56,6 +56,7 @@ multi_get_create_instance_udp (struct multi_context *m, bool *floated)
   struct multi_instance *mi = NULL;
   struct hash *hash = m->hash;
 
+  /* TODO (schwabe): Check if we should extract addr from secondary top */
   if (mroute_extract_openvpn_sockaddr (&real, &m->top.c2.from.dest, true) &&
       m->top.c2.buf.len > 0)
     {
@@ -99,7 +100,8 @@ multi_get_create_instance_udp (struct multi_context *m, bool *floated)
 	    {
 	      if (frequency_limit_event_allowed (m->new_connection_limiter))
 		{
-		  mi = multi_create_instance (m, &real);
+                  /* FIXME (schwabe) This will use the wrong top context */
+		  mi = multi_create_instance (m, &real,&m->top);
 		  if (mi)
 		    {
 		      int i;

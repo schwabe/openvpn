@@ -1164,6 +1164,7 @@ socket_set_listen_persistent (struct link_socket *s,
     }
 }
 
+/* Schwabe (todo): multisocket */
 static inline void
 socket_reset_listen_persistent (struct link_socket *s)
 {

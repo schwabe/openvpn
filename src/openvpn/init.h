@@ -93,8 +93,8 @@ void reset_coarse_timers (struct context *c);
 
 void do_deferred_options (struct context *c, const unsigned int found);
 
-void inherit_context_child (struct context *dest,
-			    const struct context *src);
+void inherit_context_child (struct context *dest, const struct context *src,
+                            int mode);
 
 void inherit_context_top (struct context *dest,
 			  const struct context *src);

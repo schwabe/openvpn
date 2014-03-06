@@ -1,3 +1,4 @@
+
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
  *             over a single TCP/UDP port, with support for SSL/TLS-based
@@ -704,7 +705,8 @@ multi_uninit (struct multi_context *m)
  * Create a client instance object for a newly connected client.
  */
 struct multi_instance *
-multi_create_instance (struct multi_context *m, const struct mroute_addr *real)
+multi_create_instance (struct multi_context *m, const struct mroute_addr *real,
+                       struct context* top)
 {
   struct gc_arena gc = gc_new ();
   struct multi_instance *mi;
@@ -728,7 +730,9 @@ multi_create_instance (struct multi_context *m, const struct mroute_addr *real)
     }
 
   mi->did_open_context = true;
-  inherit_context_child (&mi->context, &m->top);
+    inherit_context_child (&mi->context, top,
+        proto_is_dgram(top->options.ce.proto)? CM_CHILD_UDP : CM_CHILD_TCP);
+    
   if (IS_SIG (&mi->context))
     goto err;
 
@@ -2370,6 +2374,7 @@ multi_process_incoming_link (struct multi_context *m, struct multi_instance *ins
 
       if (!instance)
 	{
+          /* TODO (schwabe): Check if these should point to top or top clone */
 	  /* transfer packet pointer from top-level context buffer to instance */
 	  c->c2.buf = m->top.c2.buf;
 
@@ -3129,9 +3134,9 @@ tunnel_server (struct context *top)
 {
   ASSERT (top->options.mode == MODE_SERVER);
 
-  if (proto_is_dgram(top->options.ce.proto))
+/*  if (proto_is_dgram(top->options.ce.proto))
     tunnel_server_udp(top);
-  else
+  else */
     tunnel_server_tcp(top);
 }
 

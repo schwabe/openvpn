@@ -3401,7 +3401,7 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
      from a top-level parent */
   if (c->options.ce.proto == PROTO_TCP_SERVER)
     {
-      if (c->mode == CM_TOP)
+      if (c->mode == CM_TOP || c->mode == CM_SECONDARY_TOP)
 	link_socket_mode = LS_MODE_TCP_LISTEN;
       else if (c->mode == CM_CHILD_TCP)
 	link_socket_mode = LS_MODE_TCP_ACCEPT_FROM;
@@ -3435,7 +3435,7 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
 #endif
 
   /* should we enable fast I/O? */
-  if (c->mode == CM_P2P || c->mode == CM_TOP)
+  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_SECONDARY_TOP)
     do_setup_fast_io (c);
 
   /* should we throw a signal on TLS errors? */
@@ -3465,7 +3465,8 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   init_proxy (c);
 
   /* allocate our socket object */
-  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
+  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP
+      || c->mode == CM_SECONDARY_TOP)
     do_link_socket_new (c);
 
 #ifdef ENABLE_FRAGMENT
@@ -3514,7 +3515,8 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   do_init_mssfix (c);
 
   /* bind the TCP/UDP socket */
-  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
+  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP
+      || c->mode == CM_SECONDARY_TOP)
     do_init_socket_1 (c, link_socket_mode);
 
   /* initialize tun/tap device object,
@@ -3551,7 +3553,8 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
   do_uid_gid_chroot (c, c->c2.did_open_tun);
 
   /* finalize the TCP/UDP socket */
-  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
+  if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP ||
+      c->mode == CM_SECONDARY_TOP)
     do_init_socket_2 (c);
 
   /* initialize timers */
@@ -3566,7 +3569,8 @@ init_instance (struct context *c, const struct env_set *env, const unsigned int 
 
 #if PORT_SHARE
   /* share OpenVPN port with foreign (such as HTTPS) server */
-  if (c->first_time && (c->mode == CM_P2P || c->mode == CM_TOP))
+  if (c->first_time &&
+      (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_SECONDARY_TOP))
     init_port_share (c);
 #endif
 	  
@@ -3600,7 +3604,8 @@ close_instance (struct context *c)
     if (c->mode == CM_P2P
 	|| c->mode == CM_CHILD_TCP
 	|| c->mode == CM_CHILD_UDP
-	|| c->mode == CM_TOP)
+	|| c->mode == CM_TOP
+        || c->mode == CM_SECONDARY_TOP)
       {
 	/* if xinetd/inetd mode, don't allow restart */
 	do_close_check_if_restart_permitted (c);
@@ -3668,14 +3673,14 @@ close_instance (struct context *c)
 }
 
 void
-inherit_context_child (struct context *dest,
-		       const struct context *src)
+inherit_context_child (struct context *dest, const struct context *src,
+                       int mode)
 {
   CLEAR (*dest);
 
   /* proto_is_dgram will ASSERT(0) if proto is invalid */
-  dest->mode = proto_is_dgram(src->options.ce.proto)? CM_CHILD_UDP : CM_CHILD_TCP;
-
+  dest->mode = mode;
+    
   dest->gc = gc_new ();
 
   ALLOC_OBJ_CLEAR_GC (dest->sig, struct signal_info, &dest->gc);
@@ -3697,7 +3702,7 @@ inherit_context_child (struct context *dest,
   if (dest->mode == CM_CHILD_TCP)
     {
       /*
-       * The CM_TOP context does the socket listen(),
+       * The CM_TOP/CM_SECONDARY_TOP context does the socket listen(),
        * and the CM_CHILD_TCP context does the accept().
        */
       dest->c2.accept_from = src->c2.link_socket;
@@ -3722,7 +3727,7 @@ inherit_context_child (struct context *dest,
       /* inherit buffers */
       dest->c2.buffers = src->c2.buffers;
 
-      /* inherit parent link_socket and tuntap */
+      /* inherit parent link_socket */
       dest->c2.link_socket = src->c2.link_socket;
 
       ALLOC_OBJ_GC (dest->c2.link_socket_info, struct link_socket_info, &dest->gc);
@@ -3732,6 +3737,13 @@ inherit_context_child (struct context *dest,
       dest->c2.link_socket_info->lsa = &dest->c1.link_socket_addr;
       dest->c2.link_socket_info->connection_established = false;
     }
+  else if (dest->mode == CM_SECONDARY_TOP)
+    {
+      // dest->c1.status_output = src->c1.status_output;
+      // status file, persistent ip file ouptut
+      // TODO (schwabe)
+    }
+      
 }
 
 void

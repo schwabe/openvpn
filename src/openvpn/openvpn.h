@@ -519,6 +519,8 @@ struct context
 # define CM_TOP_CLONE      2 /* clone of a CM_TOP context for one thread */
 # define CM_CHILD_UDP      3 /* child context of a CM_TOP or CM_THREAD */
 # define CM_CHILD_TCP      4 /* child context of a CM_TOP or CM_THREAD */
+# define CM_SECONDARY_TOP  5 /* secondary top context for listing on multiple sockets */
+
   int mode;                     /**< Role of this context within the
                                  *   OpenVPN process.  Valid values are \c
                                  *   CM_P2P, \c CM_TOP, \c CM_TOP_CLONE,
