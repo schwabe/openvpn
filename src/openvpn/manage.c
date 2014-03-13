@@ -1105,6 +1105,21 @@ man_remote (struct management *man, const char **p)
     }
 }
 
+#ifdef TARGET_ANDROID
+static void
+man_network_change (struct management *man)
+{
+  if (man->persist.callback.network_change)
+    {
+      int fd = (*man->persist.callback.network_change)(man->persist.callback.arg);
+      man->connection.fdtosend = fd;
+      msg (M_CLIENT, "PROTECTFD: fd '%d' sent to be protected", fd);
+      if (fd == -2)
+	man_signal (man, "USR1");
+    }
+}
+#endif
+
 static void
 man_dispatch_command (struct management *man, struct status_output *so, const char **p, const int nparms)
 {
@@ -1148,6 +1163,12 @@ man_dispatch_command (struct management *man, struct status_output *so, const ch
       if (man_need (man, p, 1, 0))
 	man_signal (man, p[1]);
     }
+#ifdef TARGET_ANDROID
+  else if (streq (p[0], "network-change"))
+    {
+      man_network_change(man);
+    }
+#endif
   else if (streq (p[0], "load-stats"))
     {
       man_load_stats (man);
