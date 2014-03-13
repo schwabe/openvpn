@@ -3148,6 +3148,31 @@ management_show_net_callback (void *arg, const int msglevel)
 #endif
 }
 
+#ifdef TARGET_ANDROID
+int
+managmenet_callback_network_change (void *arg)
+{
+  int socketfd=-1;
+  struct context *c = (struct context *) arg;
+  if (!c->c2.link_socket)
+    return -1;
+  if (c->c2.link_socket->sd == SOCKET_UNDEFINED)
+    return -1;
+
+  /* Check if the client should translate the network change to a SIGUSR1 to
+     reestablish the connection or just reprotect the socket */
+
+  /* At the moment just assume that, for all settings that use pull
+     reestablishing the connection is required */
+
+  socketfd = c->c2.link_socket->sd;
+  if (!c->options.pull || c->c2.tls_multi->use_peer_id)
+    return socketfd;
+  else
+    return -2;
+}
+#endif
+
 #endif
 
 void
@@ -3163,6 +3188,9 @@ init_management_callback_p2p (struct context *c)
       cb.show_net = management_show_net_callback;
       cb.proxy_cmd = management_callback_proxy_cmd;
       cb.remote_cmd = management_callback_remote_cmd;
+#ifdef TARGET_ANDROID
+      cb.network_change = managmenet_callback_network_change;
+#endif
       management_set_callback (management, &cb);
     }
 #endif
