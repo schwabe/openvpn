@@ -591,6 +591,9 @@ struct options
   bool show_net_up;
   int route_method;
 #endif
+
+  bool use_session_id;
+  uint32_t vpn_session_id;
 };
 
 #define streq(x, y) (!strcmp((x), (y)))
@@ -626,6 +629,7 @@ struct options
 #define OPT_P_SOCKBUF         (1<<25)
 #define OPT_P_SOCKFLAGS       (1<<26)
 #define OPT_P_CONNECTION      (1<<27)
+#define OPT_P_SESSION_ID      (1<<28)
 
 #define OPT_P_DEFAULT   (~(OPT_P_INSTANCE|OPT_P_PULL_MODE))
 
@@ -712,11 +716,13 @@ void options_postprocess (struct options *options);
 void pre_pull_save (struct options *o);
 void pre_pull_restore (struct options *o, struct gc_arena *gc);
 
+struct tls_multi;
 bool apply_push_options (struct options *options,
 			 struct buffer *buf,
 			 unsigned int permission_mask,
 			 unsigned int *option_types_found,
-			 struct env_set *es);
+			 struct env_set *es,
+			 struct tls_multi* tls_multi);
 
 void options_detach (struct options *o);
 

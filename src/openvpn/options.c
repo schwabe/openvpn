@@ -3898,7 +3898,8 @@ apply_push_options (struct options *options,
 		    struct buffer *buf,
 		    unsigned int permission_mask,
 		    unsigned int *option_types_found,
-		    struct env_set *es)
+		    struct env_set *es,
+		    struct tls_multi *tls_multi)
 {
   char line[OPTION_PARM_SIZE];
   int line_num = 0;
@@ -3912,9 +3913,9 @@ apply_push_options (struct options *options,
       ++line_num;
       if (parse_line (line, p, SIZE (p), file, line_num, msglevel, &options->gc))
 	{
-	  add_option (options, p, file, line_num, 0, msglevel, permission_mask, option_types_found, es);
+	      add_option (options, p, file, line_num, 0, msglevel, permission_mask, option_types_found, es);
+	    }
 	}
-    }
   return true;
 }
 
@@ -6975,6 +6976,12 @@ add_option (struct options *options,
       options->persist_mode = 1;
     }
 #endif
+  else if (streq (p[0], "session-id"))
+    {
+      VERIFY_PERMISSION (OPT_P_SESSION_ID);
+      options->use_session_id = true;
+      options->vpn_session_id = atoi(p[1]);
+    }
   else
     {
       int i;
