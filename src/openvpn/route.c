@@ -1045,6 +1045,16 @@ redirect_default_route_to_vpn(struct route_list *rl, const struct tuntap *tt, un
 
             if (rl->flags & RG_REROUTE_GW)
             {
+#ifdef TARGET_ANDROID
+                add_route3 (0,
+                            0,
+                            rl->spec.remote_endpoint,
+                            tt,
+                            flags,
+                            &rl->rgi,
+                            es);
+
+#else
                 if (rl->flags & RG_DEF1)
                 {
                     /* add new default route (1st component) */
@@ -1084,6 +1094,7 @@ redirect_default_route_to_vpn(struct route_list *rl, const struct tuntap *tt, un
                                &rl->rgi,
                                es);
                 }
+#endif
             }
 
             /* set a flag so we can undo later */
