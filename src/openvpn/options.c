@@ -7273,7 +7273,10 @@ add_option(struct options *options,
             }
             else if (streq(p[j], "def1"))
             {
+#ifndef TARGET_ANDROID
+                /* Android always uses 0.0.0.0/0, so silently ignore the flag */
                 options->routes->flags |= RG_DEF1;
+#endif
             }
             else if (streq(p[j], "bypass-dhcp"))
             {
