@@ -3898,7 +3898,8 @@ apply_push_options (struct options *options,
 		    struct buffer *buf,
 		    unsigned int permission_mask,
 		    unsigned int *option_types_found,
-		    struct env_set *es)
+		    struct env_set *es,
+		    struct tls_multi *tls_multi)
 {
   char line[OPTION_PARM_SIZE];
   int line_num = 0;
@@ -6975,6 +6976,12 @@ add_option (struct options *options,
       options->persist_mode = 1;
     }
 #endif
+  else if (streq (p[0], "peer-id"))
+    {
+      VERIFY_PERMISSION (OPT_P_PEER_ID);
+      options->use_peer_id = true;
+      options->peer_id = atoi(p[1]);
+    }
   else
     {
       int i;

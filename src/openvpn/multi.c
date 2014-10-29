@@ -373,6 +373,8 @@ multi_init (struct multi_context *m, struct context *t, bool tcp_mode, int threa
    */
   m->max_clients = t->options.max_clients;
 
+  m->instances = calloc(m->max_clients, sizeof(struct multi_instance*));
+
   /*
    * Initialize multi-socket TCP I/O wait object
    */
@@ -553,6 +555,8 @@ multi_close_instance (struct multi_context *m,
 	}
 #endif
 
+      m->instances[mi->context.c2.tls_multi->peer_id] = NULL;
+
       schedule_remove_entry (m->schedule, (struct schedule_entry *) mi);
 
       ifconfig_pool_release (m->ifconfig_pool, mi->vaddr_handle, false);
@@ -628,6 +632,8 @@ multi_uninit (struct multi_context *m)
 	  hash_free (m->cid_hash);
 #endif
 	  m->hash = NULL;
+
+	  free(m->instances);
 
 	  schedule_free (m->schedule);
 	  mbuf_free (m->mbuf);
