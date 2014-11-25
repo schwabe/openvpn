@@ -2487,6 +2487,7 @@ get_default_gateway (struct route_gateway_info *rgi)
 
   CLEAR(*rgi);
 
+#ifndef TARGET_ANDROID
   /* get default gateway IP addr */
   {
     FILE *fp = fopen ("/proc/net/route", "r");
@@ -2543,6 +2544,12 @@ get_default_gateway (struct route_gateway_info *rgi)
 	  }
       }
   }
+#else
+  /* Android, set some pseudo GW, addr is in host byte order */
+  rgi->gateway.addr = 127 << 24 | 'd' << 16 | 'g' << 8 | 'w';
+  rgi->flags |= RGI_ADDR_DEFINED;
+  strcpy(best_name, "android-gw");
+#endif
 
   /* scan adapter list */
   if (rgi->flags & RGI_ADDR_DEFINED)
