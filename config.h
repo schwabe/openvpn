@@ -348,7 +348,7 @@
 #define HAVE_STROPTS_H 1
 
 /* Define to 1 if you have the `syslog' function. */
- #define HAVE_SYSLOG 1
+#define HAVE_SYSLOG 1
 
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
