@@ -322,6 +322,13 @@ check_inactivity_timeout_dowork (struct context *c)
   register_signal (c, SIGTERM, "inactive");
 }
 
+int
+get_server_poll_remaining_time (struct event_timeout* server_poll_timeout)
+{
+    update_time();
+    int remaining = event_timeout_remaining(server_poll_timeout);
+    return max_int (0, remaining);
+}
 #if P2MP
 
 void
