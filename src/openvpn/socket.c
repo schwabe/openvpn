@@ -898,7 +898,7 @@ static void protect_fd_nonlocal (int fd, const struct sockaddr* addr)
    * as "protected socket" (exempt from being routed into tunnel)
    */
   if (addr_local (addr)) {
-    msg(M_DEBUG, "Address is local, not protecting socket fd %d", fd);
+    msg(D_MANAGEMENT, "Address is local, not protecting socket fd %d", fd);
     return;
   }
 
