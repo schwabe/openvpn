@@ -1821,11 +1821,16 @@ add_route_ipv6 (struct route_ipv6 *r6, const struct tuntap *tt, unsigned int fla
    * packets will just disappear somewhere.  So we use "0" now...
    */
 
-  argv_printf (&argv, "%s add -inet6 %s/%d %s 0",
+  argv_printf (&argv, "%s add -inet6 %s/%d %s",
 		ROUTE_PATH,
 		network,
 		r6->netbits,
 		gateway );
+
+  /* only append 0 for "tun/tap" routes, not for "gateway on other interface"
+   */
+  if ( !r6->iface )
+     argv_printf_cat (&argv, "0");
 
   argv_msg (D_ROUTE, &argv);
   status = openvpn_execve_check (&argv, es, 0, "ERROR: Solaris route add -inet6 command failed");
