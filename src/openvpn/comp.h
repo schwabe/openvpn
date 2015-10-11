@@ -43,11 +43,21 @@
 #define COMP_ALG_SNAPPY 3 /* Snappy algorithm (no longer supported) */
 #define COMP_ALG_LZ4    4 /* LZ4 algorithm */
 
+
+/* algorithm v2 */
+#define COMP_ALGV2_INDICATOR_BYTE 0x50
+#define COMP_ALGV2_UNCOMPRESSED 0
+#define COMP_ALGV2_LZ4	    1
+#define COMP_ALGV2_LZO	    2
+#define COMP_ALGV2_SNAPPY   3
+
 /* Compression flags */
 #define COMP_F_ADAPTIVE   (1<<0) /* COMP_ALG_LZO only */
 #define COMP_F_ASYM       (1<<1) /* only downlink is compressed, not uplink */
 #define COMP_F_SWAP       (1<<2) /* initial command byte is swapped with last byte in buffer to preserve payload alignment */
 #define COMP_F_ADVERTISE_STUBS_ONLY (1<<3) /* tell server that we only support compression stubs */
+#define COMP_F_COMPV2	  (1<<8) /* Use the V2 compression methode that only uses opcodes if compression is actually needed */
+
 
 /*
  * Length of prepended prefix on compressed packets
@@ -145,6 +155,7 @@ struct compress_context
 };
 
 extern const struct compress_alg comp_stub_alg;
+extern const struct compress_alg compv2_stub_alg;
 
 struct compress_context *comp_init(const struct compress_options *opt);
 
@@ -156,6 +167,8 @@ void comp_add_to_extra_buffer(struct frame *frame);
 void comp_print_stats (const struct compress_context *compctx, struct status_output *so);
 
 void comp_generate_peer_info_string(const struct compress_options *opt, struct buffer *out);
+
+void compv2_escape_data_ifneeded (struct buffer *buf);
 
 static inline bool
 comp_enabled(const struct compress_options *info)
