@@ -73,6 +73,8 @@ stub_compress (struct buffer *buf, struct buffer work,
     }
 }
 
+
+
 static void
 stub_decompress (struct buffer *buf, struct buffer work,
 		 struct compress_context *compctx,
@@ -104,6 +106,57 @@ stub_decompress (struct buffer *buf, struct buffer work,
 	}
     }
 }
+
+
+static void
+stubv2_compress (struct buffer *buf, struct buffer work,
+		 struct compress_context *compctx,
+		 const struct frame* frame)
+{
+    if (buf->len <= 0)
+	return;
+
+    compv2_escape_data_ifneeded (buf);
+}
+
+static void
+stubv2_decompress (struct buffer *buf, struct buffer work,
+		   struct compress_context *compctx,
+		   const struct frame* frame)
+{
+  struct gc_arena gc = gc_new();
+  if (buf->len <= 0)
+    return;
+
+  uint8_t *head = BPTR (buf);
+
+  /* no compression */
+  if (head[0] != COMP_ALGV2_INDICATOR_BYTE)
+    return;
+
+  /* compression header (0x50) is present */
+  buf_advance(buf, 1);
+
+  /* Packet buffer too short (only 1 byte) */
+  if (buf->len <= 0)
+    return;
+
+  head = BPTR (buf);
+  if (head[0] != COMP_ALGV2_UNCOMPRESSED) {
+    dmsg (D_COMP_ERRORS, "Bad compression stubv2 decompression header byte: %d", *head);
+    buf->len = 0;
+
+  }
+  gc_free(&gc);
+}
+
+const struct compress_alg compv2_stub_alg = {
+  "stubv2",
+  stub_compress_init,
+  stub_compress_uninit,
+  stubv2_compress,
+  stubv2_decompress
+};
 
 const struct compress_alg comp_stub_alg = {
   "stub",
