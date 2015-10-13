@@ -488,8 +488,9 @@ static const char usage_message[] =
   "                  waiting for a response before trying the next server.\n"
 #endif
 #ifdef ENABLE_OCC
-  "--explicit-exit-notify [n] : On exit/restart, send exit signal to\n"
-  "                  server/remote. n = # of retries, default=1.\n"
+  "--explicit-exit-notify [n] : On exit/restart, send exit signal/restart command to\n"
+  "                  server/remote or client. In client mode: n = # of retries, default=1.\n"
+  "                  In server mode: 1 - reconnect to same server, 2 - advance to next server, default=1.\n"
 #endif
 #ifdef ENABLE_CRYPTO
   "\n"
@@ -2005,10 +2006,6 @@ options_postprocess_verify_ce (const struct options *options, const struct conne
 	msg (M_USAGE, "--connect-freq only works with --mode server --proto udp.  Try --max-clients instead.");
       if (!(dev == DEV_TYPE_TAP || (dev == DEV_TYPE_TUN && options->topology == TOP_SUBNET)) && options->ifconfig_pool_netmask)
 	msg (M_USAGE, "The third parameter to --ifconfig-pool (netmask) is only valid in --dev tap mode");
-#ifdef ENABLE_OCC
-      if (ce->explicit_exit_notification)
-	msg (M_USAGE, "--explicit-exit-notify cannot be used with --mode server");
-#endif
       if (options->routes && (options->routes->flags & RG_ENABLE))
 	msg (M_USAGE, "--redirect-gateway cannot be used with --mode server (however --push \"redirect-gateway\" is fine)");
       if (options->route_delay_defined)
