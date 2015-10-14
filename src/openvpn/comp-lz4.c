@@ -279,7 +279,7 @@ lz4v2_decompress (struct buffer *buf, struct buffer work,
     }
   else
     {
-      dmsg (D_COMP_ERRORS, "Bad LZ4 decompression header byte: %d", c);
+      dmsg (D_COMP_ERRORS, "Bad LZ4v2 decompression header byte: %d", c);
       buf->len = 0;
     }
 }

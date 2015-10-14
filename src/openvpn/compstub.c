@@ -145,7 +145,6 @@ stubv2_decompress (struct buffer *buf, struct buffer work,
   if (head[0] != COMP_ALGV2_UNCOMPRESSED) {
     dmsg (D_COMP_ERRORS, "Bad compression stubv2 decompression header byte: %d", *head);
     buf->len = 0;
-
   }
   gc_free(&gc);
 }
