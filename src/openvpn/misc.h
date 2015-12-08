@@ -210,7 +210,7 @@ struct user_pass
   char password[USER_PASS_LEN];
 };
 
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
 /*
  * Challenge response info on client as pushed by server.
  */

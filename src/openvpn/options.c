@@ -5982,7 +5982,6 @@ add_option (struct options *options,
       VERIFY_PERMISSION (OPT_P_GENERAL);
       auth_retry_set (msglevel, p[1]);
     }
-#ifdef ENABLE_CLIENT_CR
   else if (streq (p[0], "static-challenge") && p[1] && p[2] && !p[3])
     {
       VERIFY_PERMISSION (OPT_P_GENERAL);
@@ -5990,7 +5989,6 @@ add_option (struct options *options,
       if (atoi(p[2]))
 	options->sc_info.flags |= SC_ECHO;
     }
-#endif
 #endif
   else if (streq (p[0], "msg-channel") && p[1])
     {

@@ -1061,10 +1061,9 @@ get_user_pass_cr (struct user_pass *up,
 	  if (flags & GET_USER_PASS_PREVIOUS_CREDS_FAILED)
 	    management_auth_failure (management, prefix, "previous auth credentials failed");
 
-#ifdef ENABLE_CLIENT_CR
 	  if (auth_challenge && (flags & GET_USER_PASS_STATIC_CHALLENGE))
 	    sc = auth_challenge;
-#endif
+
 	  if (!management_query_user_pass (management, up, prefix, flags, sc))
 	    {
 	      if ((flags & GET_USER_PASS_NOFATAL) != 0)
@@ -1143,7 +1142,13 @@ get_user_pass_cr (struct user_pass *up,
        */
       if (username_from_stdin || password_from_stdin)
 	{
-#ifdef ENABLE_CLIENT_CR
+#ifndef WIN32
+	  /* did we --daemon'ize before asking for passwords? */
+	  if ( !isatty(0) && !isatty(2) )
+	    { msg(M_FATAL, "neither stdin nor stderr are a tty device, can't ask for %s password.  If you used --daemon, you need to use --askpass to make passphrase-protected keys work, and you can not use --auth-nocache.", prefix ); }
+#endif
+
+#ifdef ENABLE_MANAGEMENT
 	  if (auth_challenge && (flags & GET_USER_PASS_DYNAMIC_CHALLENGE))
 	    {
 	      struct auth_challenge_info *ac = get_auth_challenge (auth_challenge, &gc);
@@ -1184,7 +1189,7 @@ get_user_pass_cr (struct user_pass *up,
 	      if (password_from_stdin && !get_console_input (BSTR (&pass_prompt), false, up->password, USER_PASS_LEN))
 		msg (M_FATAL, "ERROR: could not not read %s password from stdin", prefix);
 
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
 	      if (auth_challenge && (flags & GET_USER_PASS_STATIC_CHALLENGE))
 		{
 		  char *response = (char *) gc_malloc (USER_PASS_LEN, false, &gc);
@@ -1223,7 +1228,7 @@ get_user_pass_cr (struct user_pass *up,
   return true;
 }
 
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
 
 /*
  * See management/management-notes.txt for more info on the
