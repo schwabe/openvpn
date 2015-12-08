@@ -694,13 +694,6 @@ socket_defined (const socket_descriptor_t sd)
 #endif
 
 /*
- * Do we support challenge/response authentication as client?
- */
-#if defined(ENABLE_MANAGEMENT)
-#define ENABLE_CLIENT_CR
-#endif
-
-/*
  * Do we support pushing peer info?
  */
 #if defined(ENABLE_CRYPTO)
