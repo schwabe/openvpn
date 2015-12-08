@@ -3056,9 +3056,8 @@ management_query_user_pass (struct management *man,
       const char *alert_type = NULL;
       const char *prefix = NULL;
       unsigned int up_query_mode = 0;
-#ifdef ENABLE_CLIENT_CR
       const char *sc = NULL;
-#endif
+
       ret = true;
       man->persist.standalone_disabled = false; /* This is so M_CLIENT messages will be correctly passed through msg() */
       man->persist.special_state_msg = NULL;
@@ -3088,10 +3087,8 @@ management_query_user_pass (struct management *man,
 	  up_query_mode = UP_QUERY_USER_PASS;
 	  prefix = "PASSWORD";
 	  alert_type = "username/password";
-#ifdef ENABLE_CLIENT_CR
 	  if (static_challenge)
 	    sc = static_challenge;
-#endif
 	}
       buf_printf (&alert_msg, ">%s:Need '%s' %s",
 		  prefix,

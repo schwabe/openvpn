@@ -421,7 +421,7 @@ init_query_passwords (const struct context *c)
   /* Auth user/pass input */
   if (c->options.auth_user_pass_file)
     {
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
       auth_user_pass_setup (c->options.auth_user_pass_file, &c->options.sc_info);
 #else
       auth_user_pass_setup (c->options.auth_user_pass_file, NULL);
@@ -2362,7 +2362,7 @@ do_init_crypto_tls (struct context *c, const unsigned int flags)
 #endif
 
 #if P2MP
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
   to.sci = &options->sc_info;
 #endif
 #endif

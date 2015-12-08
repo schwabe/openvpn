@@ -358,7 +358,7 @@ pem_password_callback (char *buf, int size, int rwflag, void *u)
 static bool auth_user_pass_enabled;     /* GLOBAL */
 static struct user_pass auth_user_pass; /* GLOBAL */
 
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
 static char *auth_challenge; /* GLOBAL */
 #endif
 
@@ -371,7 +371,7 @@ auth_user_pass_setup (const char *auth_file, const struct static_challenge_info 
 #if AUTO_USERID
       get_user_pass_auto_userid (&auth_user_pass, auth_file);
 #else
-# ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
       if (auth_challenge) /* dynamic challenge/response */
        get_user_pass_cr (&auth_user_pass,
                          auth_file,
@@ -429,12 +429,12 @@ ssl_purge_auth (const bool auth_user_pass_only)
       purge_user_pass (&passbuf, true);
     }
   purge_user_pass (&auth_user_pass, true);
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
   ssl_purge_auth_challenge();
 #endif
 }
 
-#ifdef ENABLE_CLIENT_CR
+#ifdef ENABLE_MANAGEMENT
 
 void
 ssl_purge_auth_challenge (void)
