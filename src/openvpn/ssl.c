@@ -1871,8 +1871,10 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 	{
 	  if (e->string)
 	    {
-	      if (((strncmp(e->string, "UV_", 3)==0 && session->opt->push_peer_info_detail >= 2)
-		   || (strncmp(e->string,"IV_GUI_VER=",sizeof("IV_GUI_VER=")-1)==0))
+	      if ((((strncmp(e->string, "UV_", 3)==0 ||
+		     strncmp(e->string, "IV_GUI_VER=", sizeof("IV_GUI_VER"))==0)&&
+		    session->opt->push_peer_info_detail >= 2)
+		   || (strncmp(e->string,"IV_PLAT_VER=",sizeof("IV_PLAT_VER=")-1)==0))
 		  && buf_safe(&out, strlen(e->string)+1))
 		buf_printf (&out, "%s\n", e->string);
 	    }
