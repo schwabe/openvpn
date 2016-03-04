@@ -254,7 +254,7 @@ result_t x509_write_pem(FILE *peercert_file, openvpn_x509_cert_t *peercert);
  * 			certificate or does not contain an entry for it.
  * 			\c FAILURE otherwise.
  */
-result_t x509_verify_crl(const char *crl_file, openvpn_x509_cert_t *cert,
-    const char *subject);
+result_t x509_verify_crl(const char *crl_file, const char *crl_inline,
+                         openvpn_x509_cert_t *cert, const char *subject);
 
 #endif /* SSL_VERIFY_BACKEND_H_ */
