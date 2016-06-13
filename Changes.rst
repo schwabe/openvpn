@@ -55,6 +55,13 @@ Http proxy password inside config file
 	Http proxy passwords can be specified with the inline file option
     http-proxy-user-pass
 
+Cipher negotiation
+    Data channel ciphers are now by default negotiated.  If a client advertises
+    support for Negotiable Crypto Parameters (NCP), the server will choose a
+    cipher (by default AES-256-GCM) for the data channel, and tell the client
+    to use that cipher.  Data channel cipher negotiation can be controlled
+    using --ncp-ciphers and --ncp-disable.
+
 
 User-visible Changes
 --------------------
@@ -119,6 +126,11 @@ User-visible Changes
 
 - --http-proxy-retry and --sock-proxy-retry have been removed. Proxy connections
     will now behave like regular connection entries and generate a USR1 on failure.
+
+- Data channel cipher negotiation (see New features section) can override
+  ciphers configured in the config file.  Use --ncp-disable if you don't want
+  that.
+
 
 Maintainer-visible changes
 --------------------------
