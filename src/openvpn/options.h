@@ -470,6 +470,8 @@ struct options
   int key_direction;
   bool ciphername_defined;
   const char *ciphername;
+  bool ncp_enabled;
+  const char *ncp_ciphers;
   bool authname_defined;
   const char *authname;
   int keysize;
@@ -614,7 +616,7 @@ struct options
 #define OPT_P_PERSIST_IP      (1<<9)
 #define OPT_P_COMP            (1<<10) /* TODO */
 #define OPT_P_MESSAGES        (1<<11)
-#define OPT_P_CRYPTO          (1<<12) /* TODO */
+#define OPT_P_NCP             (1<<12) /**< Negotiable crypto parameters */
 #define OPT_P_TLS_PARMS       (1<<13) /* TODO */
 #define OPT_P_MTU             (1<<14) /* TODO */
 #define OPT_P_NICE            (1<<15)
