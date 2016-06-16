@@ -2221,14 +2221,15 @@ key_method_2_read (struct buffer *buf, struct tls_multi *multi, struct tls_sessi
   multi->peer_info = read_string_alloc (buf);
   if ( multi->peer_info )
       output_peer_info_env (session->opt->es, multi->peer_info);
-#endif
+
 
   if (tls_peer_info_ncp_ver (multi->peer_info) < 2)
     {
       /* Peer does not support NCP */
       session->opt->ncp_enabled = false;
     }
-
+#endif
+  
   if (tls_session_user_pass_enabled(session))
     {
       /* Perform username/password authentication */
