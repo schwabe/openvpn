@@ -82,8 +82,8 @@ User-visible Changes
   In --static mode connect-timeout specifies the timeout for TCP and
   proxy connection establishment
 
-- connect-retry now specifies the maximum number of unsucessfully
-  trying all remote/connection entries before exiting.
+- connect-retry-max now specifies the maximum number of unsuccessful
+  attempts of each remote/connection entry before exiting.
 
 - sndbuf and recvbuf default now to OS default instead of 64k
 
@@ -130,6 +130,10 @@ User-visible Changes
 - Data channel cipher negotiation (see New features section) can override
   ciphers configured in the config file.  Use --ncp-disable if you don't want
   that.
+
+- --connect-retry gets a optional third argument that specifies the maximum
+  time in seconds to wait between reconnection attempts when an exponential
+  backoff is triggered due to repeated retries. Default = 300 seconds.
 
 
 Maintainer-visible changes

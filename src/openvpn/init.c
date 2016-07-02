@@ -1983,6 +1983,7 @@ static void
 socket_restart_pause (struct context *c)
 {
   int sec = 2;
+  int backoff = 0;
 
   switch (c->options.ce.proto)
     {
@@ -2004,6 +2005,13 @@ socket_restart_pause (struct context *c)
   if (auth_retry_get () == AR_NOINTERACT)
     sec = 10;
 #endif
+
+  /* Slow down reconnection after 5 retries per remote */
+  backoff = (c->options.unsuccessful_attempts / c->options.connection_list->len) - 4;
+  if (backoff > 0 && sec < 1<<16)
+    sec = max_int (sec, 1) << min_int (backoff, 15);
+  if (sec > c->options.ce.connect_retry_seconds_max)
+    sec = c->options.ce.connect_retry_seconds_max;
 
   if (c->persist.restart_sleep_seconds > 0 && c->persist.restart_sleep_seconds > sec)
     sec = c->persist.restart_sleep_seconds;
