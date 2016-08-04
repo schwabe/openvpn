@@ -135,6 +135,9 @@ User-visible Changes
   ciphers configured in the config file.  Use --ncp-disable if you don't want
   that.
 
+- ALl tun devices on all platforms are considered always IPv6 capable. The --tun-ipv6
+  option is ignored (behaves like it is always on).
+
 
 Maintainer-visible changes
 --------------------------
