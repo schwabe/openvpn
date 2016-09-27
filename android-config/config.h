@@ -179,6 +179,8 @@
 /* struct in_pktinfo needed for IP_PKTINFO support */
 #define HAVE_IN_PKTINFO 1
 
+#define HAVE_IPI_SPEC_DST 1
+
 /* struct iovec needed for IPv6 support */
 #define HAVE_IOVEC 1
 
