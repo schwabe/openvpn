@@ -1667,7 +1667,7 @@ tls_session_update_crypto_params(struct tls_session *session,
 
   ASSERT (ks->authenticated);
 
-  if (!session->opt->server &&
+  if (!session->opt->server && !(options->ciphername == NULL && session->opt->config_ciphername  == NULL) && 
       0 != strcmp(options->ciphername, session->opt->config_ciphername) &&
       !item_in_list(options->ciphername, options->ncp_ciphers))
     {
