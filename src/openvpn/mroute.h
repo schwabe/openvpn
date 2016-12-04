@@ -41,13 +41,15 @@
 #define MROUTE_EXTRACT_BCAST     (1<<1)
 #define MROUTE_EXTRACT_MCAST     (1<<2)
 #define MROUTE_EXTRACT_IGMP      (1<<3)
+#define MROUTE_EXTRACT_NO_DROP   (1<<4)
 
 #define MROUTE_SEC_EXTRACT_SUCCEEDED (1<<(0+MROUTE_SEC_SHIFT))
 #define MROUTE_SEC_EXTRACT_BCAST     (1<<(1+MROUTE_SEC_SHIFT))
 #define MROUTE_SEC_EXTRACT_MCAST     (1<<(2+MROUTE_SEC_SHIFT))
 #define MROUTE_SEC_EXTRACT_IGMP      (1<<(3+MROUTE_SEC_SHIFT))
+#define MROUTE_SEC_EXTRACT_NO_DROP   (1<<(4+MROUTE_SEC_SHIFT))
 
-#define MROUTE_SEC_SHIFT         4
+#define MROUTE_SEC_SHIFT         5
 
 /*
  * Choose the largest address possible with

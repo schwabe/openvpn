@@ -126,6 +126,72 @@ mroute_is_mcast_ipv6(const struct in6_addr addr)
 }
 
 #ifdef ENABLE_PF
+/**
+ * Return the ICMPv6 sub-packet type
+ *
+ * @param buf packet buffer pointing to the beginning of the IMCPv6 header
+ */
+static uint8_t
+mroute_icmp6_get_type(const struct buffer *buf)
+{
+  const struct openvpn_icmp6hdr *icmp6;
+
+  if (BLEN (buf) < (int) sizeof (struct openvpn_icmp6hdr))
+    {
+      return 0;
+    }
+
+  icmp6 = (const struct openvpn_icmp6hdr *) BPTR (buf);
+
+  return icmp6->icmp6_type;
+}
+
+/**
+ * Check if this IPv6 packet is essential to IPv6 basic communications and,
+ * therefore, should not be dropped (based on RFC4890, sec. 4.4.1)
+ *
+ * @param ipv6	pointer to the current IPv6 header
+ * @param buf	packet buffer pointing to the beginning of the IPv6 header
+ */
+static bool
+mroute_ipv6_should_not_drop(const struct openvpn_ipv6hdr *ipv6,
+			    const struct buffer *buf)
+{
+  struct buffer b = *buf;
+  uint8_t type;
+
+  /* packets to "save" are a subset of ICMPv6 */
+  if (ipv6->nexthdr != IPPROTO_ICMPV6)
+    {
+      return false;
+    }
+
+  if (!buf_advance (&b, sizeof (struct openvpn_ipv6hdr)))
+    {
+      return false;
+    }
+
+  type = mroute_icmp6_get_type (&b);
+
+  switch (type)
+    {
+    /*
+     * By following the guideline of RFC4890, sec. 4.4.1, the
+     * following are the ICMPv6 packet types that are strictly
+     * required to let a host join a IPv6 network.
+     * Therefore, such packets can't be dropped by PF.
+     */
+    case OPENVPN_ND_ROUTER_SOLICIT:
+    case OPENVPN_ND_ROUTER_ADVERT:
+    case OPENVPN_ND_NEIGHBOR_SOLICIT:
+    case OPENVPN_ND_NEIGHBOR_ADVERT:
+    case OPENVPN_ND_INVERSE_SOLICIT:
+    case OPENVPN_ND_INVERSE_ADVERT:
+      return true;
+    }
+
+  return false;
+}
 
 static unsigned int
 mroute_extract_addr_arp(struct mroute_addr *src,
@@ -212,9 +278,15 @@ mroute_extract_addr_ip(struct mroute_addr *src, struct mroute_addr *dest,
                     }
 
                     ret |= MROUTE_EXTRACT_SUCCEEDED;
+
+#ifdef ENABLE_PF
+                    if (mroute_ipv6_should_not_drop (ipv6, buf))
+                    {
+                        ret |= MROUTE_EXTRACT_NO_DROP;
+                    }
+#endif
                 }
                 break;
-
             default:
                 msg(M_WARN, "IP packet with unknown IP version=%d seen",
                     OPENVPN_IPH_GET_VER(*BPTR(buf)));

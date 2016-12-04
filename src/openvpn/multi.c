@@ -2630,7 +2630,8 @@ multi_process_incoming_link(struct multi_context *m, struct multi_instance *inst
             {
 #ifdef ENABLE_PF
                 struct mroute_addr edest;
-                mroute_addr_reset(&edest);
+                mroute_addr_reset (&edest);
+                unsigned int no_drop;
 #endif
                 /* extract packet source and dest addresses */
                 mroute_flags = mroute_extract_addr_from_packet(&src,
@@ -2679,10 +2680,20 @@ multi_process_incoming_link(struct multi_context *m, struct multi_instance *inst
                             }
                         }
 #ifdef ENABLE_PF
-                        if (c->c2.to_tun.len && !pf_addr_test(c, &edest, "tap_dest_addr"))
+                        /*
+                         * If a packet is marked as "do not drop", then no PF
+                         * test has to be performed on it, but has to be allowed
+                         * right away.
+                         */
+                        no_drop = MROUTE_EXTRACT_NO_DROP | MROUTE_SEC_EXTRACT_NO_DROP;
+                        if ((mroute_flags & MROUTE_SEC_EXTRACT_SUCCEEDED) &&
+                            !(mroute_flags & no_drop) && c->c2.to_tun.len &&
+                            !pf_addr_test(c, &edest, "tap_dest_addr"))
                         {
-                            msg(D_PF_DROPPED, "PF: client -> addr[%s] packet dropped by TAP packet filter",
-                                mroute_addr_print_ex(&edest, MAPF_SHOW_ARP, &gc));
+                            msg(D_PF_DROPPED,
+                                "PF: client -> addr[%s] packet dropped by TAP packet filter",
+                                mroute_addr_print_ex(&edest, MAPF_SHOW_ARP,
+                                                     &gc));
                             c->c2.to_tun.len = 0;
                         }
 #endif

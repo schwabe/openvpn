@@ -120,6 +120,22 @@ struct openvpn_ipv6hdr {
     struct  in6_addr daddr;
 };
 
+/*
+ * ICMPv6 header
+ */
+struct openvpn_icmp6hdr {
+# define OPENVPN_ND_ROUTER_SOLICIT	133
+# define OPENVPN_ND_ROUTER_ADVERT	134
+# define OPENVPN_ND_NEIGHBOR_SOLICIT	135
+# define OPENVPN_ND_NEIGHBOR_ADVERT	136
+# define OPENVPN_ND_INVERSE_SOLICIT	141
+# define OPENVPN_ND_INVERSE_ADVERT	142
+	uint8_t		icmp6_type;
+
+	uint8_t		icmp6_code;
+	uint16_t	icmp6_cksum;
+	uint8_t		icmp6_dataun[4];
+};
 
 /*
  * UDP header
