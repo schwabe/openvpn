@@ -265,6 +265,7 @@ mroute_extract_addr_ether(struct mroute_addr *src,
             {
                 switch (ntohs(eth->proto))
                 {
+		            case OPENVPN_ETH_P_IPV6:
                     case OPENVPN_ETH_P_IPV4:
                         ret |= (mroute_extract_addr_ip(esrc, edest, &b) << MROUTE_SEC_SHIFT);
                         break;

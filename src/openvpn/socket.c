@@ -564,6 +564,20 @@ openvpn_inet_aton(const char *dotted_quad, struct in_addr *addr)
     }
 }
 
+int
+openvpn_inet_aton_v6 (const char *addr_str, struct in6_addr *addr)
+{
+  CLEAR (*addr);
+  if (inet_pton (AF_INET6, addr_str, addr) == 1)
+    {
+      return OIA_IP; /* good well formatted IPv6 */
+    }
+  if (string_class (addr_str, CC_XDIGIT|CC_COLON, 0))
+    return OIA_ERROR;    /* probably a badly formatted IPv6 addr */
+  else
+    return OIA_HOSTNAME; /* probably a hostname */
+}
+
 bool
 ip_addr_dotted_quad_safe(const char *dotted_quad)
 {

@@ -462,6 +462,15 @@ void link_socket_update_buffer_sizes(struct link_socket *ls, int rcvbuf, int snd
 #define OIA_ERROR     -1
 int openvpn_inet_aton(const char *dotted_quad, struct in_addr *addr);
 
+/**
+ * Convert an IPv6 from text notation to in6_addr. Error reporting is
+ * enhanced compared to the pure inet_pton.
+ *
+ * @param addr_str	the address in text form
+ * @param addr		pointer where the result has to be stored on success
+ */
+int openvpn_inet_aton_v6 (const char *addr_str, struct in6_addr *addr);
+
 /* integrity validation on pulled options */
 bool ip_addr_dotted_quad_safe(const char *dotted_quad);
 

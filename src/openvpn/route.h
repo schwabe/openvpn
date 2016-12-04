@@ -375,6 +375,27 @@ netbits_to_netmask(const int netbits)
     return mask;
 }
 
+/**
+ * Convert a netmask in the form of "netbits" to an actual bitmask
+ *
+ * @param netbits number of bits representing the netmask
+ */
+static inline struct in6_addr
+netbits_to_netmask_v6 (const int netbits)
+{
+  struct in6_addr mask = {0};
+  int full = netbits / 8;
+  int rest = netbits % 8;
+
+  /* fill whole bytes first.. */
+  memset(&mask, 0xff, full);
+  if (rest != 0)
+    /* ..partly fill the last byte now */
+    mask.s6_addr[full] = (0xff00 >> rest);
+
+  return mask;
+}
+
 static inline bool
 route_list_vpn_gateway_needed(const struct route_list *rl)
 {

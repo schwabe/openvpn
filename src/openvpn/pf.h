@@ -34,14 +34,23 @@
 struct context;
 
 struct ipv4_subnet {
-    bool exclude;
     in_addr_t network;
     in_addr_t netmask;
 };
 
+struct ipv6_subnet {
+    struct in6_addr network;
+    struct in6_addr netmask;
+};
+
 struct pf_subnet {
     struct pf_subnet *next;
-    struct ipv4_subnet rule;
+    int addr_family;
+    bool exclude;
+    union {
+      struct ipv4_subnet v4;
+      struct ipv6_subnet v6;
+    } rule;
 };
 
 struct pf_subnet_set {

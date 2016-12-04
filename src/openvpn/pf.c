@@ -6,6 +6,7 @@
  *             packet compression.
  *
  *  Copyright (C) 2002-2017 OpenVPN Technologies, Inc. <sales@openvpn.net>
+ *  Copyright (C) 2016-2017 Antonio Quartulli <a@unstable.cc>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -84,61 +85,260 @@ add_client(const char *line, const char *prefix, const int line_num, struct pf_c
     return true;
 }
 
+/**
+ * Parse line and try to add an IPv6 subnet to the PF subnet list
+ *
+ * @param line          the line to parse
+ * @param prefix        logging prefix
+ * @param line_num      line number in the PF file
+ * @param div           pointer to the character after the '/', if any
+ * @param next          pointer to the location where the next subnet has to be
+ *                  stored
+ * @param exclude       if true, the opposite of the default policy is applied
+ */
 static bool
-add_subnet(const char *line, const char *prefix, const int line_num, struct pf_subnet ***next, const bool exclude)
+add_subnet_v4(const char *line, const char *prefix, const int line_num,
+              const char *div, struct pf_subnet ***next, const bool exclude)
 {
     struct in_addr network;
     in_addr_t netmask = 0;
+    int netbits = 32;
 
-    if (strcmp(line, "unknown"))
+    if (div)
     {
-        int netbits = 32;
-        char *div = strchr(line, '/');
-
-        if (div)
+        if (sscanf(div, "%d", &netbits) != 1)
         {
-            *div++ = '\0';
-            if (sscanf(div, "%d", &netbits) != 1)
-            {
-                msg(D_PF_INFO, "PF: %s/%d: bad '/n' subnet specifier: '%s'", prefix, line_num, div);
-                return false;
-            }
-            if (netbits < 0 || netbits > 32)
-            {
-                msg(D_PF_INFO, "PF: %s/%d: bad '/n' subnet specifier: must be between 0 and 32: '%s'", prefix, line_num, div);
-                return false;
-            }
-        }
-
-        if (openvpn_inet_aton(line, &network) != OIA_IP)
-        {
-            msg(D_PF_INFO, "PF: %s/%d: bad network address: '%s'", prefix, line_num, line);
+            msg(D_PF_INFO, "PF: %s/%d: bad '/n' v4 subnet specifier: '%s'",
+                prefix, line_num, div);
             return false;
         }
-        netmask = netbits_to_netmask(netbits);
-        if ((network.s_addr & htonl(netmask)) != network.s_addr)
-        {
-            network.s_addr &= htonl(netmask);
-            msg(M_WARN, "WARNING: PF: %s/%d: incorrect subnet %s/%d changed to %s/%d", prefix, line_num, line, netbits, inet_ntoa(network), netbits);
-        }
     }
-    else
+
+    if ((netbits < 0) || (netbits > 32))
     {
-        /* match special "unknown" tag for addresses unrecognized by mroute */
-        network.s_addr = htonl(0);
-        netmask = IPV4_NETMASK_HOST;
+        msg(D_PF_INFO,
+            "PF: %s/%d: bad '/n' v4 subnet specifier: must be between 0 and 32: '%s'",
+            prefix, line_num, div);
+        return false;
+    }
+
+    if (openvpn_inet_aton(line, &network) != OIA_IP)
+    {
+        msg(D_PF_INFO, "PF: %s/%d: bad v4 network address: '%s'", prefix, line_num,
+            line);
+        return false;
+    }
+
+    netmask = netbits_to_netmask(netbits);
+    if ((network.s_addr & htonl(netmask)) != network.s_addr)
+    {
+        network.s_addr &= htonl(netmask);
+        msg(M_WARN,
+            "WARNING: PF: %s/%d: incorrect v4 subnet %s/%d changed to %s/%d",
+            prefix, line_num, line, netbits, inet_ntoa(network), netbits);
     }
 
     {
         struct pf_subnet *e;
         ALLOC_OBJ_CLEAR(e, struct pf_subnet);
-        e->rule.exclude = exclude;
-        e->rule.network = ntohl(network.s_addr);
-        e->rule.netmask = netmask;
+        e->addr_family = AF_INET;
+        e->exclude = exclude;
+        e->rule.v4.network = ntohl(network.s_addr);
+        e->rule.v4.netmask = netmask;
         **next = e;
         *next = &e->next;
+
         return true;
     }
+}
+
+/**
+ * Return actual network class based on the specified address and mask
+ *
+ * @param addr  address to extract the class from
+ * @param mask  the network mask
+ */
+static struct in6_addr
+pf_addr_v6_mask(const struct in6_addr *addr, const struct in6_addr *mask)
+{
+    struct in6_addr res;
+    int i;
+
+    for (i = 0; i < sizeof(*addr); i++)
+    {
+        res.s6_addr[i] = addr->s6_addr[i] & mask->s6_addr[i];
+    }
+
+    return res;
+}
+
+/**
+ * Check if two IPv6 addresses belongs to the same class
+ *
+ * @param addr1 first address to check
+ * @param addr2 second address to check
+ * @param mask  netmask to use to extract the IP class
+ */
+static bool
+pf_addr_v6_masked_eq(const struct in6_addr *addr1,
+                     const struct in6_addr *addr2,
+                     const struct in6_addr *mask)
+{
+    uint8_t res = 0;
+    int i;
+
+    for (i = 0; i < sizeof(*addr1); i++)
+    {
+        res |= (addr1->s6_addr[i] ^ addr2->s6_addr[i]) & mask->s6_addr[i];
+    }
+
+    return res;
+}
+
+/**
+ * Compare two IPv6 addresses
+ *
+ * @param addr1 first address to check
+ * @param addr2 second address to check
+ */
+static int
+pf_addr_v6_cmp(struct in6_addr *addr1, struct in6_addr *addr2)
+{
+    return memcmp(addr1, addr2, sizeof(*addr1));
+}
+
+
+/**
+ * Parse line and try to add an IPv6 subnet to the PF subnet list
+ *
+ * @param line          the line to parse
+ * @param prefix        logging prefix
+ * @param line_num      line number in the PF file/buffer
+ * @param div           pointer to the character after the '/', if any
+ * @param next          pointer to the location where the next subnet has to be
+ *                      stored
+ * @param exclude       if true, the opposite of the default policy is applied
+ */
+static bool
+add_subnet_v6(const char *line, const char *prefix, const int line_num,
+              const char *div, struct pf_subnet ***next, const bool exclude)
+
+{
+    struct in6_addr network, tmp;
+    struct in6_addr netmask;
+    int netbits = 128;
+
+    if (div)
+    {
+        if (sscanf(div, "%d", &netbits) != 1)
+        {
+            msg(D_PF_INFO, "PF: %s/%d: bad '/n' v6 subnet specifier: '%s'",
+                prefix, line_num, div);
+            return false;
+        }
+    }
+
+    if ((netbits < 0) || (netbits > 128))
+    {
+        msg(D_PF_INFO,
+            "PF: %s/%d: bad '/n' v6 subnet specifier: must be between 0 and 128: '%s'",
+            prefix, line_num, div);
+        return false;
+    }
+
+    if (openvpn_inet_aton_v6(line, &network) != OIA_IP)
+    {
+        msg(D_PF_INFO, "PF: %s/%d: bad v6 network address: '%s'", prefix, line_num,
+            line);
+        return false;
+    }
+
+    netmask = netbits_to_netmask_v6(netbits);
+    tmp = network;
+    network = pf_addr_v6_mask(&network, &netmask);
+    if (pf_addr_v6_cmp(&network, &tmp) != 0)
+    {
+        char v6_str[INET6_ADDRSTRLEN] = {0};
+
+        inet_ntop(AF_INET6, &network, v6_str, INET6_ADDRSTRLEN);
+        msg(M_WARN,
+            "WARNING: PF: %s/%d: incorrect v6 subnet %s/%d changed to %s/%d",
+            prefix, line_num, line, netbits, v6_str, netbits);
+    }
+
+    {
+        struct pf_subnet *e;
+        ALLOC_OBJ_CLEAR(e, struct pf_subnet);
+        e->addr_family = AF_INET6;
+        e->exclude = exclude;
+        e->rule.v6.network = network;
+        e->rule.v6.netmask = netmask;
+        **next = e;
+        *next = &e->next;
+
+        return true;
+    }
+}
+
+/**
+ * Parse line and try to add a subnet to the PF subnet list (either IPv4 or
+ * IPv6)
+ *
+ * @param line          the line to parse
+ * @param prefix        some prefix
+ * @param line_num      line number in the PF file/buffer
+ * @param next          pointer to the location where the next subnet has to be
+ *                      stored
+ * @param exclude       if true, the opposite of the default policy is applied
+ */
+static bool
+add_subnet(const char *line, const char *prefix, const int line_num,
+           struct pf_subnet ***next, const bool exclude)
+{
+    if (strcmp(line, "unknown") != 0)
+    {
+        char *div = strchr(line, '/');
+
+        /* if no '/' is found, assume maximum mask */
+        if (div)
+        {
+            *div++ = '\0';
+        }
+
+        if (!strchr(line, ':'))
+        /* ':' NOT found -> try parsing as IPv4 */
+        {
+            return add_subnet_v4(line, prefix, line_num, div, next, exclude);
+        }
+        else
+        /* ':' found -> try parsing as IPv6 */
+        {
+            return add_subnet_v6(line, prefix, line_num, div, next, exclude);
+        }
+    }
+    else
+    {
+        /* match special "unknown" tag for addresses unrecognized by mroute */
+        struct pf_subnet *e;
+
+        ALLOC_OBJ_CLEAR(e, struct pf_subnet);
+        e->addr_family = AF_INET;
+        e->exclude = exclude;
+        e->rule.v4.network = 0;
+        e->rule.v4.netmask = IPV4_NETMASK_HOST;
+        **next = e;
+        *next = &e->next;
+
+        ALLOC_OBJ_CLEAR(e, struct pf_subnet);
+        e->addr_family = AF_INET6;
+        e->exclude = exclude;
+        e->rule.v6.network = in6addr_any;
+        e->rule.v6.netmask = in6addr_any;
+        **next = e;
+        *next = &e->next;
+    }
+
+    return true;
 }
 
 static uint32_t
@@ -393,25 +593,37 @@ pf_cn_test_print(const char *prefix,
 }
 
 static void
-pf_addr_test_print(const char *prefix,
-                   const char *prefix2,
-                   const struct context *src,
-                   const struct mroute_addr *dest,
-                   const bool allow,
-                   const struct ipv4_subnet *rule)
+pf_addr_test_print(const char *prefix, const char *prefix2,
+                   const struct context *src, const struct mroute_addr *dest,
+                   const bool allow, const struct pf_subnet *subnet)
 {
     struct gc_arena gc = gc_new();
-    if (rule)
+    const char *network, *netmask;
+
+    if (subnet)
     {
+        switch (subnet->addr_family)
+        {
+            case AF_INET:
+                network = print_in_addr_t(subnet->rule.v4.network, 0, &gc);
+                netmask = print_in_addr_t(subnet->rule.v4.netmask, 0, &gc);
+                break;
+            case AF_INET6:
+                network = print_in6_addr(subnet->rule.v6.network, 0, &gc);
+                netmask = print_in6_addr(subnet->rule.v6.netmask, 0, &gc);
+                break;
+            default:
+                return;
+        }
+
+
         dmsg(D_PF_DEBUG, "PF: %s/%s %s %s %s rule=[%s/%s %s]",
              prefix,
              prefix2,
              tls_common_name(src->c2.tls_multi, false),
              mroute_addr_print_ex(dest, MAPF_SHOW_ARP, &gc),
-             drop_accept(allow),
-             print_in_addr_t(rule->network, 0, &gc),
-             print_in_addr_t(rule->netmask, 0, &gc),
-             drop_accept(!rule->exclude));
+             drop_accept(allow), network, netmask,
+             drop_accept(!subnet->exclude));
     }
     else
     {
@@ -496,35 +708,137 @@ pf_cn_test(struct pf_set *pfs, const struct tls_multi *tm, const int type, const
     return false;
 }
 
+/**
+ * Check if the IPv4 source address matches against the subnet rules
+ *
+ * @param src           the packet source IPv4 address
+ * @param dest          the packet destination IPv4 address
+ * @param prefix        logging prefix
+ */
 bool
-pf_addr_test_dowork(const struct context *src, const struct mroute_addr *dest, const char *prefix)
+pf_addr_v4_test_dowork(const struct context *src,
+                       const struct mroute_addr *dest, const char *prefix)
 {
+    const in_addr_t addr = in_addr_t_from_mroute_addr(dest);
     struct pf_set *pfs = src->c2.pf.pfs;
-    if (pfs && !pfs->kill)
+    const struct pf_subnet *se = pfs->sns.list;
+
+    while (se)
     {
-        const in_addr_t addr = in_addr_t_from_mroute_addr(dest);
-        const struct pf_subnet *se = pfs->sns.list;
-        while (se)
-        {
-            if ((addr & se->rule.netmask) == se->rule.network)
-            {
-#ifdef ENABLE_DEBUG
-                if (check_debug_level(D_PF_DEBUG))
-                {
-                    pf_addr_test_print("PF_ADDR_MATCH", prefix, src, dest, !se->rule.exclude, &se->rule);
-                }
-#endif
-                return !se->rule.exclude;
-            }
-            se = se->next;
-        }
 #ifdef ENABLE_DEBUG
         if (check_debug_level(D_PF_DEBUG))
         {
-            pf_addr_test_print("PF_ADDR_DEFAULT", prefix, src, dest, pfs->sns.default_allow, NULL);
+            pf_addr_test_print("PF_ADDR_CHECK", prefix, src, dest, !se->exclude,
+                               se);
         }
 #endif
-        return pfs->sns.default_allow;
+        if ((se->addr_family == AF_INET)
+            && (addr & se->rule.v4.netmask) == se->rule.v4.network)
+        {
+#ifdef ENABLE_DEBUG
+            if (check_debug_level(D_PF_DEBUG))
+            {
+                pf_addr_test_print("PF_ADDR_MATCH", prefix, src, dest,
+                                   !se->exclude, se);
+            }
+#endif
+            return !se->exclude;
+        }
+        se = se->next;
+    }
+#ifdef ENABLE_DEBUG
+    if (check_debug_level(D_PF_DEBUG))
+    {
+        pf_addr_test_print("PF_ADDR_DEFAULT", prefix, src, dest,
+                           pfs->sns.default_allow, NULL);
+    }
+#endif
+    return pfs->sns.default_allow;
+}
+
+/**
+ * Check if the IPv6 source address matches against the subnet rules
+ *
+ * @param src           the packet source IPv6 address
+ * @param dest          the packet destination IPv6 address
+ * @param prefix        logging prefix
+ */
+bool
+pf_addr_v6_test_dowork(const struct context *src,
+                       const struct mroute_addr *dest, const char *prefix)
+{
+    const struct in6_addr addr = in6_addr_from_mroute_addr(dest);
+    struct pf_set *pfs = src->c2.pf.pfs;
+    const struct pf_subnet *se = pfs->sns.list;
+
+    while (se)
+    {
+#ifdef ENABLE_DEBUG
+        if (check_debug_level(D_PF_DEBUG))
+        {
+            pf_addr_test_print("PFv6_ADDR_CHECK", prefix, src, dest, !se->exclude,
+                               se);
+        }
+#endif
+        if ((se->addr_family == AF_INET6)
+            && (pf_addr_v6_masked_eq(&addr, &se->rule.v6.network,
+                                     &se->rule.v6.netmask) == 0))
+        {
+#ifdef ENABLE_DEBUG
+            if (check_debug_level(D_PF_DEBUG))
+            {
+                pf_addr_test_print("PFv6_ADDR_MATCH", prefix, src, dest,
+                                   !se->exclude, se);
+            }
+#endif
+            return !se->exclude;
+        }
+        se = se->next;
+    }
+#ifdef ENABLE_DEBUG
+    if (check_debug_level(D_PF_DEBUG))
+    {
+        pf_addr_test_print("PFv6_ADDR_DEFAULT", prefix, src, dest,
+                           pfs->sns.default_allow, NULL);
+    }
+#endif
+    return pfs->sns.default_allow;
+}
+
+/**
+ * Check if the source address matches against the subnet rules (either IPv4
+ * or IPv6)
+ *
+ * @param src           the packet source address
+ * @param dest          the packet destination address
+ * @param prefix        logging prefix
+ */
+bool
+pf_addr_test_dowork(const struct context *src, const struct mroute_addr *dest,
+                    const char *prefix)
+{
+    struct pf_set *pfs = src->c2.pf.pfs;
+
+    if (pfs && !pfs->kill)
+    {
+        bool ret = true;
+
+        msg(D_PF_DEBUG, "PF: packet_type: %d", dest->type & MR_ADDR_MASK);
+        switch (dest->type & MR_ADDR_MASK)
+        {
+            case MR_ADDR_IPV4:
+                ret = pf_addr_v4_test_dowork(src, dest, prefix);
+                break;
+
+            case MR_ADDR_IPV6:
+                ret = pf_addr_v6_test_dowork(src, dest, prefix);
+                break;
+
+            default:
+                /* ignore non-IP traffic */
+                break;
+        }
+        return ret;
     }
     else
     {
@@ -534,8 +848,9 @@ pf_addr_test_dowork(const struct context *src, const struct mroute_addr *dest, c
             pf_addr_test_print("PF_ADDR_FAULT", prefix, src, dest, false, NULL);
         }
 #endif
-        return false;
     }
+
+    return false;
 }
 
 #ifdef PLUGIN_PF
@@ -691,10 +1006,20 @@ pf_subnet_set_print(const struct pf_subnet_set *s, const int lev)
 
         for (e = s->list; e != NULL; e = e->next)
         {
-            msg(lev, "   %s/%s %s",
-                print_in_addr_t(e->rule.network, 0, &gc),
-                print_in_addr_t(e->rule.netmask, 0, &gc),
-                drop_accept(!e->rule.exclude));
+            if (e->addr_family == AF_INET)
+            {
+                msg(lev, "   %s/%s %s",
+                    print_in_addr_t(e->rule.v4.network, 0, &gc),
+                    print_in_addr_t(e->rule.v4.netmask, 0, &gc),
+                    drop_accept(!e->exclude));
+            }
+            else
+            {
+                msg(lev, "   %s/%s %s",
+                    print_in6_addr(e->rule.v6.network, 0, &gc),
+                    print_in6_addr(e->rule.v6.netmask, 0, &gc),
+                    drop_accept(!e->exclude));
+            }
         }
     }
     gc_free(&gc);

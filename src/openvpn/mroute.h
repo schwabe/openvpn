@@ -257,6 +257,25 @@ in_addr_t_from_mroute_addr(const struct mroute_addr *addr)
     }
 }
 
+/**
+ * Extract host address from mroute_addr object.
+ *
+ * @param addr	mroute object to extract the address from
+ */
+static inline struct in6_addr
+in6_addr_from_mroute_addr (const struct mroute_addr *addr)
+{
+  if (((addr->type & MR_ADDR_MASK) == MR_ADDR_IPV6) && (addr->netbits == 0) &&
+      (addr->len == 16))
+    {
+      return addr->v6.addr;
+    }
+  else
+    {
+      return in6addr_any;
+    }
+}
+
 static inline void
 mroute_addr_reset(struct mroute_addr *ma)
 {
