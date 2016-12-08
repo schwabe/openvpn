@@ -83,22 +83,17 @@ struct pf_set {
 struct pf_context {
     bool enabled;
     struct pf_set *pfs;
-#ifdef PLUGIN_PF
     char *filename;
     time_t file_last_mod;
     unsigned int n_check_reload;
     struct event_timeout reload;
-#endif
 };
 
-void pf_init_context(struct context *c);
+void pf_init_context(struct context *c, const char *pf_file);
 
 void pf_destroy_context(struct pf_context *pfc);
 
-#ifdef PLUGIN_PF
 void pf_check_reload(struct context *c);
-
-#endif
 
 #ifdef MANAGEMENT_PF
 bool pf_load_from_buffer_list(struct context *c, const struct buffer_list *config);

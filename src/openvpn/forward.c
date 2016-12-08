@@ -553,7 +553,7 @@ process_coarse_timers(struct context *c)
     check_push_request(c);
 #endif
 
-#ifdef PLUGIN_PF
+#ifdef ENABLE_PF
     pf_check_reload(c);
 #endif
 

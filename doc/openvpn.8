@@ -3359,6 +3359,43 @@ condition of authentication, that a connecting client has a
 file.
 .\"*********************************************************
 .TP
+.B \-\-packet\-filter\-dir dir
+Specify a directory
+.B dir
+for packet filter rule files. After a connecting client has been
+authenticated, OpenVPN will look into this directory for a file
+having the same name as the client's X509 common name. If a
+matching file exists, it will be opened and parsed for
+client-specific packet filtering (pf) rules. If no file is found,
+OpenVPN will not filter any packet coming from this client.
+Note that the pf file must be readable by the OpenVPN process
+after it has dropped its root privileges.
+
+This file must be terminated by the key "[END]" and may contain
+two blocks:
+
+.B [CLIENTS {ACCEPT|DROP}]
+
+Each line of this block may contain the name of a client
+object of the filtering. The name will be matched against
+its X509 CN.
+
+.B [SUBNETS {ACCEPT|DROP}]
+
+Each line of this block should contain an IPv4 or IPv6 subnet
+object of the filtering. If no network prefix is specified,
+OpenVPN will assume it a host address (/24 for IPv4 and /128
+for IPv6).
+
+.B ACCEPT
+or
+.B DROP
+is the default policy to apply when the connecting client
+will try to reach another host. On the other hand, any
+attempt to send a packet to a listed CN or subnet will result
+in the application of the opposite of the policy.
+.\"*********************************************************
+.TP
 .B \-\-tmp\-dir dir
 Specify a directory
 .B dir

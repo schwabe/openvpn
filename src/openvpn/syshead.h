@@ -570,14 +570,11 @@ socket_defined(const socket_descriptor_t sd)
 /*
  * Enable packet filter?
  */
-#if defined(ENABLE_PF) && P2MP_SERVER && defined(ENABLE_PLUGIN) && defined(HAVE_STAT)
-#define PLUGIN_PF
-#endif
-#if defined(ENABLE_PF) && P2MP_SERVER && defined(MANAGEMENT_DEF_AUTH)
-#define MANAGEMENT_PF
-#endif
-#if !defined(PLUGIN_PF) && !defined(MANAGEMENT_PF)
+#if defined(ENABLE_PF) && !P2MP_SERVER
 #undef ENABLE_PF
+#endif
+#if defined(ENABLE_PF) && defined(MANAGEMENT_DEF_AUTH)
+#define MANAGEMENT_PF
 #endif
 
 /*

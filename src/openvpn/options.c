@@ -464,6 +464,7 @@ static const char usage_message[] =
     "--client-disconnect cmd : Run command cmd on client disconnection.\n"
     "--client-config-dir dir : Directory for custom client config files.\n"
     "--ccd-exclusive : Refuse connection unless custom client config is found.\n"
+    "--packet-filter-dir dir : Directory for client packet filtering files.\n"
     "--tmp-dir dir   : Temporary directory, used for --client-connect return file and plugin communication.\n"
     "--hash-size r v : Set the size of the real address hash table to r and the\n"
     "                  virtual address table to v.\n"
@@ -1306,6 +1307,7 @@ show_p2mp_parms(const struct options *o)
     SHOW_STR(client_disconnect_script);
     SHOW_STR(client_config_dir);
     SHOW_BOOL(ccd_exclusive);
+    SHOW_STR(packet_filter_dir);
     SHOW_STR(tmp_dir);
     SHOW_BOOL(push_ifconfig_defined);
     msg(D_SHOW_PARMS, "  push_ifconfig_local = %s", print_in_addr_t(o->push_ifconfig_local, 0, &gc));
@@ -2417,6 +2419,10 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
         {
             msg(M_USAGE, "--client-config-dir/--ccd-exclusive requires --mode server");
         }
+        if (options->packet_filter_dir)
+        {
+            msg(M_USAGE, "--packet-filter-dir requires --mode server");
+        }
         if (options->enable_c2c)
         {
             msg(M_USAGE, "--client-to-client requires --mode server");
@@ -3321,6 +3327,11 @@ options_postprocess_filechecks(struct options *options)
     errs |= check_file_access_chroot(options->chroot_dir, CHKACC_FILE, options->tmp_dir,
                                      R_OK|W_OK|X_OK, "Temporary directory (--tmp-dir)");
 
+#if ENABLE_PF
+  errs |= check_file_access_chroot (options->chroot_dir, CHKACC_FILE,
+				    options->packet_filter_dir, R_OK|X_OK,
+				    "--packet-filter-dir");
+#endif /* ENABLE_PF */
 #endif /* P2MP_SERVER */
 
     if (errs)
@@ -6769,6 +6780,11 @@ add_option(struct options *options,
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);
         options->ccd_exclusive = true;
+    }
+    else if (streq (p[0], "packet-filter-dir") && p[1] && !p[2])
+    {
+        VERIFY_PERMISSION (OPT_P_GENERAL);
+        options->packet_filter_dir = p[1];
     }
     else if (streq(p[0], "bcast-buffers") && p[1] && !p[2])
     {

@@ -4133,13 +4133,6 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
     }
 #endif
 
-#ifdef ENABLE_PF
-    if (child)
-    {
-        pf_init_context(c);
-    }
-#endif
-
     /* Check for signals */
     if (IS_SIG(c))
     {

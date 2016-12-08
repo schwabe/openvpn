@@ -417,6 +417,7 @@ struct options
     const char *learn_address_script;
     const char *client_config_dir;
     bool ccd_exclusive;
+    const char *packet_filter_dir;
     bool disable;
     int n_bcast_buf;
     int tcp_queue_limit;

@@ -2099,6 +2099,22 @@ script_failed:
             management_connection_established(management, &mi->context.c2.mda_context, mi->context.c2.es);
         }
 #endif
+#ifdef ENABLE_PF
+      if (mi->context.options.packet_filter_dir)
+	{
+	  const char *pf_file;
+
+	  pf_file = gen_path (mi->context.options.packet_filter_dir,
+			      tls_common_name (mi->context.c2.tls_multi, false),
+			      &gc);
+
+	  /* try common-name file */
+	  if (test_file (pf_file))
+	    {
+	      pf_init_context (&mi->context, pf_file);
+	    }
+	}
+#endif
 
         gc_free(&gc);
     }
