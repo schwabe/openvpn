@@ -1697,7 +1697,7 @@ show_settings(const struct options *o)
 
 #ifdef ENABLE_CRYPTO
     SHOW_STR(shared_secret_file);
-    SHOW_INT(key_direction);
+    SHOW_PARM(key_direction, keydirection2ascii(o->key_direction, false), "%s");
     SHOW_STR(ciphername);
     SHOW_BOOL(ncp_enabled);
     SHOW_STR(ncp_ciphers);
