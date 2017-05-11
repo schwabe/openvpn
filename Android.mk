@@ -2,13 +2,13 @@ LOCAL_PATH:= $(call my-dir)/
 
 include $(CLEAR_VARS)
 
-LOCAL_LDLIBS := -lz
+LOCAL_LDLIBS := -lz -latomic
 LOCAL_C_INCLUDES := openssl/include lzo/include openssl/crypto openssl openvpn/src/compat openvpn/src/openvpn openvpn/include breakpad/src google-breakpad/src/common/android/include mbedtls/include openvpn/android-config/
 
 
 
 
-LOCAL_CFLAGS= -DHAVE_CONFIG_H -DTARGET_ABI=\"${TARGET_ABI}\" -std=c99
+LOCAL_CFLAGS= -DHAVE_CONFIG_H -DTARGET_ABI=\"${TARGET_ABI}\"
 LOCAL_STATIC_LIBRARIES :=  liblzo-static
 
 ifeq ($(WITH_MBEDTLS),1)
