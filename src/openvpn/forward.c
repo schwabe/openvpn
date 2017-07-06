@@ -1209,6 +1209,9 @@ process_incoming_tun(struct context *c)
                                 &c->c2.n_trunc_pre_encrypt);
 #endif
 
+    }
+    if (c->c2.buf.len > 0)
+    {
         encrypt_sign(c, true);
     }
     else
@@ -1218,6 +1221,124 @@ process_incoming_tun(struct context *c)
     perf_pop();
     gc_free(&gc);
 }
+
+/**
+ *  Calculates an IPv6 checksum with a pseudo header as required by TCP, UDP and ICMPv6
+ * @param payload the TCP, ICMPv6 or UDP packet
+ * @param len_payload length of payload
+ * @param src_addr
+ * @param dest_addr
+ * @return calculated checksum in host order
+ */
+static uint16_t
+ipv6_checksum(const uint8_t *payload,
+              const int len_payload,
+              const int next_header,
+              const uint8_t *src_addr,
+              const uint8_t *dest_addr)
+{
+    uint32_t sum = 0;
+
+    /* make 16 bit words out of every two adjacent 8 bit words and  */
+    /* calculate the sum of all 16 bit words */
+    for (int i = 0; i < len_payload; i += 2)
+    {
+        sum +=  (uint16_t) (((payload[i] << 8) & 0xFF00) + ((i + 1 < len_payload) ? (payload[i + 1] & 0xFF) : 0));
+
+    }
+
+    /* add the pseudo header which contains the IP source and destination addresses */
+    for (int i = 0; i < 16; i += 2)
+    {
+        sum += (uint16_t) ((src_addr[i] << 8) & 0xFF00) + (src_addr[i+1] & 0xFF);
+
+    }
+    for (int i = 0; i < 16; i += 2)
+    {
+        sum += (uint16_t) ((dest_addr[i] << 8) & 0xFF00) + (dest_addr[i+1] & 0xFF);
+    }
+
+    /* the length of the payload */
+    sum += (uint16_t) len_payload;
+
+    /* The next header */
+    sum += (uint16_t) next_header;
+
+    /* keep only the last 16 bits of the 32 bit calculated sum and add the carries */
+    while (sum >> 16)
+    {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+
+    /* Take the one's complement of sum */
+    return ((uint16_t) ~sum);
+}
+
+void
+ipv6_send_icmp_unreachable(struct context * c, struct buffer *buf)
+{
+#define ICMPV6LEN  1280
+    struct buffer icmpbuf;
+    const struct openvpn_ipv6hdr *pip6;
+
+
+    if (BLEN(buf) < (int) sizeof(struct openvpn_ipv6hdr))
+    {
+        return;
+    }
+
+    verify_align_4(buf);
+    pip6 = (struct openvpn_ipv6hdr *) BPTR(buf);
+
+    struct openvpn_ipv6hdr pip6out;
+    // Copy version, traffic class, flow label from input packet
+    pip6out = *pip6;
+
+    pip6out.version_prio = pip6->version_prio;
+
+    pip6out.daddr = pip6->saddr;
+    inet_pton( AF_INET6, c->options.ifconfig_ipv6_remote, &pip6out.saddr );
+
+    pip6out.nexthdr = OPENVPN_IPPROTO_ICMPV6;
+
+    struct openvpn_icmp6hdr icmp6out;
+    CLEAR(icmp6out);
+    icmp6out.icmp6_type = OPENVPN_ICMP6_DESTINATION_UNREACHABLE;
+    icmp6out.icmp6_code = OPENVPN_ICMP6_DU_NOROUTE;
+
+    int icmpheader_len = sizeof(struct openvpn_ipv6hdr) + sizeof(struct openvpn_icmp6hdr);
+
+    // Calculate size for payload, defined in the standard that the resulting frame
+    // should <= 1280 and have as much as possible of the original packet
+    int payloadlen = min_int(min_int(ICMPV6LEN, TUN_MTU_SIZE(&c->c2.frame) - icmpheader_len), buf_len(buf)) ;
+
+    pip6out.payload_len = htons(sizeof(struct openvpn_icmp6hdr) + payloadlen);
+
+    c->c2.to_tun = c->c2.buffers->aux_buf;
+    ASSERT(buf_init(&c->c2.to_tun, icmpheader_len));
+
+
+    // Fill the end of the buffer with original packet
+    ASSERT(buf_safe(&c->c2.to_tun, payloadlen));
+    ASSERT(buf_copy_n(&c->c2.to_tun, buf, payloadlen));
+
+    // ICMP Header, copy into buffer to allow checksum calculation
+    ASSERT(buf_write_prepend(&c->c2.to_tun, &icmp6out, sizeof(struct openvpn_icmp6hdr)));
+
+    // Calculate checksum over the packet
+    icmp6out.icmp6_cksum = htons (ipv6_checksum(BPTR(&c->c2.to_tun), BLEN(&c->c2.to_tun), OPENVPN_IPPROTO_ICMPV6,
+                                        (const uint8_t*) &pip6out.saddr, (uint8_t*) &pip6out.daddr));
+
+    // Copy icmp header again, now with correct checksum
+    buf_advance(&c->c2.to_tun, sizeof(struct openvpn_icmp6hdr));
+    ASSERT(buf_write_prepend(&c->c2.to_tun, &icmp6out, sizeof(struct openvpn_icmp6hdr)));
+
+    // IPv6 Header
+    ASSERT(buf_write_prepend(&c->c2.to_tun, &pip6out, sizeof(struct openvpn_ipv6hdr)));
+    buf_advance(&icmpbuf, sizeof(struct openvpn_ipv6hdr));
+    buf->len=0;
+}
+
 
 void
 process_ip_header(struct context *c, unsigned int flags, struct buffer *buf)
@@ -1240,7 +1361,6 @@ process_ip_header(struct context *c, unsigned int flags, struct buffer *buf)
     {
         flags &= ~PIPV4_EXTRACT_DHCP_ROUTER;
     }
-
     if (buf->len > 0)
     {
         /*
@@ -1275,7 +1395,7 @@ process_ip_header(struct context *c, unsigned int flags, struct buffer *buf)
                 /* possibly do NAT on packet */
                 if ((flags & PIPV4_CLIENT_NAT) && c->options.client_nat)
                 {
-                    const int direction = (flags & PIPV4_OUTGOING) ? CN_INCOMING : CN_OUTGOING;
+                    const int direction = (flags & PIP_OUTGOING) ? CN_INCOMING : CN_OUTGOING;
                     client_nat_transform(c->options.client_nat, &ipbuf, direction);
                 }
                 /* possibly extract a DHCP router message */
@@ -1295,6 +1415,11 @@ process_ip_header(struct context *c, unsigned int flags, struct buffer *buf)
                 {
                     mss_fixup_ipv6(&ipbuf, MTU_TO_MSS(TUN_MTU_SIZE_DYNAMIC(&c->c2.frame)));
                 }
+                if (!(flags & PIP_OUTGOING))
+                {
+                    ipv6_send_icmp_unreachable(c, buf);
+                }
+
             }
         }
     }
@@ -1478,7 +1603,7 @@ process_outgoing_tun(struct context *c)
      * The --mssfix option requires
      * us to examine the IP header (IPv4 or IPv6).
      */
-    process_ip_header(c, PIP_MSSFIX|PIPV4_EXTRACT_DHCP_ROUTER|PIPV4_CLIENT_NAT|PIPV4_OUTGOING, &c->c2.to_tun);
+    process_ip_header(c, PIP_MSSFIX|PIPV4_EXTRACT_DHCP_ROUTER|PIPV4_CLIENT_NAT|PIP_OUTGOING, &c->c2.to_tun);
 
     if (c->c2.to_tun.len <= MAX_RW_SIZE_TUN(&c->c2.frame))
     {

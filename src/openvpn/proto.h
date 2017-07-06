@@ -98,6 +98,7 @@ struct openvpn_iphdr {
 #define OPENVPN_IPPROTO_IGMP 2  /* IGMP protocol */
 #define OPENVPN_IPPROTO_TCP  6  /* TCP protocol */
 #define OPENVPN_IPPROTO_UDP 17  /* UDP protocol */
+#define OPENVPN_IPPROTO_ICMPV6 58 /* ICMPV6 protocol */
     uint8_t protocol;
 
     uint16_t check;
@@ -124,6 +125,7 @@ struct openvpn_ipv6hdr {
  * ICMPv6 header
  */
 struct openvpn_icmp6hdr {
+# define OPENVPN_ICMP6_DESTINATION_UNREACHABLE 1
 # define OPENVPN_ND_ROUTER_SOLICIT	133
 # define OPENVPN_ND_ROUTER_ADVERT	134
 # define OPENVPN_ND_NEIGHBOR_SOLICIT	135
@@ -131,7 +133,8 @@ struct openvpn_icmp6hdr {
 # define OPENVPN_ND_INVERSE_SOLICIT	141
 # define OPENVPN_ND_INVERSE_ADVERT	142
 	uint8_t		icmp6_type;
-
+# define OPENVPN_ICMP6_DU_NOROUTE 0
+# define OPENVPN_ICMP6_DU_COMMUNICATION_PROHIBTED 1
 	uint8_t		icmp6_code;
 	uint16_t	icmp6_cksum;
 	uint8_t		icmp6_dataun[4];
