@@ -4474,6 +4474,49 @@ is_ip_in_adapter_subnet(const IP_ADAPTER_INFO *ai, const in_addr_t ip, in_addr_t
     return ret;
 }
 
+/**
+ * Given an interface index return the interface metric.
+ *
+ * Arguments:
+ *   index         : The index of the interface
+ *   family        : AF_INET for IPv4 or AF_INET6 for IPv6
+ * On error returns -1
+ */
+
+/* function signature missing in mingw iphlpapi.h */
+VOID NETIOAPI_API_
+InitializeIpInterfaceEntry(PMIB_IPINTERFACE_ROW Row);
+
+static int
+get_interface_metric(NET_IFINDEX index, ADDRESS_FAMILY family)
+{
+    DWORD err;
+    int msglevel = D_ROUTE|M_WARN;
+    MIB_IPINTERFACE_ROW ipiface;
+
+    InitializeIpInterfaceEntry(&ipiface);
+    ipiface.Family = family;
+    ipiface.InterfaceIndex = index;
+
+    err = GetIpInterfaceEntry(&ipiface);
+    if (err == NO_ERROR)
+    {
+        return ipiface.Metric;
+    }
+    else if (err == ERROR_NOT_FOUND)
+    {
+        /*
+         *  This happens if the address family is not enabled for the
+         *  interface, which is benign -- display only at a debug level
+         */
+        msglevel = D_ROUTE_DEBUG;
+    }
+    msg(msglevel, "Note: failed to determine metric of interface "
+                  "<%lu> for %s : (error code = %lu)",
+                  index, (family == AF_INET)? "ipv4" : "ipv6", err);
+    return -1;
+}
+
 DWORD
 adapter_index_of_ip(const IP_ADAPTER_INFO *list,
                     const in_addr_t ip,
@@ -4483,6 +4526,7 @@ adapter_index_of_ip(const IP_ADAPTER_INFO *list,
     struct gc_arena gc = gc_new();
     DWORD ret = TUN_ADAPTER_INDEX_INVALID;
     in_addr_t highest_netmask = 0;
+    int lowest_metric = INT_MAX;
     bool first = true;
 
     if (count)
@@ -4496,9 +4540,14 @@ adapter_index_of_ip(const IP_ADAPTER_INFO *list,
 
         if (is_ip_in_adapter_subnet(list, ip, &hn))
         {
+            int metric = get_interface_metric(list->Index, AF_INET);
             if (first || hn > highest_netmask)
             {
                 highest_netmask = hn;
+                if (metric >= 0)
+                {
+                    lowest_metric = metric;
+                }
                 if (count)
                 {
                     *count = 1;
@@ -4512,16 +4561,22 @@ adapter_index_of_ip(const IP_ADAPTER_INFO *list,
                 {
                     ++*count;
                 }
+                if (metric >= 0 && metric < lowest_metric)
+                {
+                    ret = list->Index;
+                    lowest_metric = metric;
+                }
             }
         }
         list = list->Next;
     }
 
-    dmsg(D_ROUTE_DEBUG, "DEBUG: IP Locate: ip=%s nm=%s index=%d count=%d",
+    dmsg(D_ROUTE_DEBUG, "DEBUG: IP Locate: ip=%s nm=%s index=%d count=%d metric=%d",
          print_in_addr_t(ip, 0, &gc),
          print_in_addr_t(highest_netmask, 0, &gc),
          (int)ret,
-         count ? *count : -1);
+         count ? *count : -1,
+         lowest_metric);
 
     if (ret == TUN_ADAPTER_INDEX_INVALID && count)
     {
