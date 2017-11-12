@@ -98,6 +98,7 @@ struct openvpn_iphdr {
 #define OPENVPN_IPPROTO_IGMP 2  /* IGMP protocol */
 #define OPENVPN_IPPROTO_TCP  6  /* TCP protocol */
 #define OPENVPN_IPPROTO_UDP 17  /* UDP protocol */
+#define OPENVPN_IPPROTO_ICMPV6 58 /* ICMPV6 protocol */
     uint8_t protocol;
 
     uint16_t check;
@@ -120,6 +121,24 @@ struct openvpn_ipv6hdr {
     struct  in6_addr daddr;
 };
 
+/*
+ * ICMPv6 header
+ */
+struct openvpn_icmp6hdr {
+# define OPENVPN_ICMP6_DESTINATION_UNREACHABLE 1
+# define OPENVPN_ND_ROUTER_SOLICIT	133
+# define OPENVPN_ND_ROUTER_ADVERT	134
+# define OPENVPN_ND_NEIGHBOR_SOLICIT	135
+# define OPENVPN_ND_NEIGHBOR_ADVERT	136
+# define OPENVPN_ND_INVERSE_SOLICIT	141
+# define OPENVPN_ND_INVERSE_ADVERT	142
+	uint8_t		icmp6_type;
+# define OPENVPN_ICMP6_DU_NOROUTE 0
+# define OPENVPN_ICMP6_DU_COMMUNICATION_PROHIBTED 1
+	uint8_t		icmp6_code;
+	uint16_t	icmp6_cksum;
+	uint8_t		icmp6_dataun[4];
+};
 
 /*
  * UDP header
@@ -264,6 +283,39 @@ get_tun_ip_ver(int tunnel_type, struct buffer *buf, int *ip_hdr_offset)
 bool is_ipv4(int tunnel_type, struct buffer *buf);
 
 bool is_ipv6(int tunnel_type, struct buffer *buf);
+
+static inline int
+af_addr_size(sa_family_t af)
+{
+    switch (af)
+    {
+        case AF_INET: return sizeof(struct sockaddr_in);
+
+        case AF_INET6: return sizeof(struct sockaddr_in6);
+
+        default:
+#if 0
+            /* could be called from socket_do_accept() with empty addr */
+            msg(M_ERR, "Bad address family: %d\n", af);
+            ASSERT(0);
+#endif
+            return 0;
+    }
+}
+
+/**
+ *  Calculates an IP or IPv6 checksum with a pseudo header as required by TCP, UDP and ICMPv6
+ * @param af Address family for which the checksum is calculated AF_INET or AF_INET6
+ * @param payload the TCP, ICMPv6 or UDP packet
+ * @param len_payload length of payload
+ * @param src_addr Source address of the packet
+ * @param dest_addr Destination address of the packet
+ * @param proto next header or IP protocol of the packet
+ * @return calculated checksum in host order
+ */
+uint16_t
+ip_checksum(const sa_family_t af, const uint8_t *payload, const int len_payload, const uint8_t *src_addr,
+            const uint8_t *dest_addr,  const int proto);
 
 #ifdef PACKET_TRUNCATION_CHECK
 void ipv4_packet_size_verify(const uint8_t *data,

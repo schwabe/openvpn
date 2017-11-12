@@ -848,25 +848,6 @@ addr_inet4or6(struct sockaddr *addr)
 
 int addr_guess_family(sa_family_t af,const char *name);
 
-static inline int
-af_addr_size(sa_family_t af)
-{
-    switch (af)
-    {
-        case AF_INET: return sizeof(struct sockaddr_in);
-
-        case AF_INET6: return sizeof(struct sockaddr_in6);
-
-        default:
-#if 0
-            /* could be called from socket_do_accept() with empty addr */
-            msg(M_ERR, "Bad address family: %d\n", af);
-            ASSERT(0);
-#endif
-            return 0;
-    }
-}
-
 static inline bool
 link_socket_actual_match(const struct link_socket_actual *a1, const struct link_socket_actual *a2)
 {
