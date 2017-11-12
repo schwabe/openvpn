@@ -225,6 +225,8 @@ static const char usage_message[] =
     "                  Add 'bypass-dns' flag to similarly bypass tunnel for DNS.\n"
     "--redirect-private [flags]: Like --redirect-gateway, but omit actually changing\n"
     "                  the default gateway.  Useful when pushing private subnets.\n"
+    "--block-ipv6     : (client only) Instead sending IPv6 to the server generate\n"
+    "                   ICMPv6 host unreachable messages.\n"
     "--client-nat snat|dnat network netmask alias : on client add 1-to-1 NAT rule.\n"
     "--push-peer-info : (client only) push client info to server.\n"
     "--setenv name value : Set a custom environmental variable to pass to script.\n"
@@ -2088,6 +2090,10 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
         msg(M_USAGE, "--lladdr can only be used in --dev tap mode");
     }
 
+    if (options->block_ipv6 && dev != DEV_TYPE_TUN)
+    {
+        msg(M_USAGE, "--block-ipv6 can be only used in --dev tun mode");
+    }
     /*
      * Sanity check on MTU parameters
      */
@@ -6391,6 +6397,11 @@ add_option(struct options *options,
         remap_redirect_gateway_flags(options);
 #endif
         options->routes->flags |= RG_ENABLE;
+    }
+    else if (streq(p[0], "block-ipv6") && !p[1])
+    {
+        VERIFY_PERMISSION(OPT_P_ROUTE);
+        options->block_ipv6 = true;
     }
     else if (streq(p[0], "remote-random-hostname") && !p[1])
     {
