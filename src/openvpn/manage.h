@@ -281,6 +281,7 @@ struct man_connection {
 #define IEC_CLIENT_PF   2
 #define IEC_RSA_SIGN    3
 #define IEC_CERTIFICATE 4
+#define IEC_ECDSA_SIGN  5
     int in_extra_cmd;
     struct buffer_list *in_extra;
 #ifdef MANAGEMENT_DEF_AUTH
@@ -440,6 +441,8 @@ void management_learn_addr(struct management *management,
 #ifdef MANAGMENT_EXTERNAL_KEY
 
 char *management_query_rsa_sig(struct management *man, const char *b64_data);
+
+char *management_query_ecdsa_sig(struct management *man, const char *b64_data);
 
 char *management_query_cert(struct management *man, const char *cert_name);
 

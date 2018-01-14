@@ -113,6 +113,8 @@ man_help(void)
 #ifdef MANAGMENT_EXTERNAL_KEY
     msg(M_CLIENT, "rsa-sig                : Enter an RSA signature in response to >RSA_SIGN challenge");
     msg(M_CLIENT, "                         Enter signature base64 on subsequent lines followed by END");
+    msg(M_CLIENT, "ecdsa-sig              : Enter an ECDSA signature in response to >ECDSA_SIGN challenge");
+    msg(M_CLIENT, "                         Enter signature base64 on subsequent lines followed by END");
     msg(M_CLIENT, "certificate            : Enter a client certificate in response to >NEED-CERT challenge");
     msg(M_CLIENT, "                         Enter certificate base64 on subsequent lines followed by END");
 #endif
@@ -936,6 +938,7 @@ in_extra_dispatch(struct management *man)
 #endif /* ifdef MANAGEMENT_PF */
 #ifdef MANAGMENT_EXTERNAL_KEY
         case IEC_RSA_SIGN:
+        case IEC_ECDSA_SIGN:
             man->connection.ext_key_state = EKS_READY;
             buffer_list_free(man->connection.ext_key_input);
             man->connection.ext_key_input = man->connection.in_extra;
@@ -1115,6 +1118,22 @@ man_rsa_sig(struct management *man)
     else
     {
         msg(M_CLIENT, "ERROR: The rsa-sig command is not currently available");
+    }
+}
+
+static void
+man_ecdsa_sig(struct management *man)
+{
+    struct man_connection *mc = &man->connection;
+    if (mc->ext_key_state == EKS_SOLICIT)
+    {
+        mc->ext_key_state = EKS_INPUT;
+        mc->in_extra_cmd = IEC_ECDSA_SIGN;
+        in_extra_reset(mc, IER_NEW);
+    }
+    else
+    {
+        msg(M_CLIENT, "ERROR: The ecdsa-sig command is not currently available");
     }
 }
 
@@ -1515,6 +1534,10 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
     else if (streq(p[0], "rsa-sig"))
     {
         man_rsa_sig(man);
+    }
+    else if (streq(p[0], "ecdsa-sig"))
+    {
+        man_ecdsa_sig(man);
     }
     else if (streq(p[0], "certificate"))
     {
@@ -3655,6 +3678,13 @@ management_query_rsa_sig(struct management *man,
                                               &man->connection.ext_key_state, &man->connection.ext_key_input);
 }
 
+char *
+management_query_ecdsa_sig(struct management *man,
+                           const char *b64_data)
+{
+    return management_query_multiline_flatten(man, b64_data, "ECDSA_SIGN", "ecdsa-sign",
+                                              &man->connection.ext_key_state, &man->connection.ext_key_input);
+}
 
 char *
 management_query_cert(struct management *man, const char *cert_name)
