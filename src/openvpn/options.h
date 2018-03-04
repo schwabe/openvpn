@@ -443,6 +443,7 @@ struct options
     const char *auth_user_pass_verify_script;
     bool auth_user_pass_verify_script_via_file;
     bool auth_token_generate;
+    bool auth_token_generate_force;
     unsigned int auth_token_lifetime;
 #if PORT_SHARE
     char *port_share_host;
@@ -457,6 +458,7 @@ struct options
     unsigned int push_option_types_found;
     const char *auth_user_pass_file;
     struct options_pre_pull *pre_pull;
+    bool forget_token_on_reconnect;
 
     int scheduled_exit_interval;
 

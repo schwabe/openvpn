@@ -53,25 +53,31 @@ receive_auth_failed(struct context *c, const struct buffer *buffer)
     msg(M_VERB0, "AUTH: Received control message: %s", BSTR(buffer));
     c->options.no_advance = true;
 
-    if (c->options.pull)
-    {
-        switch (auth_retry_get())
+    if (c->options.pull) {
+        /* Before checking how to react on AUTH_FAILED, first check if the failed authed might be
+         * the result of an expired auth-token */
+        if (ssl_clean_auth_token())
         {
-            case AR_NONE:
-                c->sig->signal_received = SIGTERM; /* SOFT-SIGTERM -- Auth failure error */
-                break;
+            c->sig->signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- Auth failure error */
+            c->sig->signal_text = "auth-failure (auth-token)";
+        } else {
+            switch (auth_retry_get()) {
+                case AR_NONE:
+                    c->sig->signal_received = SIGTERM; /* SOFT-SIGTERM -- Auth failure error */
+                    break;
 
-            case AR_INTERACT:
-                ssl_purge_auth(false);
+                case AR_INTERACT:
+                    ssl_purge_auth(false);
 
-            case AR_NOINTERACT:
-                c->sig->signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- Auth failure error */
-                break;
+                case AR_NOINTERACT:
+                    c->sig->signal_received = SIGUSR1; /* SOFT-SIGUSR1 -- Auth failure error */
+                    break;
 
-            default:
-                ASSERT(0);
+                default:
+                    ASSERT(0);
+            }
+            c->sig->signal_text = "auth-failure";
         }
-        c->sig->signal_text = "auth-failure";
 #ifdef ENABLE_MANAGEMENT
         if (management)
         {
@@ -325,7 +331,6 @@ static bool
 prepare_push_reply(struct context *c, struct gc_arena *gc,
                    struct push_list *push_list)
 {
-    const char *optstr = NULL;
     struct tls_multi *tls_multi = c->c2.tls_multi;
     const char *const peer_info = tls_multi->peer_info;
     struct options *o = &c->options;
@@ -355,18 +360,33 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
                                         0, gc));
     }
 
-    /* Send peer-id if client supports it */
-    optstr = peer_info ? strstr(peer_info, "IV_PROTO=") : NULL;
+    /* Extract the version info from IV_PROTO */
+    const char* optstr = peer_info ? strstr(peer_info, "IV_PROTO=") : NULL;
+    int protover = 0;
     if (optstr)
     {
-        int proto = 0;
-        int r = sscanf(optstr, "IV_PROTO=%d", &proto);
-        if ((r == 1) && (proto >= 2))
-        {
-            push_option_fmt(gc, push_list, M_USAGE, "peer-id %d",
-                            tls_multi->peer_id);
-            tls_multi->use_peer_id = true;
-        }
+        int r = sscanf(optstr, "IV_PROTO=%d", &protover);
+        if (r != 1)
+            protover = 0;
+    }
+
+    /* OpenVPN 3 C++ core *always* forgets the auth-token at the end of a session, check if client
+     * is an OpenVPN 3 client */
+    int clientmajor=0;
+    optstr = peer_info ? strstr(peer_info, "IV_VER=") : NULL;
+    if (optstr)
+    {
+      int r = sscanf(optstr, "IV_VER=%d", &clientmajor);
+      if (r != 1)
+        clientmajor=0;
+    }
+
+    /* Send peer-id if client supports it */
+    if (protover >= 2)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "peer-id %d",
+                        tls_multi->peer_id);
+        tls_multi->use_peer_id = true;
     }
 
     /* Push cipher if client supports Negotiable Crypto Parameters */
@@ -400,12 +420,25 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
 
     /* If server uses --auth-gen-token and we have an auth token
      * to send to the client
+     * Also push forget-token-reconnect since our token is only valid for
+     * a sigle connection. Older clients will just ignore the option
      */
     if (false == tls_multi->auth_token_sent && NULL != tls_multi->auth_token)
     {
-        push_option_fmt(gc, push_list, M_USAGE,
-                        "auth-token %s", tls_multi->auth_token);
-        tls_multi->auth_token_sent = true;
+        if (protover >= 3 || clientmajor == 3 || o->auth_token_generate_force)
+        {
+            push_option_fmt(gc, push_list, M_USAGE,
+                            "auth-token %s", tls_multi->auth_token);
+            push_option_fmt(gc, push_list, M_USAGE,
+                            "forget-token-reconnect");
+            tls_multi->auth_token_sent = true;
+        }
+        else
+        {
+            msg(D_TLS_DEBUG_LOW, "Not sending auth-token to client since it will not "
+                "properly reconnect. (Use force option to auth-gen-token "
+                "to force sending)");
+        }
     }
     return true;
 }

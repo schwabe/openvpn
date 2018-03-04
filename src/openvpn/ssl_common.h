@@ -299,6 +299,8 @@ struct tls_options
     const char *auth_user_pass_file;
     bool auth_token_generate;   /**< Generate auth-tokens on successful user/pass auth,
                                  *   set via options->auth_token_generate. */
+    bool auth_token_generate_force;  /* Sent auth-tokens even if the client will not reconnect
+                                      * properly with them */
     unsigned int auth_token_lifetime;
 
     /* use the client-config-dir as a positive authenticator */

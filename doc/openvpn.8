@@ -3058,7 +3058,8 @@ IV_LZO_STUB=1 \-\- if client was built with LZO stub capability
 
 IV_LZ4=1 \-\- if the client supports LZ4 compressions.
 
-IV_PROTO=2 \-\- if the client supports peer\-id floating mechansim
+IV_PROTO=3 \-\- if the client supports peer\-id floating mechansim (2 or greater) and
+fallback to normal authentication after a failed auth-token authentication (3 or greater)
 
 IV_NCP=2 \-\- negotiable ciphers, client supports
 .B \-\-cipher
@@ -3664,7 +3665,7 @@ For a sample script that performs PAM authentication, see
 in the OpenVPN source distribution.
 .\"*********************************************************
 .TP
-.B \-\-auth\-gen\-token [lifetime]
+.B \-\-auth\-gen\-token [lifetime] [force]
 After successful user/password authentication, the OpenVPN
 server will with this option generate a temporary
 authentication token and push that to client.  On the following
@@ -3684,6 +3685,12 @@ This feature is useful for environments which is configured
 to use One Time Passwords (OTP) as part of the user/password
 authentications and that authentication mechanism does not
 implement any auth\-token support.
+
+The
+.B force
+option will send auth-token even if the client does not signal
+proper auth-token support on reconnect and will fail on reconnect with
+failed authentication. This is the behaviour of versions prior to 2.4.6.
 .\"*********************************************************
 .TP
 .B \-\-opt\-verify
@@ -5337,7 +5344,33 @@ push "auth\-token UNIQUE_TOKEN_VALUE"
 into the file/buffer for dynamic configuration data.  This
 will then make the OpenVPN server to push this value to the
 client, which replaces the local password with the
-UNIQUE_TOKEN_VALUE.
+UNIQUE_TOKEN_VALUE. If you want the client (2.4.6+) to forget the token when
+reconnecting also use:
+
+.nf
+.ft 3
+.in +4
+push "forget\-token\-reconnect"
+.in -4
+.ft
+.fi
+
+Newer clients (2.4.6+) will fall back to the original password method
+after a failed auth-token attempt. Older clients will keep using the token
+value and react acording to
+.B \-\-auth-retry
+.
+.\**********************************************************
+.TP
+.B forget\-token\-reconnect
+
+Normally a client will retry an auth-token after a reconnect (e.g. USR1 triggered).
+If the token fails, the client will fall back to the original method and make an additional
+connection attempt. If the token is only valid for a single connection this option can be used
+to skip the first attempt on reconnect. The
+.B
+auth\-gen\-token
+option automatically pushes this option.
 .\"*********************************************************
 .TP
 .B \-\-tls\-verify cmd

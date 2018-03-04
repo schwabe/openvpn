@@ -2750,6 +2750,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.auth_user_pass_file = options->auth_user_pass_file;
     to.auth_token_generate = options->auth_token_generate;
     to.auth_token_lifetime = options->auth_token_lifetime;
+    to.auth_token_generate_force = options->auth_token_generate_force;
 #endif
 
     to.x509_track = options->x509_track;
@@ -3390,6 +3391,9 @@ do_close_tls(struct context *c)
         md_ctx_cleanup(c->c2.pulled_options_state);
         md_ctx_free(c->c2.pulled_options_state);
     }
+
+    if (c->options.forget_token_on_reconnect)
+        ssl_clean_auth_token();
 }
 
 /*

@@ -883,6 +883,7 @@ init_options(struct options *o, const bool init_gc)
 /* P2MP server context features */
 #if P2MP_SERVER
     o->auth_token_generate = false;
+    o->auth_token_generate_force = false;
 
     /* Set default --tmp-dir */
 #ifdef _WIN32
@@ -1334,6 +1335,7 @@ show_p2mp_parms(const struct options *o)
     SHOW_STR(auth_user_pass_verify_script);
     SHOW_BOOL(auth_user_pass_verify_script_via_file);
     SHOW_BOOL(auth_token_generate);
+    SHOW_BOOL(auth_token_generate_force);
     SHOW_INT(auth_token_lifetime);
 #if PORT_SHARE
     SHOW_STR(port_share_host);
@@ -6719,11 +6721,13 @@ add_option(struct options *options,
                         &options->auth_user_pass_verify_script,
                         p[1], "auth-user-pass-verify", true);
     }
-    else if (streq(p[0], "auth-gen-token"))
+    else if (streq(p[0], "auth-gen-token") && !p[3])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);
         options->auth_token_generate = true;
         options->auth_token_lifetime = p[1] ? positive_atoi(p[1]) : 0;
+        if (p[2] && streq(p[2], "force"))
+            options->auth_token_generate_force = true;
     }
     else if (streq(p[0], "client-connect") && p[1])
     {
@@ -7791,6 +7795,11 @@ add_option(struct options *options,
             management_auth_token(management, p[1]);
         }
 #endif
+    }
+    else if (streq(p[0], "forget-token-reconnect") && !p[1])
+    {
+        VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_ECHO);
+        options->forget_token_on_reconnect = true;
     }
     else if (streq(p[0], "single-session") && !p[1])
     {
