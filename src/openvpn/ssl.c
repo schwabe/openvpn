@@ -2276,7 +2276,8 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 
         /* support for P_DATA_V2 and
          * fallback to normal authentication after a failed auth-token authentication  */
-        buf_printf(&out, "IV_PROTO=3\n");
+        buf_printf(&out, "IV_PROTO=2\n");
+        buf_printf(&out, "IV_TOKEN=1\n");
 
         /* support for Negotiable Crypto Paramters */
         if (session->opt->ncp_enabled
