@@ -428,6 +428,8 @@ void ssl_purge_auth(const bool auth_user_pass_only);
 
 void ssl_set_auth_token(const char *token);
 
+bool ssl_clean_auth_token(void);
+
 #ifdef ENABLE_CLIENT_CR
 /*
  * ssl_get_auth_challenge will parse the server-pushed auth-failed
