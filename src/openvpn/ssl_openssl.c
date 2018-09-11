@@ -237,12 +237,14 @@ openssl_tls_version(int ver)
     {
         return TLS1_2_VERSION;
     }
-#if defined(TLS1_3_VERSION)
+#if !defined(TLS1_3_VERSION)
+// Define TLS1_3_VERSION here so an upgrade will work
+# define TLS1_3_VERSION                  0x0304
+#endif
     else if (ver == TLS_VER_1_3)
     {
         return TLS1_3_VERSION;
     }
-#endif
     return 0;
 }
 
