@@ -626,7 +626,6 @@ tls_ctx_use_external_signing_func(struct tls_root_ctx *ctx,
 }
 
 #ifdef ENABLE_MANAGEMENT
-
 /** Query the management interface for a signature, see external_sign_func. */
 static bool
 management_sign_func(void *sign_ctx, const void *src, size_t src_len,
@@ -641,7 +640,11 @@ management_sign_func(void *sign_ctx, const void *src, size_t src_len,
         goto cleanup;
     }
 
-    if (!(dst_b64 = management_query_pk_sig(management, src_b64)))
+    /*
+     * We only use PKCS1 signatures at the moment in mbed TLS,
+     * there the signature parameter is hardcoded
+     */
+    if (!(dst_b64 = management_query_pk_sig(management, src_b64, "PKCS1")))
     {
         goto cleanup;
     }
