@@ -2143,6 +2143,23 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
 
 #endif /* ifdef ENABLE_MANAGEMENT */
 
+#if defined(ENABLE_CRYPTOAPI)
+    if (o->cryptoapi_cert && (tls_version_max() >= TLS_VER_1_3))
+    {
+        msg(M_ERR, "Cryptoapi support currently is incompatible "
+                   "with OpenSSL 1.1.1/TLS 1.3");
+    }
+#endif
+#if  defined(ENABLE_MANAGEMENT)
+    if ((tls_version_max() >= TLS_VER_1_3) &&
+        (options->management_flags & MF_EXTERNAL_KEY) &&
+        !(options->management_flags & (MF_EXTERNAL_KEY_NOPADDING))
+        )
+    {
+        msg(M_ERR, "management-external-key with OpenSSL 1.1.1 requires "
+                   "the nopadding argument/support");
+    }
+#endif
     /*
      * Windows-specific options.
      */
@@ -5153,9 +5170,33 @@ add_option(struct options *options,
         options->management_write_peer_info_file = p[1];
     }
 #ifdef ENABLE_MANAGEMENT
-    else if (streq(p[0], "management-external-key") && !p[1])
+    else if (streq(p[0], "management-external-key"))
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);
+        for (int j = 1; j < MAX_PARMS && p[j] != NULL; ++j)
+        {
+            if (streq(p[j], "nopadding"))
+            {
+                options->management_flags |= MF_EXTERNAL_KEY_NOPADDING;
+            }
+            else if (p[1] && streq(p[1], "pkcs1"))
+            {
+                options->management_flags |= MF_EXTERNAL_KEY_PKCS1PAD;
+            }
+            else
+            {
+                msg(msglevel, "Unknown management-external-key flag: %s" , p[j]);
+            }
+        }
+        /*
+         * When no option is present, assume that only PKCS1
+         * padding is supported
+         */
+        if (! (options->management_flags &
+            (MF_EXTERNAL_KEY_NOPADDING | MF_EXTERNAL_KEY_PKCS1PAD)))
+        {
+            options->management_flags |= MF_EXTERNAL_KEY_PKCS1PAD;
+        }
         options->management_flags |= MF_EXTERNAL_KEY;
     }
     else if (streq(p[0], "management-external-cert") && p[1] && !p[2])

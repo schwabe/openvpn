@@ -3639,18 +3639,30 @@ management_query_multiline_flatten(struct management *man,
 
 char *
 /* returns allocated base64 signature */
-management_query_pk_sig(struct management *man,
-                        const char *b64_data)
+management_query_pk_sig(struct management *man, const char *b64_data,
+                        const char *padding)
 {
     const char *prompt = "PK_SIGN";
     const char *desc = "pk-sign";
+    struct buffer buf_data = alloc_buf(strlen(b64_data) + strlen(padding) + 20);
+
     if (man->connection.client_version <= 1)
     {
         prompt = "RSA_SIGN";
         desc = "rsa-sign";
     }
-    return management_query_multiline_flatten(man, b64_data, prompt, desc,
-                                              &man->connection.ext_key_state, &man->connection.ext_key_input);
+
+    buf_write(&buf_data, b64_data, (int) strlen(b64_data));
+    if (man->connection.client_version > 2)
+    {
+        buf_write(&buf_data, ",", (int) strlen(","));
+        buf_write(&buf_data, padding, (int) strlen(padding));
+    }
+    char* ret = management_query_multiline_flatten(man,
+            (char *)buf_bptr(&buf_data), prompt, desc,
+            &man->connection.ext_key_state, &man->connection.ext_key_input);
+    free_buf(&buf_data);
+    return ret;
 }
 
 char *
