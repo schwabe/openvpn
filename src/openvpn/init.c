@@ -2852,7 +2852,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.comp_options = options->comp;
 #endif
 
-#if defined(ENABLE_CRYPTO_OPENSSL) && OPENSSL_VERSION_NUMBER >= 0x10001000
+#ifdef ENABLE_CRYPTO_OPENSSL
     if (options->keying_material_exporter_label)
     {
         to.ekm_size = options->keying_material_exporter_length;

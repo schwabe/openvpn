@@ -844,7 +844,7 @@ if test "${with_crypto_library}" = "openssl"; then
 		# if the user did not explicitly specify flags, try to autodetect
 		PKG_CHECK_MODULES(
 			[OPENSSL],
-			[openssl >= 1.0.1],
+			[openssl >= 1.0.2],
 			[have_openssl="yes"],
 			[] # If this fails, we will do another test next
 		)
@@ -859,7 +859,7 @@ if test "${with_crypto_library}" = "openssl"; then
 	# If pkgconfig check failed or OPENSSL_CFLAGS/OPENSSL_LIBS env vars
 	# are used, check the version directly in the OpenSSL include file
 	if test "${have_openssl}" != "yes"; then
-		AC_MSG_CHECKING([additionally if OpenSSL is available and version >= 1.0.1])
+		AC_MSG_CHECKING([additionally if OpenSSL is available and version >= 1.0.2])
 		AC_COMPILE_IFELSE(
 			[AC_LANG_PROGRAM(
 				[[
@@ -867,7 +867,7 @@ if test "${with_crypto_library}" = "openssl"; then
 				]],
 				[[
 /*	     Version encoding: MNNFFPPS - see opensslv.h for details */
-#if OPENSSL_VERSION_NUMBER < 0x10001000L
+#if OPENSSL_VERSION_NUMBER < 0x10002000L
 #error OpenSSL too old
 #endif
 				]]
