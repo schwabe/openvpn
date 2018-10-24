@@ -2551,6 +2551,9 @@ offering the best performance with least CPU usage.
 For backwards compatibility with OpenVPN versions before v2.4, use "lzo"
 (which is identical to the older option "\-\-comp\-lzo yes").
 
+Note however that the `stub` (or empty) option is NOT compatible with the
+older option "\-\-comp\-lzo no").
+
 The "lz4\-v2" and "stub\-v2" variants implement a better framing that does not add
 overhead when packets cannot be compressed. All other variants always add one extra
 framing byte compared to no compression framing.
