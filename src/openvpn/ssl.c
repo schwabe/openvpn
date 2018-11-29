@@ -61,6 +61,7 @@
 #include "ssl.h"
 #include "ssl_verify.h"
 #include "ssl_backend.h"
+#include "auth_token.h"
 
 #include "memdbg.h"
 
@@ -1369,11 +1370,7 @@ tls_multi_free(struct tls_multi *multi, bool clear)
 
     cert_hash_free(multi->locked_cert_hash_set);
 
-    if (multi->auth_token)
-    {
-        secure_memzero(multi->auth_token, AUTH_TOKEN_SIZE);
-        free(multi->auth_token);
-    }
+    wipe_auth_token(multi);
 
     free(multi->remote_ciphername);
 

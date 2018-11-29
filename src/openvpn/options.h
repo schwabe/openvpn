@@ -446,7 +446,11 @@ struct options
     const char *auth_user_pass_verify_script;
     bool auth_user_pass_verify_script_via_file;
     bool auth_token_generate;
+    bool auth_token_gen_secret_file;
     unsigned int auth_token_lifetime;
+    const char *auth_token_secret_file;
+    const char *auth_token_secret_file_inline;
+
 #if PORT_SHARE
     char *port_share_host;
     char *port_share_port;

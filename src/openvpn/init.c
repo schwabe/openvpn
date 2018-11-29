@@ -49,6 +49,7 @@
 #include "ssl_verify.h"
 #include "tls_crypt.h"
 #include "forward-inline.h"
+#include "auth_token.h"
 
 #include "memdbg.h"
 
@@ -1060,6 +1061,16 @@ do_genkey(const struct options *options)
         return true;
     }
 #endif
+    if (options->auth_token_gen_secret_file)
+    {
+        if (!options->auth_token_secret_file)
+        {
+            msg(M_USAGE, "--auth-gen-token-secret-genkey requires a server key "
+                "to be set via --auth-gen-token-secret to create a shared secret");
+        }
+        auth_token_write_server_key_file(options->auth_token_secret_file);
+        return true;
+    }
     return false;
 }
 
@@ -2463,7 +2474,6 @@ init_crypto_pre(struct context *c, const unsigned int flags)
         rand_ctx_enable_prediction_resistance();
     }
 #endif
-
 }
 
 /*
@@ -2530,6 +2540,20 @@ do_init_crypto_static(struct context *c, const unsigned int flags)
     /* Sanity check on IV, sequence number, and cipher mode options */
     check_replay_iv_consistency(&c->c1.ks.key_type, options->replay,
                                 options->use_iv);
+}
+
+/*
+ * Initialise the auth-token key context
+ */
+static void
+do_init_auth_token_key(struct context *c)
+{
+    if (!c->options.auth_token_generate)
+        return;
+
+    auth_token_init_secret(&c->c1.ks.auth_token_key,
+                           c->options.auth_token_secret_file,
+                           c->options.auth_token_secret_file_inline);
 }
 
 /*
@@ -2614,6 +2638,9 @@ do_init_crypto_tls_c1(struct context *c)
         c->c1.ciphername = options->ciphername;
         c->c1.authname = options->authname;
         c->c1.keysize = options->keysize;
+
+        /* initialise auth-token crypto support */
+        do_init_auth_token_key(c);
 
 #if 0 /* was: #if ENABLE_INLINE_FILES --  Note that enabling this code will break restarts */
         if (options->priv_key_file_inline)
@@ -2781,6 +2808,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.auth_user_pass_file = options->auth_user_pass_file;
     to.auth_token_generate = options->auth_token_generate;
     to.auth_token_lifetime = options->auth_token_lifetime;
+    to.auth_token_key = c->c1.ks.auth_token_key;
 #endif
 
     to.x509_track = options->x509_track;
@@ -4395,6 +4423,9 @@ inherit_context_child(struct context *dest,
     dest->c1.authname = src->c1.authname;
     dest->c1.keysize = src->c1.keysize;
 #endif
+
+    /* inherit auth-token */
+    dest->c1.ks.auth_token_key = src->c1.ks.auth_token_key;
 
     /* options */
     dest->options = src->options;
