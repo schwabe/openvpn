@@ -67,6 +67,7 @@ struct key_schedule
     /* optional TLS control channel wrapping */
     struct key_type tls_auth_key_type;
     struct key_ctx_bi tls_wrap_key;
+    struct key_ctx auth_token_key;
 #else                           /* ENABLE_CRYPTO */
     int dummy;
 #endif                          /* ENABLE_CRYPTO */
