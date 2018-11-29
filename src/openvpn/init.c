@@ -51,6 +51,7 @@
 #include "ssl_verify.h"
 #include "tls_crypt.h"
 #include "forward.h"
+#include "auth_token.h"
 
 #include "memdbg.h"
 
@@ -1097,6 +1098,17 @@ do_genkey(const struct options *options)
         }
 
         msg(M_USAGE, "--tls-crypt-v2-genkey type should be \"client\" or \"server\"");
+    }
+
+    if (options->auth_token_gen_secret_file)
+    {
+        if (!options->auth_token_secret_file)
+        {
+            msg(M_USAGE, "--auth-gen-token-secret-genkey requires a server key "
+                "to be set via --auth-gen-token-secret to create a shared secret");
+        }
+        auth_token_write_server_key_file(options->auth_token_secret_file);
+        return true;
     }
     return false;
 }
@@ -2490,7 +2502,6 @@ init_crypto_pre(struct context *c, const unsigned int flags)
         rand_ctx_enable_prediction_resistance();
     }
 #endif
-
 }
 
 /*
@@ -2615,6 +2626,20 @@ do_init_tls_wrap_key(struct context *c)
 }
 
 /*
+ * Initialise the auth-token key context
+ */
+static void
+do_init_auth_token_key(struct context *c)
+{
+    if (!c->options.auth_token_generate)
+        return;
+
+    auth_token_init_secret(&c->c1.ks.auth_token_key,
+                           c->options.auth_token_secret_file,
+                           c->options.auth_token_secret_file_inline);
+}
+
+/*
  * Initialize the persistent component of OpenVPN's TLS mode,
  * which is preserved across SIGUSR1 resets.
  */
@@ -2665,6 +2690,9 @@ do_init_crypto_tls_c1(struct context *c)
 
         /* initialize tls-auth/crypt/crypt-v2 key */
         do_init_tls_wrap_key(c);
+
+        /* initialise auth-token crypto support */
+        do_init_auth_token_key(c);
 
 #if 0 /* was: #if ENABLE_INLINE_FILES --  Note that enabling this code will break restarts */
         if (options->priv_key_file_inline)
@@ -2838,6 +2866,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.auth_user_pass_file = options->auth_user_pass_file;
     to.auth_token_generate = options->auth_token_generate;
     to.auth_token_lifetime = options->auth_token_lifetime;
+    to.auth_token_key = c->c1.ks.auth_token_key;
 #endif
 
     to.x509_track = options->x509_track;
@@ -4450,6 +4479,9 @@ inherit_context_child(struct context *dest,
     dest->c1.ciphername = src->c1.ciphername;
     dest->c1.authname = src->c1.authname;
     dest->c1.keysize = src->c1.keysize;
+
+    /* inherit auth-token */
+    dest->c1.ks.auth_token_key = src->c1.ks.auth_token_key;
 
     /* options */
     dest->options = src->options;
