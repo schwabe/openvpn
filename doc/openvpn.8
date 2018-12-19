@@ -3656,7 +3656,7 @@ For a sample script that performs PAM authentication, see
 in the OpenVPN source distribution.
 .\"*********************************************************
 .TP
-.B \-\-auth\-gen\-token [lifetime]
+.B \-\-auth\-gen\-token [lifetime] [auth]
 After successful user/password authentication, the OpenVPN
 server will with this option generate a temporary
 authentication token and push that to client.  On the following
@@ -3676,6 +3676,34 @@ This feature is useful for environments which is configured
 to use One Time Passwords (OTP) as part of the user/password
 authentications and that authentication mechanism does not
 implement any auth\-token support.
+
+When the auth keyword is present the normal authentication
+method will be called even if auth-token succeeds. This allows
+the normal to still check the validity of the account and do other
+checks. In this mode the environment will have a session_id variable
+that hold the session id from auth-gen-token. Also a environment
+variable session_state is present. This variable tells whether the
+auth-token has succeeded or not. It can have the following values:
+
+ - Initial:                    No token from client.
+ - Authenticated:              Token is valid and not expired
+ - Expired:                    Token is valid but has expired
+ - Invalid                     Token is invalid (failed HMAC or wrong length)
+ - AuthenticatedEmptyUser/ExpiredEmptyUser
+   The token is not valid with the username send from the client
+   but would be valid (or expired) if we assume an empty username was used
+   instead. These two cases are a workaround for behaviour in OpenVPN3. If
+   this workaround is not needed these two cases should be handled in the
+   same way as Invalid.
+
+Warning: Failure to properly handle Invalid/Expired auth-token with the auth
+in place will lead to authentication bypass. 
+
+When the pushempty keyword is present we will push an
+auth-token-user to the client setting the username __EMPTY__
+to avoid the client setting the username to fixed value to avoid
+a corner case in which same clients change their username to something
+unpredictable.
 .\"*********************************************************
 .TP
 .B \-\-opt\-verify

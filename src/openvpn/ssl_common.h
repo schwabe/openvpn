@@ -303,6 +303,7 @@ struct tls_options
     bool auth_token_generate;   /**< Generate auth-tokens on successful
                                  * user/pass auth,seet via
                                  * options->auth_token_generate. */
+    bool auth_token_call_auth; /**< always call normal authentication */
     unsigned int auth_token_lifetime;
 
     struct key_ctx auth_token_key;
@@ -462,7 +463,6 @@ struct tls_session
  */
 #define KEY_SCAN_SIZE 3
 
-
 /**
  * Security parameter state for a single VPN tunnel.
  * @ingroup control_processor
@@ -545,10 +545,18 @@ struct tls_multi
     /**< Auth-token sent from client has valid hmac */
 #define  AUTH_TOKEN_EXPIRED              (1<<1)
     /**< Auth-token sent from client has expired */
-#endif
+#define  AUTH_TOKEN_VALID_EMPTYUSER      (1<<2)
+    /**<
+     * Auth-token is only valid for an empty username
+     * and not the username actually supplied from the client
+     *
+     * OpenVPN 3 clients sometimes the empty username with a
+     * username hint from their config.
+     */
     int auth_token_state_flags;
     /**< The state of the auth-token sent from the client last time */
-
+#endif
+ 
     /* For P_DATA_V2 */
     uint32_t peer_id;
     bool use_peer_id;

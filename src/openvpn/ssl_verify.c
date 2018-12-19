@@ -1065,7 +1065,8 @@ tls_authenticate_key(struct tls_multi *multi, const unsigned int mda_key_id, con
  * Verify the user name and password using a script
  */
 static bool
-verify_user_pass_script(struct tls_session *session, const struct user_pass *up)
+verify_user_pass_script(struct tls_session *session, struct tls_multi *multi,
+                        const struct user_pass *up)
 {
     struct gc_arena gc = gc_new();
     struct argv argv = argv_new();
@@ -1113,6 +1114,9 @@ verify_user_pass_script(struct tls_session *session, const struct user_pass *up)
         /* setenv client real IP address */
         setenv_untrusted(session);
 
+        /* add auth-token environment */
+        add_session_token_env(session, multi, up);
+
         /* format command line */
         argv_parse_cmd(&argv, session->opt->auth_user_pass_verify_script);
         argv_printf_cat(&argv, "%s", tmp_file);
@@ -1146,7 +1150,8 @@ done:
  * Verify the username and password using a plugin
  */
 static int
-verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up, const char *raw_username)
+verify_user_pass_plugin(struct tls_session *session, struct tls_multi *multi,
+                        const struct user_pass *up, const char *raw_username)
 {
     int retval = OPENVPN_PLUGIN_FUNC_ERROR;
 #ifdef PLUGIN_DEF_AUTH
@@ -1166,6 +1171,8 @@ verify_user_pass_plugin(struct tls_session *session, const struct user_pass *up,
         /* setenv client real IP address */
         setenv_untrusted(session);
 
+        /* add auth-token environment */
+        add_session_token_env(session, multi, up);
 #ifdef PLUGIN_DEF_AUTH
         /* generate filename for deferred auth control file */
         if (!key_state_gen_auth_control_file(ks, session->opt))
@@ -1213,7 +1220,10 @@ cleanup:
 #define KMDA_DEF     3
 
 static int
-verify_user_pass_management(struct tls_session *session, const struct user_pass *up, const char *raw_username)
+verify_user_pass_management(struct tls_session *session,
+                            struct tls_multi* multi,
+                            const struct user_pass *up,
+                            const char *raw_username)
 {
     int retval = KMDA_ERROR;
     struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
@@ -1231,6 +1241,11 @@ verify_user_pass_management(struct tls_session *session, const struct user_pass 
         /* setenv client real IP address */
         setenv_untrusted(session);
 
+        /*
+         * if we are using auth-gen-token, send also the session id of auth gen token to
+         * allow the management to figure out if it is a new session or a continued one
+         */
+        add_session_token_env(session, multi, up);
         if (management)
         {
             management_notify_client_needing_auth(management, ks->mda_key_id, session->opt->mda_context, session->opt->es);
@@ -1306,17 +1321,25 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
      */
     if (session->opt->auth_token_generate && is_auth_token(up->password))
     {
-        multi->auth_token_state_flags = verify_auth_token(up, multi,session);
-        if (multi->auth_token_state_flags == AUTH_TOKEN_HMAC_OK)
+        multi->auth_token_state_flags = verify_auth_token(up, multi, session);
+        if (session->opt->auth_token_call_auth)
         {
             /*
-             * We do not want the EXPIRED flag here so check
+             * we do not care about the result here because it is
+             * the responsibility of the external authentication to
+             * decide what to do with the result
+             */
+        }
+        else if (multi->auth_token_state_flags == AUTH_TOKEN_HMAC_OK)
+        {
+            /*
+             * We do not want the EXPIRED or EMPTY USER flags here so check
              * for equality with AUTH_TOKEN_HMAC_OK
              */
             msg(M_WARN, "TLS: Username/auth-token authentication "
-                "succeeded for username '%s'",
+                        "succeeded for username '%s'",
                 up->username);
-            skip_auth = true;
+              skip_auth = true;
         }
         else
         {
@@ -1328,22 +1351,23 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
         }
     }
 
+    /* call plugin(s) and/or script */
     if (!skip_auth)
     {
-        /* call plugin(s) and/or script */
 #ifdef MANAGEMENT_DEF_AUTH
-        if (man_def_auth == KMDA_DEF)
+        if (man_def_auth==KMDA_DEF)
         {
-            man_def_auth = verify_user_pass_management(session, up, raw_username);
+            man_def_auth = verify_user_pass_management(session, multi, up, raw_username);
         }
 #endif
         if (plugin_defined(session->opt->plugins, OPENVPN_PLUGIN_AUTH_USER_PASS_VERIFY))
         {
-            s1 = verify_user_pass_plugin(session, up, raw_username);
+            s1 = verify_user_pass_plugin(session, multi, up, raw_username);
         }
+
         if (session->opt->auth_user_pass_verify_script)
         {
-            s2 = verify_user_pass_script(session, up);
+            s2 = verify_user_pass_script(session, multi, up);
         }
     }
 
@@ -1392,11 +1416,11 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
              * the initial timestamp and session id can be extracted from it
              */
             if (multi->auth_token && (multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
-                   && !(multi->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
+                && !(multi->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
             {
                 multi->auth_token = strdup(up->password);
             }
-
+            
             /*
              * Server is configured with --auth-gen-token but no token has yet
              * been generated for this client.  Generate one and save it.
@@ -1441,7 +1465,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
 done:
     gc_free(&gc);
 }
-
+    
 void
 verify_final_auth_checks(struct tls_multi *multi, struct tls_session *session)
 {
