@@ -14,7 +14,7 @@
 #include "auth_token.h"
 #include "push.h"
 #include "integer.h"
-#include "ssl.h"
+#include "ssl_verify.h"
 
 const char *auth_token_pem_name = "OpenVPN auth-token server key";
 
@@ -356,6 +356,8 @@ verify_auth_token(struct user_pass *up, struct tls_multi *multi,
 
     if (ret & AUTH_TOKEN_EXPIRED)
     {
+        /* Tell client that the session token is expired */
+        auth_set_client_reason(multi, "SESSION: token expired");
         msg(M_INFO, "--auth-token-gen: auth-token from client expired");
     }
     return ret;
