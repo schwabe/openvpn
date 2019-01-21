@@ -301,7 +301,7 @@ tls_crypt_v2_init_client_key(struct key_ctx_bi *key, struct buffer *wkc_buf,
                                          + TLS_CRYPT_V2_MAX_WKC_LEN);
 
     if (!read_pem_key_file(&client_key, tls_crypt_v2_cli_pem_name,
-                           key_file, key_inline))
+                           key_file, key_inline, false))
     {
         msg(M_FATAL, "ERROR: invalid tls-crypt-v2 client key format");
     }
@@ -326,8 +326,9 @@ tls_crypt_v2_init_server_key(struct key_ctx *key_ctx, bool encrypt,
     struct buffer srv_key_buf;
 
     buf_set_write(&srv_key_buf, (void *)&srv_key, sizeof(srv_key));
+
     if (!read_pem_key_file(&srv_key_buf, tls_crypt_v2_srv_pem_name,
-                           key_file, key_inline))
+                           key_file, key_inline, false))
     {
         msg(M_FATAL, "ERROR: invalid tls-crypt-v2 server key format");
     }
