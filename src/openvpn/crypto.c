@@ -1888,13 +1888,30 @@ cleanup:
 
 bool
 read_pem_key_file(struct buffer *key, const char *pem_name,
-                  const char *key_file, const char *key_inline)
+                  const char *key_file, const char *key_inline,
+                  bool allow_random)
 {
     bool ret = false;
     struct buffer key_pem = { 0 };
     struct gc_arena gc = gc_new();
 
-    if (strcmp(key_file, INLINE_FILE_TAG))
+
+    if (allow_random && key_file == NULL)
+    {
+        msg(M_INFO, "Using random %s.", pem_name);
+        uint8_t rand[BCAP(key)];
+        if (!rand_bytes(rand, BCAP(key)))
+        {
+            msg(M_WARN, "ERROR: could not generate random key");
+        }
+        else
+        {
+            buf_write(key, rand, BCAP(key));
+            ret = true;
+        }
+        goto cleanup;
+    }
+    else if (strcmp(key_file, INLINE_FILE_TAG))
     {
         key_pem = buffer_read_from_file(key_file, &gc);
         if (!buf_valid(&key_pem))
@@ -1917,7 +1934,7 @@ read_pem_key_file(struct buffer *key, const char *pem_name,
 
     ret = true;
 cleanup:
-    if (strcmp(key_file, INLINE_FILE_TAG))
+    if (key_file && strcmp(key_file, INLINE_FILE_TAG))
     {
         buf_clear(&key_pem);
     }

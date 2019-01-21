@@ -449,11 +449,13 @@ write_pem_key_file(const char *filename, const char *pem_name);
  * @param pem_name      the name used in the pem encoding start/end lines
  * @param key_file      name of the file to read
  * @param key_inline    a string holding the data in case of an inline key
+ * @param allow_random  allow generating a random key if no file is provided
  * @return              true if reading into key was successful
  */
 bool
 read_pem_key_file(struct buffer *key, const char *pem_name,
-                  const char *key_file, const char *key_inline);
+                  const char *key_file, const char *key_inline,
+                  bool allow_random);
 
 /* Minimum length of the nonce used by the PRNG */
 #define NONCE_SECRET_LEN_MIN 16
