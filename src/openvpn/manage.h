@@ -229,6 +229,7 @@ struct man_settings {
     struct sockaddr_un local_unix;
 #endif
     bool management_over_tunnel;
+    const char* management_over_tunnel_port;
     struct user_pass up;
     int log_history_cache;
     int echo_buffer_size;

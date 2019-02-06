@@ -2428,6 +2428,7 @@ man_settings_init(struct man_settings *ms,
             if (streq(addr, "tunnel") && !(flags & MF_CONNECT_AS_CLIENT))
             {
                 ms->management_over_tunnel = true;
+                ms->management_over_tunnel_port = port;
             }
             else
             {
@@ -2962,8 +2963,9 @@ management_post_tunnel_open(struct management *man, const in_addr_t tun_local_ip
         int ret;
 
         ia.s_addr = htonl(tun_local_ip);
-        ret = openvpn_getaddrinfo(GETADDR_PASSIVE, inet_ntoa(ia), NULL, 0, NULL,
-                                  AF_INET, &man->settings.local);
+        ret = openvpn_getaddrinfo(GETADDR_PASSIVE, inet_ntoa(ia),
+                                  man->settings.management_over_tunnel_port, 0,
+                                  NULL, AF_INET, &man->settings.local);
         ASSERT(ret==0);
         man_connection_init(man);
     }
