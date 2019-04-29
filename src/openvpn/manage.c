@@ -105,6 +105,8 @@ man_help(void)
     msg(M_CLIENT, "client-auth-nt CID KID : Authenticate client-id/key-id CID/KID");
     msg(M_CLIENT, "client-deny CID KID R [CR] : Deny auth client-id/key-id CID/KID with log reason");
     msg(M_CLIENT, "                             text R and optional client reason text CR");
+    msg(M_CLIENT, "client-sso-auth CID MSG : Instruct OpenVPN to send AUTH_PENDING and INFO_PRE msg"
+                  "                          to the client and wait for a final client-auth/client-deny");
     msg(M_CLIENT, "client-kill CID [M]    : Kill client instance CID with message M (def=RESTART)");
     msg(M_CLIENT, "env-filter [level]     : Set env-var filter level");
 #ifdef MANAGEMENT_PF
@@ -1000,6 +1002,33 @@ parse_kid(const char *str, unsigned int *kid)
         return false;
     }
 }
+static void
+man_client_sso_auth(struct management *man, const char *cid_str, const char *extra)
+{
+    unsigned long cid = 0;
+    if (parse_cid(cid_str, &cid))
+    {
+        if (man->persist.callback.client_sso)
+        {
+            bool ret = (*man->persist.callback.client_sso)
+                           (man->persist.callback.arg, cid, extra);
+
+            if (ret)
+            {
+                msg(M_CLIENT, "SUCCESS: client-sso-auth command succeeded");
+            }
+            else
+            {
+                msg(M_CLIENT, "SUCCESS: client-sso-auth command failed."
+                              " Extra paramter might be too long");
+            }
+        }
+        else
+        {
+            msg(M_CLIENT, "ERROR: The client-deny command is not supported by the current daemon mode");
+        }
+    }
+}
 
 static void
 man_client_auth(struct management *man, const char *cid_str, const char *kid_str, const bool extra)
@@ -1537,6 +1566,13 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
         if (man_need(man, p, 2, 0))
         {
             man_client_auth(man, p[1], p[2], true);
+        }
+    }
+    else if (streq(p[0], "client-sso-auth"))
+    {
+        if (man_need(man, p, 2, 0))
+        {
+            man_client_sso_auth(man, p[1], p[2]);
         }
     }
 #ifdef MANAGEMENT_PF
