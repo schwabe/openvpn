@@ -592,6 +592,32 @@ interface to approve client connections.
 CID,KID -- client ID and Key ID.  See documentation for ">CLIENT:"
 notification for more info.
 
+COMMAND -- client-sso-auth  (OpenVPN 2.5 or higher)
+----------------------------------------------------
+
+Instruct OpenVPN server to send AUTH_PENDING and INFO_PRE signal
+a single sign on url to the client.
+
+    client-sso-auth {CID} {EXTRA}
+
+The server will send AUTH_PENDING and INFO_PRE,{EXTRA} to the client.
+The client is expected to inform the user that authentication is pending and
+display the extra information. For the SSO/SAML EXTRA would be OPEN_URL:url
+and client should ask to the user to open the URL to continue.
+
+For the OpenVPN server this is stateless operation and needs to be
+followed by a client-deny/client-auth[-nt] command (that is the result of the
+out of band authentication).
+
+Before issuing a client-sso-auth to a client instead of a
+client-auth/client-deny, the server should check the IV_SSO
+environment variable if the method is support. The currently
+defined method are crtext for challenge/response using text
+(e.g. TOTP) and openurl for opening an URL in the client to
+continue authentication. A client support both methods would set
+
+   setenv IV_SSO openurl,crtext
+
 COMMAND -- client-deny  (OpenVPN 2.1 or higher)
 -----------------------------------------------
 
