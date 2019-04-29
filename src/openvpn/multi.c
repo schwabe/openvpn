@@ -3290,6 +3290,24 @@ management_kill_by_cid(void *arg, const unsigned long cid, const char *kill_msg)
 }
 
 static bool
+management_client_sso(void *arg,
+        const unsigned long cid,
+        const char *extra)
+{
+    struct multi_context *m = (struct multi_context *) arg;
+    struct multi_instance *mi = lookup_by_cid(m, cid);
+    if (mi)
+    {
+        /* sends INFO_PRE and AUTH_PENDING messages to client */
+        bool ret = send_sso_messages(&mi->context, extra);
+        multi_schedule_context_wakeup(m, mi);
+        return ret;
+    }
+    return false;
+}
+
+
+static bool
 management_client_auth(void *arg,
                        const unsigned long cid,
                        const unsigned int mda_key_id,
@@ -3396,6 +3414,7 @@ init_management_callback_multi(struct multi_context *m)
 #ifdef MANAGEMENT_DEF_AUTH
         cb.kill_by_cid = management_kill_by_cid;
         cb.client_auth = management_client_auth;
+        cb.client_sso = management_client_sso;
         cb.get_peer_info = management_get_peer_info;
 #endif
 #ifdef MANAGEMENT_PF
