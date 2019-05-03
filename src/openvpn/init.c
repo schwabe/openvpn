@@ -623,6 +623,7 @@ save_ncp_options(struct context *c)
     c->c1.ciphername = c->options.ciphername;
     c->c1.authname = c->options.authname;
     c->c1.keysize = c->options.keysize;
+    c->c1.ncp_ciphers = c->options.ncp_ciphers;
 }
 
 /* Restores NCP-negotiable options to original values */
@@ -632,6 +633,7 @@ restore_ncp_options(struct context *c)
     c->options.ciphername = c->c1.ciphername;
     c->options.authname = c->c1.authname;
     c->options.keysize = c->c1.keysize;
+    c->options.ncp_ciphers = c->c1.ncp_ciphers;
 }
 
 void
@@ -2827,6 +2829,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.tcp_mode = link_socket_proto_connection_oriented(options->ce.proto);
     to.config_ciphername = c->c1.ciphername;
     to.config_authname = c->c1.authname;
+    to.config_ncp_ciphers = c->c1.ncp_ciphers;
     to.ncp_enabled = options->ncp_enabled;
     to.transition_window = options->transition_window;
     to.handshake_window = options->handshake_window;
@@ -4532,6 +4535,7 @@ inherit_context_child(struct context *dest,
     dest->c1.ciphername = src->c1.ciphername;
     dest->c1.authname = src->c1.authname;
     dest->c1.keysize = src->c1.keysize;
+    dest->c1.ncp_ciphers = src->c1.ncp_ciphers;
 
     /* inherit auth-token */
     dest->c1.ks.auth_token_key = src->c1.ks.auth_token_key;
