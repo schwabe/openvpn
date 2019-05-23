@@ -1015,6 +1015,24 @@ CLIENT notification types:
 
     >CLIENT:ADDRESS,{CID},{ADDR},{PRI}
 
+(5) Single Sign On Based Challenge/Response
+
+   >CLIENT:CR_RESPONSE,{CID},{KID},{response_base64}
+   >CLIENT:ENV,name1=val1
+   >CLIENT:ENV,name2=val2
+   >CLIENT:ENV,...
+   >CLIENT:ENV,END
+
+   CR_RESPONSE notifcation. The >CR_RESPONSE fulfils the same purpose as the
+   CRV1 response in the traditional challenge/response. See that section below for more
+   details. Since this still uses the same cid as the original response, we do
+   not use the username and opaque session data in this response.
+
+   It is important to note that OpenVPN2 merely passes the authentication information and
+   does not do any further checks. (E.g. if a CR was issued before or if multiple CR responses
+   were sent from the client).
+
+
 Variables:
 
 CID --  Client ID, numerical ID for each connecting client, sequence = 0,1,2,...
