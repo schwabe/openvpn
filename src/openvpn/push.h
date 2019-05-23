@@ -53,6 +53,8 @@ void server_pushed_signal(struct context *c, const struct buffer *buffer, const 
 void server_pushed_info(struct context *c, const struct buffer *buffer,
                         const int adv);
 
+void receive_cr_response(struct context *c, const struct buffer *buffer);
+
 void incoming_push_message(struct context *c, const struct buffer *buffer);
 
 #if P2MP_SERVER

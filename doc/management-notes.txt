@@ -986,7 +986,7 @@ The ">CLIENT:" notification is enabled by the --management-client-auth
 OpenVPN configuration directive that gives the management interface client
 the responsibility to authenticate OpenVPN clients after their client
 certificate has been verified.  CLIENT notifications may be multi-line, and
-the sequentiality of a given CLIENT notification, its associated environmental
+the sequentially of a given CLIENT notification, its associated environmental
 variables, and the terminating ">CLIENT:ENV,END" line are guaranteed to be
 atomic.
 
@@ -1027,6 +1027,30 @@ CLIENT notification types:
     is now associated with a specific client.
 
     >CLIENT:ADDRESS,{CID},{ADDR},{PRI}
+
+(5) Single Sign On Based Challenge/Response
+
+   >CLIENT:CR_RESPONSE,{CID},{KID},{response_base64}
+   >CLIENT:ENV,name1=val1
+   >CLIENT:ENV,name2=val2
+   >CLIENT:ENV,...
+   >CLIENT:ENV,END
+
+   CR_RESPONSE notification. The >CR_RESPONSE fulfils the same purpose as the
+   CRV1 response in the traditional challenge/response. See that section below for more
+   details. Since this still uses the same cid as the original response, we do
+   not use the username and opaque session data in this response.
+
+   It is important to note that OpenVPN2 merely passes the authentication information and
+   does not do any further checks. (E.g. if a CR was issued before or if multiple CR responses
+   were sent from the client).
+
+   This interface should be be sufficient for almost all challenge/response system that
+   can be implemented with a single round and base64 encoding the response. Mechanisms that
+   need multiple rounds or more complex answers should implement a different response type
+   than CR_RESPONSE.
+
+
 
 Variables:
 
