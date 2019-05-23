@@ -1940,6 +1940,15 @@ tls_item_in_cipher_list(const char *item, const char *list)
 }
 
 void
+get_ncp_cipher(struct options *o, const char* remote_ciphername,
+               const char *const peer_info)
+{
+    /* First determine if the client supports pushed ciphers */
+    /* new client that sends a list of ciphers */
+//    if (tls_peer_info_ncp_ver(peer_info) >= 2)
+}
+
+void
 tls_poor_mans_ncp(struct options *o, const char *remote_ciphername)
 {
     if (o->ncp_enabled && remote_ciphername
@@ -2325,7 +2334,7 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
         /* support for P_DATA_V2 */
         buf_printf(&out, "IV_PROTO=2\n");
 
-        /* support for Negotiable Crypto Parameters */
+        /* support for fixed Negotiable Crypto Parameters */
         if (session->opt->ncp_enabled
             && (session->opt->mode == MODE_SERVER || session->opt->pull)
             && tls_item_in_cipher_list("AES-128-GCM", session->opt->config_ncp_ciphers)
@@ -2333,7 +2342,17 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
         {
             buf_printf(&out, "IV_NCP=2\n");
         }
-
+        /*
+         * send whole supported list to server to allow dynamic selection
+         * we also send the digest to server here to announce if we can
+         * change auth digest. Currently only used to skip non GCM ciphers
+         * when it differs
+         */
+        if (session->opt->ncp_enabled && session->opt->pull)
+        {
+            buf_printf(&out, "IV_NCP_CIPHER=%s\n", session->opt->config_ncp_ciphers);
+            buf_printf(&out, "IV_NCP_DIGEST=%s\n", session->opt->config_authname);
+        }
         /* push compression status */
 #ifdef USE_COMP
         comp_generate_peer_info_string(&session->opt->comp_options, &out);
@@ -4172,6 +4191,23 @@ tls_peer_info_ncp_ver(const char *peer_info)
     }
     return 0;
 }
+
+int
+tls_peer_info_ncp_cipher_list(const char *peer_info)
+{
+    const char *ncpstr = peer_info ? strstr(peer_info, "IV_NCP=") : NULL;
+    if (ncpstr)
+        {
+        int ncp = 0;
+        int r = sscanf(ncpstr, "IV_NCP=%d", &ncp);
+        if (r == 1)
+            {
+            return ncp;
+            }
+        }
+    return 0;
+}
+
 
 bool
 tls_check_ncp_cipher_list(const char *list)

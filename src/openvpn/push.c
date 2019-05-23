@@ -423,6 +423,12 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
         }
     }
 
+    /* Determine the dynamic cipher we want to use */
+    if (o->ncp_enabled)
+    {
+        const char* cipher = get_ncp_cipher(o, tls_multi->remote_ciphername, peer_info);
+    }
+
     /* Push cipher if client supports Negotiable Crypto Parameters */
     if (tls_peer_info_ncp_ver(peer_info) >= 2 && o->ncp_enabled)
     {
