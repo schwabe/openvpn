@@ -806,6 +806,14 @@ To accept connecting to the host and port directly, use this command:
 
   proxy NONE
 
+COMMAND -- cr-response (OpenVPN 2.5 or higher)
+-------------------------------------------------
+Provides support for sending responses a challenge/response
+query via INFOMSG,CR_TEXT. The response should be base64 encoded:
+
+  cr-response SGFsbG8gV2VsdCE=
+
+
 COMMAND -- pk-sig (OpenVPN 2.5 or higher, management version > 1)
 COMMAND -- rsa-sig (OpenVPN 2.3 or higher, management version <= 1)
 -----------------------------------------------------------------
