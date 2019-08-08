@@ -315,6 +315,8 @@ verify_auth_token(struct user_pass *up, struct tls_multi *multi,
     {
         ret |= AUTH_TOKEN_HMAC_OK;
         ret |= AUTH_TOKEN_VALID_EMPTYUSER;
+        /* overwrite the username of the client with the empty one */
+        strcpy(up->username, "");
     }
     else
     {

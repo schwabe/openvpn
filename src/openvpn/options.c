@@ -6741,7 +6741,7 @@ add_option(struct options *options,
             }
             else
             {
-                msg(msglevel, "Invalid argument to auth-gen_token: %s", p[2]);
+                msg(msglevel, "Invalid argument to auth-gen-token: %s", p[2]);
             }
         }
 
