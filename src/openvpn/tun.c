@@ -906,9 +906,13 @@ do_ifconfig_ipv6(struct tuntap *tt, const char *ifname, int tun_mtu,
 #elif defined(TARGET_ANDROID)
     char out6[64];
 
+    const char *ifconfig_ipv6_local = print_in6_addr(tt->local_ipv6, 0, NULL);
     openvpn_snprintf(out6, sizeof(out6), "%s/%d %d",
-                     ifconfig_ipv6_local,tt->netbits_ipv6, tun_mtu);
+                     ifconfig_ipv6_local, tt->netbits_ipv6, tun_mtu);
+
     management_android_control(management, "IFCONFIG6", out6);
+
+    free(ifconfig_ipv6_local);
 #elif defined(TARGET_SOLARIS)
     argv_printf(&argv, "%s %s inet6 unplumb", IFCONFIG_PATH, ifname);
     argv_msg(M_INFO, &argv);
@@ -1045,7 +1049,8 @@ do_ifconfig_ipv4(struct tuntap *tt, const char *ifname, int tun_mtu,
 #if defined(TARGET_OPENBSD) || defined(TARGET_NETBSD) \
     || defined(TARGET_DARWIN) || defined(TARGET_FREEBSD) \
     || defined(TARGET_DRAGONFLY) || defined(TARGET_AIX) \
-    || defined(TARGET_SOLARIS) || defined(_WIN32)
+    || defined(TARGET_SOLARIS) || defined(_WIN32) \
+    || defined(TARGET_ANDROID)
     const char *ifconfig_local = NULL;
     const char *ifconfig_remote_netmask = NULL;
     const char *ifconfig_broadcast = NULL;
