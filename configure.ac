@@ -1275,18 +1275,21 @@ if test "${enable_pkcs11}" = "yes"; then
 	)
 fi
 
+# Usage: ACL_CHECK_ADD_COMPILE_FLAGS(flag, [extra-flags])
+# Some compilers require extra flags to trigger an error on
+# unsupported options. E.g., clang requires -Werror.
 AC_DEFUN([ACL_CHECK_ADD_COMPILE_FLAGS], [
     old_cflags="$CFLAGS"
-    CFLAGS="$1 $CFLAGS"
-    AC_MSG_CHECKING([whether the compiler acceppts $1])
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM()], [AC_MSG_RESULT([yes])],
+    CFLAGS="$2 $1 $CFLAGS"
+    AC_MSG_CHECKING([whether the compiler accepts $1])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM()], [AC_MSG_RESULT([yes])]; CFLAGS="$1 $old_cflags",
         [AC_MSG_RESULT([no]); CFLAGS="$old_cflags"])]
 )
 
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-stringop-truncation])
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-function])
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-parameter])
-ACL_CHECK_ADD_COMPILE_FLAGS([-Wall])
+ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-stringop-truncation], [-Werror])
+ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-function], [-Werror])
+ACL_CHECK_ADD_COMPILE_FLAGS([-Wno-unused-parameter], [-Werror])
+ACL_CHECK_ADD_COMPILE_FLAGS([-Wall], [-Werror])
 
 if test "${enable_pedantic}" = "yes"; then
 	enable_strict="yes"
