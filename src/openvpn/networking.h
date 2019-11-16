@@ -31,8 +31,8 @@ struct context;
 #include "networking_iproute2.h"
 #else
 /* define mock types to ensure code builds on any platform */
-typedef void * openvpn_net_ctx_t;
-typedef void * openvpn_net_iface_t;
+typedef void *openvpn_net_ctx_t;
+typedef void *openvpn_net_iface_t;
 
 static inline int
 net_ctx_init(struct context *c, openvpn_net_ctx_t *ctx)

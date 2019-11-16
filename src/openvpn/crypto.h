@@ -538,7 +538,7 @@ memcmp_constant_time(const void *a, const void *b, size_t size)
 
     for (i = 0; i < size; i++)
     {
-        ret |= *a1++ ^ *b1++;
+        ret |= *a1++ ^*b1++;
     }
 
     return ret;
