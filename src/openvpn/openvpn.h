@@ -525,7 +525,7 @@ struct context
 
     struct env_set *es;         /**< Set of environment variables. */
 
-    openvpn_net_ctx_t net_ctx;	/**< Networking API opaque context */
+    openvpn_net_ctx_t net_ctx;  /**< Networking API opaque context */
 
     struct signal_info *sig;    /**< Internal error signaling object. */
 
