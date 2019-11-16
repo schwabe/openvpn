@@ -3481,7 +3481,7 @@ tun_finalize(
 }
 
 static const struct device_instance_id_interface *
-get_device_instance_id_interface(struct gc_arena* gc)
+get_device_instance_id_interface(struct gc_arena *gc)
 {
     HDEVINFO dev_info_set;
     DWORD err;
@@ -3552,7 +3552,7 @@ get_device_instance_id_interface(struct gc_arena* gc)
         }
 
         cr = CM_Get_Device_Interface_List_Size(&dev_interface_list_size,
-                                               (LPGUID)& GUID_DEVINTERFACE_NET,
+                                               (LPGUID)&GUID_DEVINTERFACE_NET,
                                                device_instance_id,
                                                CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
 
@@ -3562,7 +3562,7 @@ get_device_instance_id_interface(struct gc_arena* gc)
         }
 
         dev_interface_list = alloc_buf_gc(dev_interface_list_size, gc);
-        cr = CM_Get_Device_Interface_List((LPGUID)& GUID_DEVINTERFACE_NET, device_instance_id,
+        cr = CM_Get_Device_Interface_List((LPGUID)&GUID_DEVINTERFACE_NET, device_instance_id,
                                           BPTR(&dev_interface_list),
                                           dev_interface_list_size,
                                           CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
@@ -3571,7 +3571,7 @@ get_device_instance_id_interface(struct gc_arena* gc)
             goto next;
         }
 
-        struct device_instance_id_interface* dev_if;
+        struct device_instance_id_interface *dev_if;
         ALLOC_OBJ_CLEAR_GC(dev_if, struct device_instance_id_interface, gc);
         dev_if->net_cfg_instance_id = string_alloc(net_cfg_instance_id, gc);
         dev_if->device_interface_list = string_alloc(BSTR(&dev_interface_list), gc);
@@ -3587,7 +3587,7 @@ get_device_instance_id_interface(struct gc_arena* gc)
         }
         last = dev_if;
 
-    next:
+next:
         RegCloseKey(dev_key);
     }
 
