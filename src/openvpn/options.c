@@ -2500,11 +2500,6 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
     }
 #endif /* P2MP_SERVER */
 
-    if (options->ncp_enabled && !tls_check_ncp_cipher_list(options->ncp_ciphers))
-    {
-        msg(M_USAGE, "NCP cipher list contains unsupported ciphers.");
-    }
-
     if (options->keysize)
     {
         msg(M_WARN, "WARNING: --keysize is DEPRECATED and will be removed in OpenVPN 2.6");
@@ -3078,6 +3073,15 @@ options_postprocess_mutate(struct options *o)
     helper_tcp_nodelay(o);
 
     options_postprocess_mutate_invariant(o);
+
+    if (o->ncp_enabled)
+    {
+        o->ncp_ciphers = mutate_ncp_cipher_list(o->ncp_ciphers, &o->gc);
+        if (o->ncp_ciphers == NULL)
+        {
+            msg(M_USAGE, "NCP cipher list contains unsupported ciphers or is too long.");
+        }
+    }
 
     if (o->remote_list && !o->connection_list)
     {
