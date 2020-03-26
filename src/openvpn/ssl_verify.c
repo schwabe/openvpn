@@ -1381,7 +1381,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
              * to store the auth-token in multi->auth_token, so
              * the initial timestamp and session id can be extracted from it
              */
-            if (multi->auth_token && (multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
+            if ((multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
                 && !(multi->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
             {
                 multi->auth_token = strdup(up->password);
