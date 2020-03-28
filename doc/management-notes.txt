@@ -618,6 +618,29 @@ continue authentication. A client support both methods would set
 
    setenv IV_SSO openurl,crtext
 
+To avoid issues with OpenVPN connection persist-tun and not able
+to reach the web server, a method of opening this url via a HTTPS
+Proxy exists. The client should announce url_proxy in its IV_SSO
+and parse the PROXY_URL message. The format is
+
+    PROXY_URL:<proxy>:<proxy_port>:<proxyuser_base64>:<proxy_password_bade64>:url
+
+The proxy should be a literal IPv4 address or Ipv6 address in [] to avoid
+ambiguity in parsing. A literal IP address is preferred as DNS might not
+be available when the needs to open the url. The IP address will usually
+be the address that client uses to connect to the server. For dual-homed
+server, the server should respond with the same address that the client
+connects to.
+
+This address is also usually excluded from being redirected over the VPN
+by a host route. If the platform (like Android) uses another way of protecting
+the VPN connection routing loops the client needs to also exclude the
+connection to the proxy in the same manner.
+
+Should another IP be used the VPN configuration should include the route
+statement to exclude that route from being routed over the VPN.
+
+
 COMMAND -- client-deny  (OpenVPN 2.1 or higher)
 -----------------------------------------------
 
