@@ -5135,6 +5135,8 @@ Use
 to see a list of TLS ciphers supported by your crypto library.
 
 Warning!
+.B \-\-tls\-groups
+,
 .B \-\-tls\-cipher
 and
 .B \-\-tls\-ciphersuites
@@ -5148,6 +5150,33 @@ when using mbed TLS or
 OpenSSL.
 
 The default for \-\-tls\-ciphersuites is to use the crypto library's default.
+.\"*********************************************************
+.TP
+.B \-\-tls\-groups l
+A list
+.B l
+of allowable groups/curves in order of preference.
+
+Set the allowed elictipic curves/groups for the TLS session.
+These groups are  allowed to be used in signatures and key exchange.
+
+mbed TLS currently allows all known curves per default.
+
+OpenSSL 1.1+ restricts the list per default to
+"X25519:secp256r1:X448:secp521r1:secp384r1".
+
+If you use certificates that use non-standard curves, you
+might need to add them here. If you do not force the ecdh curve
+by using
+.B \-\-ecdh\-curve
+, the groups for ecdh will also be picked from this list.
+
+OpenVPN maps the curve name secp256r1 to prime256v1 to allow
+specifying the same tls-groups option for mbed TLS and OpenSSL.
+
+Warning: this option not only affects eliptic curve certificates
+but also the key exchange in TLS 1.3 and using this option improperly
+will disable TLS 1.3.
 .\"*********************************************************
 .TP
 .B \-\-tls\-cert\-profile profile
@@ -5915,8 +5944,10 @@ engines supported by the OpenSSL library.
 .TP
 .B \-\-show\-curves
 (Standalone)
-Show all available elliptic curves to use with the
+Show all available elliptic groups/curves to use with the
 .B \-\-ecdh\-curve
+and
+.B \-\-tls\-groups
 option.
 .\"*********************************************************
 .SS Generating key material:
