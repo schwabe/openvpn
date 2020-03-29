@@ -558,6 +558,59 @@ tls_ctx_set_cert_profile(struct tls_root_ctx *ctx, const char *profile)
 }
 
 void
+tls_ctx_set_tls_groups(struct tls_root_ctx *ctx, const char *groups)
+{
+    ASSERT(ctx);
+    /* This method could be as easy as
+     *  SSL_CTX_set1_groups_list(ctx->ctx, groups)
+     * but OpenSSL does not like the name secp256r1 for prime256v1
+     * and as this is one of the more important curve to have
+     * the same name for OpenSSL and mbedTLS, we do this dance
+     */
+
+    int groups_count = get_num_elements(groups, ':');
+
+    int *glist;
+    /* Allocate an array for them */
+    ALLOC_ARRAY_CLEAR(glist, int, groups_count);
+
+    /* Parse allowed ciphers, getting IDs */
+    int glistlen = 0;
+    char *tmp_groups_orig = string_alloc(groups, NULL);
+    char *tmp_groups = tmp_groups_orig;
+
+    const char *token = strsep(&tmp_groups, ":");
+    while (token)
+    {
+        if (streq(token, "secp256r1"))
+        {
+            token = "prime256v1";
+        }
+        int nid = OBJ_sn2nid(token);
+
+        if (nid == 0)
+        {
+            msg(M_WARN, "Warning unknown curve/group specified: %s", token);
+        }
+        else
+        {
+            glist[glistlen] = nid;
+            glistlen++;
+        }
+        token = strsep(&tmp_groups, ":");
+    }
+    free(tmp_groups_orig);
+
+    if (!SSL_CTX_set1_groups(ctx->ctx, glist, glistlen))
+    {
+        crypto_msg(M_FATAL, "Failed to set allowed TLS group list: %s",
+                   groups);
+    }
+
+    free(glist);
+}
+
+void
 tls_ctx_check_cert_time(const struct tls_root_ctx *ctx)
 {
     int ret;
@@ -577,7 +630,7 @@ tls_ctx_check_cert_time(const struct tls_root_ctx *ctx)
 
     if (cert == NULL)
     {
-        goto cleanup; /* Nothing to check if there is no certificate */
+        goto cleanup;     /* Nothing to check if there is no certificate */
     }
 
     ret = X509_cmp_time(X509_get0_notBefore(cert), NULL);
@@ -890,7 +943,7 @@ tls_ctx_add_extra_certs(struct tls_root_ctx *ctx, BIO *bio)
     for (;; )
     {
         cert = NULL;
-        if (!PEM_read_bio_X509(bio, &cert, NULL, NULL)) /* takes ownership of cert */
+        if (!PEM_read_bio_X509(bio, &cert, NULL, NULL))     /* takes ownership of cert */
         {
             break;
         }
@@ -1144,7 +1197,7 @@ openvpn_extkey_rsa_finish(RSA *rsa)
  * interface query
  */
 const char *
-get_rsa_padding_name (const int padding)
+get_rsa_padding_name(const int padding)
 {
     switch (padding)
     {
@@ -1161,14 +1214,14 @@ get_rsa_padding_name (const int padding)
 
 /**
  * Pass the input hash in 'dgst' to management and get the signature back.
-  *
- * @param dgst		hash to be signed
- * @param dgstlen	len of data in dgst
- * @param sig 		On successful return signature is in sig.
- * @param siglen	length of buffer sig
- * @param algorithm	padding/hashing algorithm for the signature
  *
- * @return 		signature length or -1 on error.
+ * @param dgst          hash to be signed
+ * @param dgstlen       len of data in dgst
+ * @param sig           On successful return signature is in sig.
+ * @param siglen        length of buffer sig
+ * @param algorithm     padding/hashing algorithm for the signature
+ *
+ * @return              signature length or -1 on error.
  */
 static int
 get_sig_from_man(const unsigned char *dgst, unsigned int dgstlen,
@@ -1210,7 +1263,7 @@ rsa_priv_enc(int flen, const unsigned char *from, unsigned char *to, RSA *rsa,
         return -1;
     }
 
-    ret = get_sig_from_man(from, flen, to, len, get_rsa_padding_name (padding));
+    ret = get_sig_from_man(from, flen, to, len, get_rsa_padding_name(padding));
 
     return (ret == len) ? ret : -1;
 }
@@ -1266,7 +1319,7 @@ tls_ctx_use_external_rsa_key(struct tls_root_ctx *ctx, EVP_PKEY *pkey)
         goto err;
     }
 
-    RSA_free(rsa); /* doesn't necessarily free, just decrements refcount */
+    RSA_free(rsa);     /* doesn't necessarily free, just decrements refcount */
     return 1;
 
 err:
@@ -1285,7 +1338,7 @@ err:
 }
 
 #if ((OPENSSL_VERSION_NUMBER > 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)) \
-     || LIBRESSL_VERSION_NUMBER > 0x2090000fL) \
+    || LIBRESSL_VERSION_NUMBER > 0x2090000fL) \
     && !defined(OPENSSL_NO_EC)
 
 /* called when EC_KEY is destroyed */
@@ -1394,11 +1447,11 @@ tls_ctx_use_external_ec_key(struct tls_root_ctx *ctx, EVP_PKEY *pkey)
 
     if (!SSL_CTX_use_PrivateKey(ctx->ctx, privkey))
     {
-        ec = NULL; /* avoid double freeing it below */
+        ec = NULL;     /* avoid double freeing it below */
         goto err;
     }
 
-    EVP_PKEY_free(privkey); /* this will down ref privkey and ec */
+    EVP_PKEY_free(privkey);     /* this will down ref privkey and ec */
     return 1;
 
 err:
@@ -1436,7 +1489,7 @@ tls_ctx_use_management_external_key(struct tls_root_ctx *ctx)
 
     /* get the public key */
     EVP_PKEY *pkey = X509_get0_pubkey(cert);
-    ASSERT(pkey); /* NULL before SSL_CTX_use_certificate() is called */
+    ASSERT(pkey);     /* NULL before SSL_CTX_use_certificate() is called */
 
     if (EVP_PKEY_id(pkey) == EVP_PKEY_RSA)
     {
@@ -1446,7 +1499,7 @@ tls_ctx_use_management_external_key(struct tls_root_ctx *ctx)
         }
     }
 #if ((OPENSSL_VERSION_NUMBER > 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)) \
-     || LIBRESSL_VERSION_NUMBER > 0x2090000fL) \
+    || LIBRESSL_VERSION_NUMBER > 0x2090000fL) \
     && !defined(OPENSSL_NO_EC)
     else if (EVP_PKEY_id(pkey) == EVP_PKEY_EC)
     {
@@ -1690,7 +1743,7 @@ tls_ctx_load_extra_certs(struct tls_root_ctx *ctx, const char *extra_certs_file,
 static FILE *biofp;                            /* GLOBAL */
 static bool biofp_toggle;                      /* GLOBAL */
 static time_t biofp_last_open;                 /* GLOBAL */
-static const int biofp_reopen_interval = 600;  /* GLOBAL */
+static const int biofp_reopen_interval = 600;     /* GLOBAL */
 
 static void
 close_biofp(void)
@@ -1806,9 +1859,9 @@ bio_write(BIO *bio, const uint8_t *data, int size, const char *desc)
 static void
 bio_write_post(const int status, struct buffer *buf)
 {
-    if (status == 1) /* success status return from bio_write? */
+    if (status == 1)     /* success status return from bio_write? */
     {
-        memset(BPTR(buf), 0, BLEN(buf));  /* erase data just written */
+        memset(BPTR(buf), 0, BLEN(buf));     /* erase data just written */
         buf->len = 0;
     }
 }
@@ -2106,8 +2159,8 @@ show_available_tls_ciphers_list(const char *cipher_list,
         crypto_msg(M_FATAL, "Cannot create SSL object");
     }
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010000fL) || \
-    (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER <= 0x2090000fL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010000fL)    \
+    || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER <= 0x2090000fL)
     STACK_OF(SSL_CIPHER) *sk = SSL_get_ciphers(ssl);
 #else
     STACK_OF(SSL_CIPHER) *sk = SSL_get1_supported_ciphers(ssl);
@@ -2159,7 +2212,9 @@ show_available_curves(void)
     ALLOC_ARRAY(curves, EC_builtin_curve, crv_len);
     if (EC_get_builtin_curves(curves, crv_len))
     {
-        printf("Available Elliptic curves:\n");
+        printf("Consider using openssl ecparam -list_curves as\n"
+               "alternative to running this command to this command.");
+        printf("\nAvailable Elliptic curves/groups:\n");
         for (n = 0; n < crv_len; n++)
         {
             const char *sname;

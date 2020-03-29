@@ -807,4 +807,8 @@ SSL_CTX_set_max_proto_version(SSL_CTX *ctx, long tls_ver_max)
 }
 #endif /* SSL_CTX_set_max_proto_version */
 
+#ifndef SSL_CTX_set1_groups
+#define SSL_CTX_set1_groups SSL_CTX_set1_curves
+#endif
+
 #endif /* OPENSSL_COMPAT_H_ */
