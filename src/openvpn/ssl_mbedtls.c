@@ -176,6 +176,11 @@ tls_ctx_free(struct tls_root_ctx *ctx)
             free(ctx->allowed_ciphers);
         }
 
+        if (ctx->groups)
+        {
+            free(ctx->groups);
+        }
+
         CLEAR(*ctx);
 
         ctx->initialised = false;
@@ -341,6 +346,43 @@ tls_ctx_set_cert_profile(struct tls_root_ctx *ctx, const char *profile)
         msg(M_FATAL, "ERROR: Invalid cert profile: %s", profile);
     }
 }
+
+void
+tls_ctx_set_tls_groups(struct tls_root_ctx *ctx, const char *groups)
+{
+    ASSERT(NULL != ctx);
+
+    /* Get number of groups */
+    int groups_count = get_num_elements(groups, ':');
+
+    /* Allocate an array for them */
+    ALLOC_ARRAY_CLEAR(ctx->groups, mbedtls_ecp_group_id, groups_count + 1)
+
+    /* Parse allowed ciphers, getting IDs */
+    int i = 0;
+    char *tmp_groups_orig = string_alloc(groups, NULL);
+    char *tmp_groups = tmp_groups_orig;
+
+    const char *token = strsep(&tmp_groups, ":");
+    while (token)
+    {
+        const mbedtls_ecp_curve_info *ci =
+            mbedtls_ecp_curve_info_from_name(token);
+        if (ci == NULL)
+        {
+            msg(M_WARN, "Warning unknown curve/group specified: %s", token);
+        }
+        else
+        {
+            ctx->groups[i] = ci->grp_id;
+            i++;
+        }
+        token = strsep(&tmp_groups, ":");
+    }
+    ctx->groups[i] = MBEDTLS_ECP_DP_NONE;
+    free(tmp_groups_orig);
+}
+
 
 void
 tls_ctx_check_cert_time(const struct tls_root_ctx *ctx)
@@ -1040,6 +1082,11 @@ key_state_ssl_init(struct key_state_ssl *ks_ssl,
     if (ssl_ctx->allowed_ciphers)
     {
         mbedtls_ssl_conf_ciphersuites(&ks_ssl->ssl_config, ssl_ctx->allowed_ciphers);
+    }
+
+    if (ssl_ctx->groups)
+    {
+        mbedtls_ssl_conf_curves(&ks_ssl->ssl_config, ssl_ctx->groups);
     }
 
     /* Disable record splitting (for now).  OpenVPN assumes records are sent
