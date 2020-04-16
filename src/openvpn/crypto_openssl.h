@@ -107,4 +107,9 @@ cipher_kt_var_key_size(const cipher_kt_t *cipher)
     return EVP_CIPHER_flags(cipher) & EVP_CIPH_VARIABLE_LENGTH;
 }
 
+static inline int
+memcmp_constant_time(const void *a, const void *b, size_t size)
+{
+    return CRYPTO_memcmp(a, b, size);
+}
 #endif /* CRYPTO_OPENSSL_H_ */

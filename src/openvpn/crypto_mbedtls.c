@@ -972,4 +972,29 @@ hmac_ctx_final(mbedtls_md_context_t *ctx, uint8_t *dst)
     ASSERT(0 == mbedtls_md_hmac_finish(ctx, dst));
 }
 
+int
+memcmp_constant_time(const void *a, const void *b, size_t size)
+{
+    /* mbed TLS has a no const time memcmp function.
+     * Adapt the function mbedtls_safer_memcmp that mbedtls
+     * internally uses as it considers that to be safe.
+     *
+     * Note: we do not - as mbed - use inline and put in a header
+     * since inlining const time function can trigger unwanted
+     * optimisation that will make this function non constant.
+     */
+    volatile const unsigned char *A = (volatile const unsigned char *)a;
+    volatile const unsigned char *B = (volatile const unsigned char *)b;
+    volatile unsigned char diff = 0;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        /* this conversion was introduced by mbedTLS to suppress a IAR
+         * compiler warning. We keep it as it is. */
+        unsigned char x = A[i], y = B[i];
+        diff |= x ^ y;
+    }
+
+    return diff;
+}
 #endif /* ENABLE_CRYPTO_MBEDTLS */

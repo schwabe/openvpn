@@ -1065,5 +1065,4 @@ hmac_ctx_final(HMAC_CTX *ctx, uint8_t *dst)
 
     HMAC_Final(ctx, dst, &in_hmac_len);
 }
-
 #endif /* ENABLE_CRYPTO_OPENSSL */
