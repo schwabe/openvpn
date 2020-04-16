@@ -78,8 +78,9 @@ build_mbedtls () {
 
 download_openssl () {
     if [ ! -f "download-cache/openssl-${OPENSSL_VERSION}.tar.gz" ]; then
+        MAJOR=`echo $OPENSSL_VERSION | sed -e 's/\([0-9.]*\).*/\1/'`
         wget -P download-cache/ \
-            "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+             "https://www.openssl.org/source/old/${MAJOR}/openssl-${OPENSSL_VERSION}.tar.gz"
     fi
 }
 
@@ -129,15 +130,6 @@ build_openssl () {
         echo "${OPENSSL_VERSION}" > "${PREFIX}/.openssl-version"
     fi
 }
-
-if [ ! -z ${CHOST+x} ]; then
-      #
-      # openvpn requires at least mingw-gcc-4.9, which is available at xenial repo
-      #
-      sudo apt-add-repository "deb http://archive.ubuntu.com/ubuntu xenial main universe"
-      sudo apt-get update
-      sudo apt-get -y install dpkg mingw-w64
-fi
 
 # Download and build crypto lib
 if [ "${SSLLIB}" = "openssl" ]; then
