@@ -764,6 +764,7 @@ output_peer_info_env(struct env_set *es, const char *peer_info)
         }
     }
 }
+#endif /* P2MP_SERVER */
 
 int
 get_num_elements(const char *string, char delimiter)
@@ -784,4 +785,3 @@ get_num_elements(const char *string, char delimiter)
 
     return element_count;
 }
-#endif /* P2MP_SERVER */
