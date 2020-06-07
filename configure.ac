@@ -839,7 +839,7 @@ if test "${with_crypto_library}" = "openssl"; then
 		# if the user did not explicitly specify flags, try to autodetect
 		PKG_CHECK_MODULES(
 			[OPENSSL],
-			[openssl >= 1.0.1],
+			[openssl >= 1.0.2],
 			[have_openssl="yes"],
 			[] # If this fails, we will do another test next
 		)

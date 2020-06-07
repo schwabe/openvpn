@@ -624,19 +624,11 @@ tls_ctx_check_cert_time(const struct tls_root_ctx *ctx)
 
     ASSERT(ctx);
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)) \
-    || LIBRESSL_VERSION_NUMBER >= 0x2070000fL
-    /* OpenSSL 1.0.2 and up */
     cert = SSL_CTX_get0_certificate(ctx->ctx);
-#else
-    /* OpenSSL 1.0.1 and earlier need an SSL object to get at the certificate */
-    SSL *ssl = SSL_new(ctx->ctx);
-    cert = SSL_get_certificate(ssl);
-#endif
 
     if (cert == NULL)
     {
-        goto cleanup; /* Nothing to check if there is no certificate */
+        return; /* Nothing to check if there is no certificate */
     }
 
     ret = X509_cmp_time(X509_get0_notBefore(cert), NULL);
@@ -658,13 +650,6 @@ tls_ctx_check_cert_time(const struct tls_root_ctx *ctx)
     {
         msg(M_WARN, "WARNING: Your certificate has expired!");
     }
-
-cleanup:
-#if OPENSSL_VERSION_NUMBER < 0x10002000L \
-    || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x2070000fL)
-    SSL_free(ssl);
-#endif
-    return;
 }
 
 void
@@ -1513,15 +1498,7 @@ tls_ctx_use_management_external_key(struct tls_root_ctx *ctx)
 
     ASSERT(NULL != ctx);
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)) \
-    || LIBRESSL_VERSION_NUMBER >= 0x2070000fL
-    /* OpenSSL 1.0.2 and up */
     X509 *cert = SSL_CTX_get0_certificate(ctx->ctx);
-#else
-    /* OpenSSL 1.0.1 and earlier need an SSL object to get at the certificate */
-    SSL *ssl = SSL_new(ctx->ctx);
-    X509 *cert = SSL_get_certificate(ssl);
-#endif
 
     ASSERT(NULL != cert);
 
@@ -1561,13 +1538,6 @@ tls_ctx_use_management_external_key(struct tls_root_ctx *ctx)
 
     ret = 0;
 cleanup:
-#if OPENSSL_VERSION_NUMBER < 0x10002000L \
-    || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x2070000fL)
-    if (ssl)
-    {
-        SSL_free(ssl);
-    }
-#endif
     if (ret)
     {
         crypto_msg(M_FATAL, "Cannot enable SSL external private key capability");
