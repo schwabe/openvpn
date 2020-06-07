@@ -34,6 +34,8 @@ https://community.openvpn.net/openvpn/wiki/DeprecatedOptions
     With the improved and matured data channel cipher negotiation, the use
     of ``ncp-disable`` should not be necessary anymore.
 
+- Support for building with OpenSSL 1.0.1 has been removed. The minimum
+  supported OpenSSL version is now 1.0.2.
 
 Overview of changes in 2.4
 ==========================
