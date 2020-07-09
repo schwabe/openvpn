@@ -102,11 +102,7 @@
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 
-/*
- * Range of key exchange methods
- */
-#define KEY_METHOD_MIN 1
-#define KEY_METHOD_MAX 2
+#define KEY_METHOD_2  2
 
 /* key method taken from lower 4 bits */
 #define KEY_METHOD_MASK 0x0F

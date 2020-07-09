@@ -1091,23 +1091,14 @@ tls_session_init(struct tls_multi *multi, struct tls_session *session)
     }
 
     /* Are we a TLS server or client? */
-    ASSERT(session->opt->key_method >= 1);
-    if (session->opt->key_method == 1)
+    if (session->opt->server)
     {
-        session->initial_opcode = session->opt->server ?
-                                  P_CONTROL_HARD_RESET_SERVER_V1 : P_CONTROL_HARD_RESET_CLIENT_V1;
+        session->initial_opcode = P_CONTROL_HARD_RESET_SERVER_V2;
     }
-    else /* session->opt->key_method >= 2 */
+    else
     {
-        if (session->opt->server)
-        {
-            session->initial_opcode = P_CONTROL_HARD_RESET_SERVER_V2;
-        }
-        else
-        {
-            session->initial_opcode = session->opt->tls_crypt_v2 ?
-                                      P_CONTROL_HARD_RESET_CLIENT_V3 : P_CONTROL_HARD_RESET_CLIENT_V2;
-        }
+        session->initial_opcode = session->opt->tls_crypt_v2 ?
+                                  P_CONTROL_HARD_RESET_CLIENT_V3 : P_CONTROL_HARD_RESET_CLIENT_V2;
     }
 
     /* Initialize control channel authentication parameters */
@@ -2212,52 +2203,6 @@ read_string_alloc(struct buffer *buf)
     return str;
 }
 
-/*
- * Handle the reading and writing of key data to and from
- * the TLS control channel (cleartext).
- */
-
-static bool
-key_method_1_write(struct buffer *buf, struct tls_session *session)
-{
-    struct key key;
-    struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
-
-    ASSERT(session->opt->key_method == 1);
-    ASSERT(buf_init(buf, 0));
-
-    generate_key_random(&key, &session->opt->key_type);
-    if (!check_key(&key, &session->opt->key_type))
-    {
-        msg(D_TLS_ERRORS, "TLS Error: Bad encrypting key generated");
-        return false;
-    }
-
-    if (!write_key(&key, &session->opt->key_type, buf))
-    {
-        msg(D_TLS_ERRORS, "TLS Error: write_key failed");
-        return false;
-    }
-
-    init_key_ctx(&ks->crypto_options.key_ctx_bi.encrypt, &key,
-                 &session->opt->key_type, OPENVPN_OP_ENCRYPT,
-                 "Data Channel Encrypt");
-    secure_memzero(&key, sizeof(key));
-
-    /* send local options string */
-    {
-        const char *local_options = local_options_string(session);
-        const int optlen = strlen(local_options) + 1;
-        if (!buf_write(buf, local_options, optlen))
-        {
-            msg(D_TLS_ERRORS, "TLS Error: KM1 write options failed");
-            return false;
-        }
-    }
-
-    return true;
-}
-
 static bool
 push_peer_info(struct buffer *buf, struct tls_session *session)
 {
@@ -2370,7 +2315,6 @@ key_method_2_write(struct buffer *buf, struct tls_session *session)
 {
     struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
 
-    ASSERT(session->opt->key_method == 2);
     ASSERT(buf_init(buf, 0));
 
     /* write a uint32 0 */
@@ -2380,7 +2324,7 @@ key_method_2_write(struct buffer *buf, struct tls_session *session)
     }
 
     /* write key_method + flags */
-    if (!buf_write_u8(buf, (session->opt->key_method & KEY_METHOD_MASK)))
+    if (!buf_write_u8(buf, (KEY_METHOD_2 & KEY_METHOD_MASK)))
     {
         goto error;
     }
@@ -2484,72 +2428,10 @@ error:
 }
 
 static bool
-key_method_1_read(struct buffer *buf, struct tls_session *session)
-{
-    int status;
-    struct key key;
-    struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
-
-    ASSERT(session->opt->key_method == 1);
-
-    if (!session->verified)
-    {
-        msg(D_TLS_ERRORS,
-            "TLS Error: Certificate verification failed (key-method 1)");
-        goto error;
-    }
-
-    status = read_key(&key, &session->opt->key_type, buf);
-    if (status != 1)
-    {
-        msg(D_TLS_ERRORS,
-            "TLS Error: Error reading data channel key from plaintext buffer");
-        goto error;
-    }
-
-    if (!check_key(&key, &session->opt->key_type))
-    {
-        msg(D_TLS_ERRORS, "TLS Error: Bad decrypting key received from peer");
-        goto error;
-    }
-
-    if (buf->len < 1)
-    {
-        msg(D_TLS_ERRORS, "TLS Error: Missing options string");
-        goto error;
-    }
-
-#ifdef ENABLE_OCC
-    /* compare received remote options string
-     * with our locally computed options string */
-    if (!session->opt->disable_occ
-        && !options_cmp_equal_safe((char *) BPTR(buf), session->opt->remote_options, buf->len))
-    {
-        options_warning_safe((char *) BPTR(buf), session->opt->remote_options, buf->len);
-    }
-#endif
-
-    buf_clear(buf);
-
-    init_key_ctx(&ks->crypto_options.key_ctx_bi.decrypt, &key,
-                 &session->opt->key_type, OPENVPN_OP_DECRYPT,
-                 "Data Channel Decrypt");
-    secure_memzero(&key, sizeof(key));
-    ks->authenticated = KS_AUTH_TRUE;
-    return true;
-
-error:
-    buf_clear(buf);
-    secure_memzero(&key, sizeof(key));
-    return false;
-}
-
-static bool
 key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_session *session)
 {
     struct key_state *ks = &session->key[KS_PRIMARY];      /* primary key */
 
-    int key_method_flags;
     bool username_status, password_status;
 
     struct gc_arena gc = gc_new();
@@ -2558,8 +2440,6 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
 
     /* allocate temporary objects */
     ALLOC_ARRAY_CLEAR_GC(options, char, TLS_OPTIONS_LEN, &gc);
-
-    ASSERT(session->opt->key_method == 2);
 
     /* discard leading uint32 */
     if (!buf_advance(buf, 4))
@@ -2570,7 +2450,7 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
     }
 
     /* get key method */
-    key_method_flags = buf_read_u8(buf);
+    int key_method_flags = buf_read_u8(buf);
     if ((key_method_flags & KEY_METHOD_MASK) != 2)
     {
         msg(D_TLS_ERRORS,
@@ -2992,23 +2872,9 @@ tls_process(struct tls_multi *multi,
         if (!buf->len && ((ks->state == S_START && !session->opt->server)
                           || (ks->state == S_GOT_KEY && session->opt->server)))
         {
-            if (session->opt->key_method == 1)
+            if (!key_method_2_write(buf, session))
             {
-                if (!key_method_1_write(buf, session))
-                {
-                    goto error;
-                }
-            }
-            else if (session->opt->key_method == 2)
-            {
-                if (!key_method_2_write(buf, session))
-                {
-                    goto error;
-                }
-            }
-            else
-            {
-                ASSERT(0);
+                goto error;
             }
 
             state_change = true;
@@ -3022,23 +2888,9 @@ tls_process(struct tls_multi *multi,
             && ((ks->state == S_SENT_KEY && !session->opt->server)
                 || (ks->state == S_START && session->opt->server)))
         {
-            if (session->opt->key_method == 1)
+            if (!key_method_2_read(buf, multi, session))
             {
-                if (!key_method_1_read(buf, session))
-                {
-                    goto error;
-                }
-            }
-            else if (session->opt->key_method == 2)
-            {
-                if (!key_method_2_read(buf, multi, session))
-                {
-                    goto error;
-                }
-            }
-            else
-            {
-                ASSERT(0);
+                goto error;
             }
 
             state_change = true;
@@ -3536,11 +3388,10 @@ tls_pre_decrypt(struct tls_multi *multi,
                 struct tls_session *session = &multi->session[TM_ACTIVE];
                 struct key_state *ks = &session->key[KS_PRIMARY];
 
-                if (!is_hard_reset(op, multi->opt.key_method))
+                if (!is_hard_reset(op, KEY_METHOD_2))
                 {
                     msg(D_TLS_ERRORS, "TLS ERROR: initial packet local/remote key_method mismatch, local key_method=%d, op=%s",
-                        multi->opt.key_method,
-                        packet_opcode_name(op));
+                        KEY_METHOD_2, packet_opcode_name(op));
                     goto error;
                 }
 
@@ -3603,10 +3454,9 @@ tls_pre_decrypt(struct tls_multi *multi,
                     goto error;
                 }
 
-                if (!is_hard_reset(op, multi->opt.key_method))
+                if (!is_hard_reset(op, 2))
                 {
-                    msg(D_TLS_ERRORS, "TLS ERROR: new session local/remote key_method mismatch, local key_method=%d, op=%s",
-                        multi->opt.key_method,
+                    msg(D_TLS_ERRORS, "TLS ERROR: new session local/remote key_method mismatch, local key_method=2, op=%s",
                         packet_opcode_name(op));
                     goto error;
                 }
