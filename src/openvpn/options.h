@@ -572,10 +572,6 @@ struct options
 #ifdef ENABLE_CRYPTOAPI
     const char *cryptoapi_cert;
 #endif
-
-    /* data channel key exchange method */
-    int key_method;
-
     /* Per-packet timeout on control channel */
     int tls_timeout;
 
