@@ -99,6 +99,13 @@
 /* Maximum length of OCC options string passed as part of auth handshake */
 #define TLS_OPTIONS_LEN 512
 
+/* Definitions of the bits in the IV_PROTO bitfield */
+#define IV_PROTO_DATA_V2        (1<<1)  /**< Support P_DATA_V2 */
+#define IV_PROTO_REQUEST_PUSH   (1<<2)  /**< Assume client will send a push
+                                          * request and server does not need
+                                          * to wait for a push-request to send
+                                          * a push-reply */
+
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 
