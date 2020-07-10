@@ -67,9 +67,8 @@ void tls_poor_mans_ncp(struct options *o, const char *remote_ciphername);
  * cipher
  */
 char *
-ncp_get_best_cipher(const char *server_list, const char *server_cipher,
-                    const char *peer_info, const char *remote_cipher,
-                    struct gc_arena *gc);
+ncp_get_best_cipher(const char *server_list, const char *peer_info,
+                    const char *remote_cipher, struct gc_arena *gc);
 
 
 /**

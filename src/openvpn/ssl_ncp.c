@@ -211,9 +211,8 @@ tls_peer_ncp_list(const char *peer_info, struct gc_arena *gc)
 }
 
 char *
-ncp_get_best_cipher(const char *server_list, const char *server_cipher,
-                    const char *peer_info,  const char *remote_cipher,
-                    struct gc_arena *gc)
+ncp_get_best_cipher(const char *server_list, const char *peer_info,
+                    const char *remote_cipher, struct gc_arena *gc)
 {
     /*
      * The gc of the parameter is tied to the VPN session, create a
@@ -242,15 +241,6 @@ ncp_get_best_cipher(const char *server_list, const char *server_cipher,
             break;
         }
         token = strsep(&tmp_ciphers, ":");
-    }
-    /* We have not found a common cipher, as a last resort check if the
-     * server cipher can be used
-     */
-    if (token == NULL
-        && (tls_item_in_cipher_list(server_cipher, peer_ncp_list)
-            || streq(server_cipher, remote_cipher)))
-    {
-        token = server_cipher;
     }
 
     char *ret = NULL;

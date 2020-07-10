@@ -3043,6 +3043,61 @@ options_postprocess_verify(const struct options *o)
 }
 
 static void
+options_postprocess_cipher(struct options *o)
+{
+    if (!o->pull && !(o->mode == MODE_SERVER))
+    {
+        /* we are in the classic P2P mode */
+        /* cipher negotiation (NCP) currently assumes --pull or --mode server */
+        o->ncp_enabled = false;
+        msg( M_WARN, "Dynamic cipher negioation is disabled since neither "
+                     "P2MP client nor server mode is enabled" );
+
+        /* If the cipher is not set default to BF-CBC, we will warn that this
+         * is deprecated on cipher initialisation, no need to warn here as
+         * well */
+        if (!o->ciphername) {
+            o->ciphername = "BF-CBC";
+        }
+        return;
+    }
+
+    /* M2P mode */
+    if (!o->ciphername)
+    {
+        msg(M_WARN, "--cipher is not set. Previous OpenVPN version defaulted to "
+                    "BF-CBC as fallback when dynamic cipher negotiation failed "
+                    " in this case. If you need this fallback please "
+                    "add '--fallback-cipher BF-CBC' to your configuration "
+                    "and/or add BF-CBC to --data-ciphers");
+
+        /* We still need to set the ciphername to BF-CBC since various other
+         * parts of OpenVPN assert that the ciphername is set */
+        o->ciphername = "BF-CBC";
+    }
+    else if (!o->enable_ncp_fallback
+             && !tls_item_in_cipher_list(o->ciphername, o->ncp_ciphers))
+    {
+        msg(M_WARN, "DEPRECATED OPTION: --cipher set to '%s' but missing in"
+                    " --ncp-ciphers (%s). Future OpenVPN version will "
+                    "ignore --cipher for dynamic cipher negotiations. "
+                    "Add '%s' to --data-ciphers or change --cipher '%s' to "
+                    "fallback-cipher '%s' to silence this warning.",
+                    o->ciphername, o->ncp_ciphers, o->ciphername,
+                    o->ciphername, o->ciphername);
+        o->enable_ncp_fallback = true;
+
+        /* Append the --cipher to ncp_ciphers to allow it in NCP */
+        char *ncp_ciphers = gc_malloc(strlen(o->ncp_ciphers) +
+            strlen(o->ciphername) + 1, false, &o->gc);
+
+        strcpy(ncp_ciphers, o->ncp_ciphers);
+        strcat(ncp_ciphers, ":");
+        strcat(ncp_ciphers, o->ciphername);
+        o->ncp_ciphers = ncp_ciphers;
+    }
+}
+static void
 options_postprocess_mutate(struct options *o)
 {
     int i;
@@ -3114,16 +3169,6 @@ options_postprocess_mutate(struct options *o)
             "include this in your server configuration");
         o->dh_file = NULL;
     }
-
-    /* cipher negotiation (NCP) currently assumes --pull or --mode server */
-    if (o->ncp_enabled
-        && !(o->pull || o->mode == MODE_SERVER) )
-    {
-        msg( M_WARN, "disabling NCP mode (--ncp-disable) because not "
-             "in P2MP client or server mode" );
-        o->ncp_enabled = false;
-    }
-
 #if ENABLE_MANAGEMENT
     if (o->http_proxy_override)
     {
@@ -3629,8 +3674,15 @@ options_string(const struct options *o,
      * Tunnel Options
      */
 
-    buf_printf(&out, ",dev-type %s", dev_type_string(o->dev, o->dev_type));
-    buf_printf(&out, ",link-mtu %u", (unsigned int) calc_options_string_link_mtu(o, frame));
+    buf_printf (&out, ",dev-type %s", dev_type_string (o->dev, o->dev_type));
+    if (o->ciphername)
+    {
+        /* the link-mtu that we send has only a meaning if have a fixed
+         * cipher (p2p) or have a fallback cipher for older non ncp
+         * clients. If we do have a fallback cipher, do not send it */
+        buf_printf (&out, ",link-mtu %u",
+                    (unsigned int) calc_options_string_link_mtu (o, frame));
+    }
     buf_printf(&out, ",tun-mtu %d", PAYLOAD_SIZE(frame));
     buf_printf(&out, ",proto %s",  proto_remote(o->ce.proto, remote));
 
@@ -7836,6 +7888,12 @@ add_option(struct options *options,
     {
         VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
         options->ciphername = p[1];
+    }
+    else if (streq(p[0], "fallback-cipher" && p[1] && !p[2]))
+    {
+        VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
+        options->ciphername = p[1];
+        options->enable_ncp_fallback = true;
     }
     else if ((streq(p[0], "data-ciphers") || streq(p[0], "ncp-ciphers"))
             && p[1] && !p[2])
