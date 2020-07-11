@@ -40,6 +40,11 @@ Faster connection setup
     significantly reduces the connection setup time by avoiding one
     extra packet round-trip and 1s of internal event delays.
 
+Deferred client-connect
+    The ``--client-connect`` option and the connect plugin API allow
+    asynchronous/deferred return of the configuration file in the same way
+    as the auth-plugin.
+
 Deprecated features
 -------------------
 For an up-to-date list of all deprecated options, see this wiki page:
