@@ -25,6 +25,11 @@ Improved Data channel cipher negotiation
 Asynchronous (deferred) authentication support for auth-pam plugin.
     See src/plugins/auth-pam/README.auth-pam for details.
 
+Deferred client-connect
+    The ``--client-connect`` option and the connect plugin API allow
+    asynchronous/deferred return of the configuration file in the same way
+    as the auth-plugin.
+
 Deprecated features
 -------------------
 For an up-to-date list of all deprecated options, see this wiki page:
