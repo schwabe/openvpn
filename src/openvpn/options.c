@@ -536,7 +536,7 @@ static const char usage_message[] =
     "--cipher alg    : Encrypt packets with cipher algorithm alg\n"
     "                  (default=%s).\n"
     "                  Set alg=none to disable encryption.\n"
-    "--ncp-ciphers list : List of ciphers that are allowed to be negotiated.\n"
+    "--data-ciphers list : List of ciphers that are allowed to be negotiated.\n"
     "--ncp-disable   : (DEPRECATED) Disable cipher negotiation.\n"
     "--prng alg [nsl] : For PRNG, use digest algorithm alg, and\n"
     "                   nonce_secret_len=nsl.  Set alg=none to disable PRNG.\n"
@@ -7837,7 +7837,8 @@ add_option(struct options *options,
         VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
         options->ciphername = p[1];
     }
-    else if (streq(p[0], "ncp-ciphers") && p[1] && !p[2])
+    else if ((streq(p[0], "data-ciphers") || streq(p[0], "ncp-ciphers"))
+            && p[1] && !p[2])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_INSTANCE);
         options->ncp_ciphers = p[1];
