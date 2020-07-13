@@ -35,6 +35,7 @@
 #include "integer.h"
 #include "mtu.h"
 #include "options.h"
+#include "crypto.h"
 
 #include "memdbg.h"
 
@@ -344,3 +345,26 @@ set_sock_extended_error_passing(int sd)
 }
 
 #endif /* if EXTENDED_SOCKET_ERROR_CAPABILITY */
+
+size_t
+calc_options_string_link_mtu(const struct options *o, const struct frame *frame)
+{
+  size_t link_mtu = EXPANDED_SIZE(frame);
+
+  if (o->pull || o->mode == MODE_SERVER)
+    {
+      struct frame fake_frame = *frame;
+      struct key_type fake_kt;
+      init_key_type(&fake_kt, o->ciphername, o->authname, o->keysize, true,
+                    false);
+      frame_remove_from_extra_frame(&fake_frame, crypto_max_overhead());
+      crypto_adjust_frame_parameters(&fake_frame, &fake_kt, o->replay,
+                                     cipher_kt_mode_ofb_cfb(fake_kt.cipher));
+      frame_finalize(&fake_frame, o->ce.link_mtu_defined, o->ce.link_mtu,
+                     o->ce.tun_mtu_defined, o->ce.tun_mtu);
+      msg(D_MTU_DEBUG, "%s: link-mtu %u -> %d", __func__, (unsigned int) link_mtu,
+          EXPANDED_SIZE(&fake_frame));
+      link_mtu = EXPANDED_SIZE(&fake_frame);
+    }
+  return link_mtu;
+}

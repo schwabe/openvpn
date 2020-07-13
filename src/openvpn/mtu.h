@@ -324,4 +324,14 @@ frame_defined(const struct frame *frame)
     return frame->link_mtu > 0;
 }
 
+/**
+ * Calculate the link-mtu to advertise to our peer.  The actual value is not
+ * relevant, because we will possibly perform data channel cipher negotiation
+ * after this, but older clients will log warnings if we do not supply them the
+ * value they expect.  This assumes that the traditional cipher/auth directives
+ * in the config match the config of the peer.
+ */
+size_t
+calc_options_string_link_mtu(const struct options *o, const struct frame *frame);
+
 #endif /* ifndef MTU_H */
