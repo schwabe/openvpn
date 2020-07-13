@@ -156,22 +156,6 @@ shaper_wrote_bytes(struct shaper *s, int nbytes)
     }
 }
 
-#if 0
-/*
- * Increase/Decrease bandwidth by a percentage.
- *
- * Return true if bandwidth changed.
- */
-static inline bool
-shaper_change_pct(struct shaper *s, int pct)
-{
-    const int orig_bandwidth = s->bytes_per_second;
-    const int new_bandwidth = orig_bandwidth + (orig_bandwidth * pct / 100);
-    ASSERT(s->bytes_per_second);
-    shaper_reset(s, new_bandwidth);
-    return s->bytes_per_second != orig_bandwidth;
-}
-#endif
 
 #endif /* ENABLE_FEATURE_SHAPER */
 

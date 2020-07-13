@@ -2770,13 +2770,6 @@ do_init_crypto_tls_c1(struct context *c)
         /* initialise auth-token crypto support */
         do_init_auth_token_key(c);
 
-#if 0 /* was: #if ENABLE_INLINE_FILES --  Note that enabling this code will break restarts */
-        if (options->priv_key_file_inline)
-        {
-            string_clear(c->options.priv_key_file_inline);
-            c->options.priv_key_file_inline = NULL;
-        }
-#endif
     }
     else
     {

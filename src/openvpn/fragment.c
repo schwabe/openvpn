@@ -157,16 +157,6 @@ fragment_incoming(struct fragment_master *f, struct buffer *buf,
         /* get fragment type from flags */
         frag_type = ((flags >> FRAG_TYPE_SHIFT) & FRAG_TYPE_MASK);
 
-#if 0
-        /*
-         * If you want to extract FRAG_EXTRA_MASK/FRAG_EXTRA_SHIFT bits,
-         * do it here.
-         */
-        if (frag_type == FRAG_WHOLE || frag_type == FRAG_YES_NOTLAST)
-        {
-        }
-#endif
-
         /* handle the fragment type */
         if (frag_type == FRAG_WHOLE)
         {

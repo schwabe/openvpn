@@ -4339,14 +4339,6 @@ string_defined_equal(const char *s1, const char *s2)
     }
 }
 
-#if 0
-static void
-ping_rec_err(int msglevel)
-{
-    msg(msglevel, "only one of --ping-exit or --ping-restart options may be specified");
-}
-#endif
-
 static int
 positive_atoi(const char *str)
 {
