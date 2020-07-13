@@ -684,6 +684,20 @@ crypto_adjust_frame_parameters(struct frame *frame,
                                bool packet_id,
                                bool packet_id_long_form)
 {
+    int crypto_overhead = crypto_calc_frame_overhead(kt, packet_id,
+                                                     packet_id_long_form);
+    frame_add_to_extra_frame(frame, crypto_overhead);
+
+    msg(D_MTU_DEBUG, "%s: Adjusting frame parameters for crypto by %u bytes",
+        __func__, crypto_overhead);
+}
+
+
+int
+crypto_calc_frame_overhead(const struct key_type *kt,
+                           bool packet_id,
+                           bool packet_id_long_form)
+{
     unsigned int crypto_overhead = 0;
 
     if (packet_id)
@@ -706,10 +720,7 @@ crypto_adjust_frame_parameters(struct frame *frame,
 
     crypto_overhead += kt->hmac_length;
 
-    frame_add_to_extra_frame(frame, crypto_overhead);
-
-    msg(D_MTU_DEBUG, "%s: Adjusting frame parameters for crypto by %u bytes",
-        __func__, crypto_overhead);
+    return crypto_overhead;
 }
 
 unsigned int

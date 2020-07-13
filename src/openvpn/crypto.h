@@ -417,6 +417,13 @@ void crypto_adjust_frame_parameters(struct frame *frame,
                                     bool packet_id,
                                     bool packet_id_long_form);
 
+
+/** Calculate crypto overhead */
+int
+crypto_calc_frame_overhead(const struct key_type *kt,
+                           bool packet_id,
+                           bool packet_id_long_form);
+
 /** Return the worst-case OpenVPN crypto overhead (in bytes) */
 unsigned int crypto_max_overhead(void);
 
