@@ -32,6 +32,9 @@ configured in a compatible way between both the local and remote side.
   http://www.cs.ucsd.edu/users/mihir/papers/hmac.html
 
 --cipher alg
+  This option is deprecated for server-client mode and ``--data-ciphers``
+  or rarely `--fallback-cipher`` should be used instead.
+
   Encrypt data channel packets with cipher algorithm ``alg``.
 
   The default is :code:`BF-CBC`, an abbreviation for Blowfish in Cipher
@@ -150,8 +153,9 @@ configured in a compatible way between both the local and remote side.
   ``--server`` ), or if ``--pull`` is specified (client-side, implied by
   setting --client).
 
-  If both peers support and do not disable NCP, the negotiated cipher will
-  override the cipher specified by ``--cipher``.
+  If no common cipher is found is found during cipher negotiation, the
+  connection is terminated. To support old clients/server that do not
+  provide any cipher support see ``fallback-cipher``.
 
   Additionally, to allow for more smooth transition, if NCP is enabled,
   OpenVPN will inherit the cipher of the peer if that cipher is different
@@ -170,6 +174,17 @@ configured in a compatible way between both the local and remote side.
 
   This option was called ``ncp-ciphers`` in OpenVPN 2.4 but has been renamed
   to ``data-ciphers`` in OpenVPN 2.5 to more accurately reflect its meaning.
+
+--fallback-cipher alg
+
+    Configure a cipher that is used to fall back to if the peer has OCC
+    disabled (e.g. with the option ``--occ-disable``) and does also not
+    support dynamic cipher negotiation or has it disabled (`--ncp-disable``).
+    This option should normally not be needed.  It only exists to allow
+    connecting to very old server or if supporting old clients is needed
+    or if the server/client are configured in an unusual way
+    (``--occ-disable`` and ``ncp-disable``).
+
 
 --ncp-disable
   Disable "Negotiable Crypto Parameters". This completely disables cipher

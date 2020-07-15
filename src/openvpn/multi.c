@@ -1847,7 +1847,7 @@ multi_client_set_protocol_options(struct context *c)
     bool ret = false;
 
     const char *peer_ciphers = tls_peer_ncp_list(peer_info, &gc);
-    const char* ncp_auth_failed = "Data channel cipher negotiation failed "
+    const char *ncp_auth_failed = "Data channel cipher negotiation failed "
                                   "(no shared cipher)";
 
     if (strlen(peer_ciphers) > 0)
@@ -1870,7 +1870,7 @@ multi_client_set_protocol_options(struct context *c)
         if (o->enable_ncp_fallback && !tls_multi->remote_ciphername)
         {
             msg(M_INFO, "Using data channel cipher '%s' since "
-                        "--fallback-cipher is set.", o->ciphername);
+                "--fallback-cipher is set.", o->ciphername);
             ret = true;
         }
         else
@@ -2155,10 +2155,11 @@ multi_client_connect_late_setup(struct multi_context *m,
     {
         mi->context.c2.context_auth = CAS_FAILED;
     }
-
-    /* Generate data channel keys */
-    if (!multi_client_generate_tls_keys(&mi->context))
+    /* Generate data channel keys only if setting protocol options
+     * has not failed */
+    else if (!multi_client_generate_tls_keys(&mi->context))
     {
+
         mi->context.c2.context_auth = CAS_FAILED;
     }
 

@@ -2374,7 +2374,29 @@ do_deferred_options(struct context *c, const unsigned int found)
         {
             /* If the server did not push a --cipher, we will switch to the
              * remote cipher if it is in our ncp-ciphers list */
-            tls_poor_mans_ncp(&c->options, c->c2.tls_multi->remote_ciphername);
+            bool useremotecipher = tls_poor_mans_ncp(&c->options,
+                                                     c->c2.tls_multi->remote_ciphername);
+
+            if (!useremotecipher && !c->options.enable_ncp_fallback)
+            {
+                /* Give appropiate error message */
+                if (c->c2.tls_multi->remote_ciphername)
+                {
+                    msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to negotiate "
+                        "cipher with server.  Add the server's "
+                        "cipher ('%s') to --data-ciphers if you "
+                        "want to connect to this server",
+                        c->c2.tls_multi->remote_ciphername);
+                }
+                else
+                {
+                    msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to negotioate "
+                        "cipher with server. Configure "
+                        "--fallback-ciphersif you want connect "
+                        "to this server");
+                }
+                return false;
+            }
         }
         struct frame *frame_fragment = NULL;
 #ifdef ENABLE_FRAGMENT

@@ -253,16 +253,18 @@ ncp_get_best_cipher(const char *server_list, const char *peer_info,
     return ret;
 }
 
-void
+bool
 tls_poor_mans_ncp(struct options *o, const char *remote_ciphername)
 {
-    if (o->ncp_enabled && remote_ciphername
+    if (remote_ciphername
         && 0 != strcmp(o->ciphername, remote_ciphername))
     {
         if (tls_item_in_cipher_list(remote_ciphername, o->ncp_ciphers))
         {
             o->ciphername = string_alloc(remote_ciphername, &o->gc);
             msg(D_TLS_DEBUG_LOW, "Using peer cipher '%s'", o->ciphername);
+            return true;
         }
     }
+    return false;
 }

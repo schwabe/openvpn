@@ -44,10 +44,13 @@ tls_peer_supports_ncp(const char *peer_info);
  * "Poor man's NCP": Use peer cipher if it is an allowed (NCP) cipher.
  * Allows non-NCP peers to upgrade their cipher individually.
  *
+ * Returns true if we switched to the peer's cipher
+ *
  * Make sure to call tls_session_update_crypto_params() after calling this
  * function.
  */
-void tls_poor_mans_ncp(struct options *o, const char *remote_ciphername);
+bool
+tls_poor_mans_ncp(struct options *o, const char *remote_ciphername);
 
 /**
  * Iterates through the ciphers in server_list and return the first

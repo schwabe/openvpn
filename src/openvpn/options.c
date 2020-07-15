@@ -860,7 +860,6 @@ init_options(struct options *o, const bool init_gc)
 #if P2MP
     o->scheduled_exit_interval = 5;
 #endif
-    o->ciphername = "BF-CBC";
     o->ncp_enabled = true;
     o->ncp_ciphers = "AES-256-GCM:AES-128-GCM";
     o->authname = "SHA1";
@@ -3097,6 +3096,7 @@ options_postprocess_cipher(struct options *o)
         o->ncp_ciphers = ncp_ciphers;
     }
 }
+
 static void
 options_postprocess_mutate(struct options *o)
 {
@@ -3109,6 +3109,7 @@ options_postprocess_mutate(struct options *o)
     helper_keepalive(o);
     helper_tcp_nodelay(o);
 
+    options_postprocess_cipher(o);
     options_postprocess_mutate_invariant(o);
 
     if (o->ncp_enabled)
@@ -3686,10 +3687,11 @@ options_string(const struct options *o,
     buf_printf(&out, ",tun-mtu %d", PAYLOAD_SIZE(frame));
     buf_printf(&out, ",proto %s",  proto_remote(o->ce.proto, remote));
 
+    bool p2p_nopull = o->mode == MODE_POINT_TO_POINT && !PULL_DEFINED(o);
     /* send tun_ipv6 only in peer2peer mode - in client/server mode, it
      * is usually pushed by the server, triggering a non-helpful warning
      */
-    if (o->ifconfig_ipv6_local && o->mode == MODE_POINT_TO_POINT && !PULL_DEFINED(o))
+    if (o->ifconfig_ipv6_local && p2p_nopull)
     {
         buf_printf(&out, ",tun-ipv6");
     }
@@ -3719,7 +3721,7 @@ options_string(const struct options *o,
         }
     }
 
-    if (tt && o->mode == MODE_POINT_TO_POINT && !PULL_DEFINED(o))
+    if (tt && p2p_nopull)
     {
         const char *ios = ifconfig_options_string(tt, remote, o->ifconfig_nowarn, gc);
         if (ios && strlen(ios))
@@ -3775,8 +3777,14 @@ options_string(const struct options *o,
 
         init_key_type(&kt, o->ciphername, o->authname, o->keysize, true,
                       false);
-
-        buf_printf(&out, ",cipher %s", cipher_kt_name(kt.cipher));
+        /* Only announce the cipher to our peer if we are willing to
+         * support it */
+        const char *ciphername = cipher_kt_name(kt.cipher);
+        if (p2p_nopull || (o->ncp_enabled &&
+                tls_item_in_cipher_list(ciphername, o->ncp_ciphers)))
+        {
+            buf_printf(&out, ",cipher %s", ciphername);
+        }
         buf_printf(&out, ",auth %s", md_kt_name(kt.digest));
         buf_printf(&out, ",keysize %d", kt.cipher_length * 8);
         if (o->shared_secret_file)
@@ -7881,9 +7889,9 @@ add_option(struct options *options,
         VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
         options->ciphername = p[1];
     }
-    else if (streq(p[0], "fallback-cipher" && p[1] && !p[2]))
+    else if (streq(p[0], "fallback-cipher") && p[1] && !p[2])
     {
-        VERIFY_PERMISSION(OPT_P_NCP|OPT_P_INSTANCE);
+        VERIFY_PERMISSION(OPT_P_INSTANCE);
         options->ciphername = p[1];
         options->enable_ncp_fallback = true;
     }
