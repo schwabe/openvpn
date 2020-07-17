@@ -2265,23 +2265,21 @@ static inline bool
 cc_check_return(int *cc_succeeded_count,
                 enum client_connect_return ret)
 {
-    if (ret == CC_RET_SUCCEEDED)
-    {
+    switch (ret) {
+    case CC_RET_SUCCEEDED:
         (*cc_succeeded_count)++;
         return true;
-    }
-    else if (ret == CC_RET_FAILED)
-    {
+
+    case CC_RET_FAILED:
         return false;
-    }
-    else if (ret == CC_RET_SKIPPED)
-    {
+
+    case CC_RET_SKIPPED:
         return true;
-    }
-    else
-    {
+
+    default:
         ASSERT(0);
-    }
+        /* silence MSVC warning */
+        return false;
 }
 
 typedef enum client_connect_return (*multi_client_connect_handler)
