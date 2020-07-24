@@ -854,7 +854,12 @@ push_remove_option(struct options *o, const char *p)
 int
 process_incoming_push_request(struct context *c)
 {
-    int ret = PUSH_MSG_ERROR;
+    /* if we receive a message as a client we do not want to reply to it. */
+    if (c->options.pull)
+    {
+        return PUSH_MSG_ERROR;
+    }
+
 
 
     if (tls_authentication_status(c->c2.tls_multi) == TLS_AUTHENTICATION_FAILED
@@ -862,7 +867,7 @@ process_incoming_push_request(struct context *c)
     {
         const char *client_reason = tls_client_reason(c->c2.tls_multi);
         send_auth_failed(c, client_reason);
-        ret = PUSH_MSG_AUTH_FAILURE;
+        return PUSH_MSG_AUTH_FAILURE;
     }
     else if (tls_authentication_status(c->c2.tls_multi) == TLS_AUTHENTICATION_SUCCEEDED
              && c->c2.tls_multi->multi_state >= CAS_CONNECT_DONE)
@@ -872,29 +877,27 @@ process_incoming_push_request(struct context *c)
         openvpn_time(&now);
         if (c->c2.sent_push_reply_expiry > now)
         {
-            ret = PUSH_MSG_ALREADY_REPLIED;
+            return PUSH_MSG_ALREADY_REPLIED;
         }
-        else
-        {
-            /* per-client push options - peer-id, cipher, ifconfig, ipv6-ifconfig */
-            struct push_list push_list = { 0 };
-            struct gc_arena gc = gc_new();
 
-            if (prepare_push_reply(c, &gc, &push_list)
-                && send_push_reply(c, &push_list))
-            {
-                ret = PUSH_MSG_REQUEST;
-                c->c2.sent_push_reply_expiry = now + 30;
-            }
-            gc_free(&gc);
+        int ret = PUSH_MSG_ERROR;
+        /* per-client push options - peer-id, cipher, ifconfig, ipv6-ifconfig */
+        struct push_list push_list = { 0 };
+        struct gc_arena gc = gc_new();
+
+        if (prepare_push_reply(c, &gc, &push_list)
+            && send_push_reply(c, &push_list))
+        {
+            ret = PUSH_MSG_REQUEST;
+            c->c2.sent_push_reply_expiry = now + 30;
         }
+        gc_free(&gc);
+        return ret;
     }
     else
     {
-        ret = PUSH_MSG_REQUEST_DEFERRED;
+        return PUSH_MSG_REQUEST_DEFERRED;
     }
-
-    return ret;
 }
 
 static void
