@@ -3023,6 +3023,13 @@ open_darwin_utun(const char *dev, const char *dev_type, const char *dev_node, st
     {
         for (utunnum = 0; utunnum<255; utunnum++)
         {
+            char ifname[20];
+            /* if the interface exists silently skip it */
+            ASSERT(snprintf(ifname, sizeof(ifname), "utun%d", utunnum));
+            if (if_nametoindex(ifname))
+            {
+                continue;
+            }
             fd = utun_open_helper(ctlInfo, utunnum);
             /* Break if the fd is valid,
              * or if early initialization failed (-2) */
