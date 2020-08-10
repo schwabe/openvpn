@@ -389,18 +389,32 @@ void key_state_ssl_free(struct key_state_ssl *ks_ssl);
 void backend_tls_ctx_reload_crl(struct tls_root_ctx *ssl_ctx,
                                 const char *crl_file, bool crl_inline);
 
+
+/* defines the different RFC5705 that are used in OpenVPN */
+enum export_key_identifier {
+    EXPORT_KEY_USER
+};
+
 /**
  * Keying Material Exporters [RFC 5705] allows additional keying material to be
  * derived from existing TLS channel. This exported keying material can then be
  * used for a variety of purposes.
  *
+ * Note
+ *
  * @param ks_ssl       The SSL channel's state info
  * @param session      The session associated with the given key_state
+ * @param key          The key to export.
+ * @param gc           gc_arena that might be used to allocate a string
+ * @returns            The exported key material, the caller may zero the
+ *                     string but should not free it
  */
 
-void
+unsigned char*
 key_state_export_keying_material(struct key_state_ssl *ks_ssl,
-                                 struct tls_session *session) __attribute__((nonnull));
+                                 struct tls_session *session,
+                                 enum export_key_identifier export_key,
+                                 struct gc_arena *gc) __attribute__((nonnull));
 
 /**************************************************************************/
 /** @addtogroup control_tls

@@ -158,35 +158,38 @@ tls_ctx_initialised(struct tls_root_ctx *ctx)
     return NULL != ctx->ctx;
 }
 
-void
+unsigned char *
 key_state_export_keying_material(struct key_state_ssl *ssl,
-                                 struct tls_session *session)
+                                 struct tls_session *session,
+                                 enum export_key_identifier key_id,
+                                 struct gc_arena *gc)
+
 {
-    if (session->opt->ekm_size > 0)
+    const char *label;
+    size_t label_size, ekm_size;
+
+    if (key_id == EXPORT_KEY_USER)
     {
-        unsigned int size = session->opt->ekm_size;
-        struct gc_arena gc = gc_new();
-        unsigned char *ekm = (unsigned char *) gc_malloc(size, true, &gc);
+        label = session->opt->ekm_label;
+        label_size = session->opt->ekm_label_size;
+        ekm_size = session->opt->ekm_size;
+    }
+    else
+    {
+        ASSERT(0);
+    }
 
-        if (SSL_export_keying_material(ssl->ssl, ekm, size,
-                                       session->opt->ekm_label,
-                                       session->opt->ekm_label_size,
-                                       NULL, 0, 0))
-        {
-            unsigned int len = (size * 2) + 2;
+    unsigned char *ekm = (unsigned char *) gc_malloc(ekm_size, true, gc);
 
-            const char *key = format_hex_ex(ekm, size, len, 0, NULL, &gc);
-            setenv_str(session->opt->es, "exported_keying_material", key);
-
-            dmsg(D_TLS_DEBUG_MED, "%s: exported keying material: %s",
-                 __func__, key);
-        }
-        else
-        {
-            msg(M_WARN, "WARNING: Export keying material failed!");
-            setenv_del(session->opt->es, "exported_keying_material");
-        }
-        gc_free(&gc);
+    if (SSL_export_keying_material(ssl->ssl, ekm, ekm_size, label,
+                                   label_size, NULL, 0, 0) == 1)
+    {
+        return ekm;
+    }
+    else
+    {
+        secure_memzero(ekm, ekm_size);
+        return NULL;
     }
 }
 

@@ -231,24 +231,18 @@ mbedtls_ssl_export_keys_cb(void *p_expkey, const unsigned char *ms,
 }
 #endif /* HAVE_EXPORT_KEYING_MATERIAL */
 
-void
+unsigned char *
 key_state_export_keying_material(struct key_state_ssl *ssl,
-                                 struct tls_session *session)
+                                 struct tls_session *session,
+                                 enum export_key_identifier key_id,
+                                 struct gc_arena *gc)
 {
-    if (ssl->exported_key_material)
+    if (key_id == EXPORT_KEY_USER)
     {
-        unsigned int size = session->opt->ekm_size;
-        struct gc_arena gc = gc_new();
-        unsigned int len = (size * 2) + 2;
-
-        const char *key = format_hex_ex(ssl->exported_key_material,
-                                        size, len, 0, NULL, &gc);
-        setenv_str(session->opt->es, "exported_keying_material", key);
-
-        dmsg(D_TLS_DEBUG_MED, "%s: exported keying material: %s",
-             __func__, key);
-        gc_free(&gc);
+        return ssl->exported_key_material;
     }
+
+    return  NULL;
 }
 
 
