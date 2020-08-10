@@ -8020,6 +8020,20 @@ add_option(struct options *options,
         }
         options->ncp_ciphers = p[1];
     }
+    else if (streq(p[0], "key-derivation") && p[1])
+    {
+        VERIFY_PERMISSION(OPT_P_NCP)
+#ifdef HAVE_EXPORT_KEYING_MATERIAL
+        if (streq(p[1], "tls-ekm"))
+        {
+            options->data_channel_use_ekm = true;
+        }
+        else
+#endif
+        {
+            msg(msglevel, "Unknown key-derivation method %s", p[1]);
+        }
+    }
     else if (streq(p[0], "ncp-disable") && !p[1])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_INSTANCE);
