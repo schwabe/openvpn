@@ -115,7 +115,8 @@ struct key_state_ssl {
     bio_ctx *bio_ctx;
 
     /** Keying material exporter cache (RFC 5705). */
-    uint8_t *exported_key_material;
+    uint8_t *exported_key_material_user;
+    uint8_t *exported_key_material_data;
 
 };
 

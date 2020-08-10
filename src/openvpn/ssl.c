@@ -1784,6 +1784,28 @@ init_key_contexts(struct key_ctx_bi *key,
 }
 
 
+static bool
+generate_key_expansion_tls_export(struct tls_session *session, struct key2 *key2)
+{
+    struct key_state *ks = &session->key[KS_PRIMARY];
+    struct gc_arena gc = gc_new();
+    unsigned char *key2data;
+
+    key2data = key_state_export_keying_material(&ks->ks_ssl, session,
+                                                EXPORT_KEY_DATA,
+                                                &gc);
+    if (!key2data)
+    {
+        return false;
+    }
+    memcpy(key2->keys, key2data, sizeof(key2->keys));
+    secure_memzero(key2data, sizeof(key2->keys));
+    key2->n = 2;
+
+    gc_free(&gc);
+    return true;
+}
+
 static struct key2
 generate_key_expansion_oepnvpn_prf(const struct tls_session *session)
 {
@@ -1846,7 +1868,7 @@ generate_key_expansion_oepnvpn_prf(const struct tls_session *session)
  */
 static bool
 generate_key_expansion(struct key_ctx_bi *key,
-                       const struct tls_session *session)
+                       struct tls_session *session)
 {
     bool ret = false;
 
@@ -1859,7 +1881,20 @@ generate_key_expansion(struct key_ctx_bi *key,
 
     bool server = session->opt->server;
 
-    struct key2 key2 = generate_key_expansion_oepnvpn_prf(session);
+    struct key2 key2;
+
+    if (session->opt->crypto_flags & CO_USE_TLS_KEY_MATERIAL_EXPORT)
+    {
+        if(!generate_key_expansion_tls_export(session, &key2))
+        {
+            msg(D_TLS_ERRORS, "TLS Error: Keying material export failed");
+            goto exit;
+        }
+    }
+    else
+    {
+        key2 = generate_key_expansion_oepnvpn_prf(session);
+    }
 
     key2_print(&key2, &session->opt->key_type,
                "Master Encrypt", "Master Decrypt");
@@ -1986,6 +2021,11 @@ tls_session_update_crypto_params(struct tls_session *session,
     if (packet_id_long_form)
     {
         session->opt->crypto_flags |= CO_PACKET_ID_LONG_FORM;
+    }
+
+    if (options->data_channel_use_ekm)
+    {
+        session->opt->crypto_flags |= CO_USE_TLS_KEY_MATERIAL_EXPORT;
     }
 
     /* Update frame parameters: undo worst-case overhead, add actual overhead */
@@ -2244,10 +2284,13 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
          * push request, also signal that the client wants
          * to get push-reply messages without without requiring a round
          * trip for a push request message*/
-        if(session->opt->pull)
+        if (session->opt->pull)
         {
             iv_proto |= IV_PROTO_REQUEST_PUSH;
         }
+#ifdef HAVE_EXPORT_KEYING_MATERIAL
+        iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
+#endif
 
         buf_printf(&out, "IV_PROTO=%d\n", iv_proto);
 

@@ -174,6 +174,12 @@ key_state_export_keying_material(struct key_state_ssl *ssl,
         label_size = session->opt->ekm_label_size;
         ekm_size = session->opt->ekm_size;
     }
+    else if (key_id == EXPORT_KEY_DATA)
+    {
+        label = EXPORT_KEY_DATA_LABEL;
+        label_size = strlen(EXPORT_KEY_DATA_LABEL);
+        ekm_size = EXPORT_KEY_DATA_EKM_SIZE;
+    }
     else
     {
         ASSERT(0);

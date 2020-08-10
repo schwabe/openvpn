@@ -390,10 +390,14 @@ void backend_tls_ctx_reload_crl(struct tls_root_ctx *ssl_ctx,
                                 const char *crl_file, bool crl_inline);
 
 
-/* defines the different RFC5705 that are used in OpenVPN */
+/* defines the different RFC5705 keys that are used in OpenVPN */
 enum export_key_identifier {
-    EXPORT_KEY_USER
+    EXPORT_KEY_USER,
+    EXPORT_KEY_DATA
 };
+
+#define EXPORT_KEY_DATA_LABEL       "EXPORTER-OpenVPN-datakeys"
+#define EXPORT_KEY_DATA_EKM_SIZE    (2 * (MAX_CIPHER_KEY_LENGTH + MAX_HMAC_KEY_LENGTH))
 
 /**
  * Keying Material Exporters [RFC 5705] allows additional keying material to be

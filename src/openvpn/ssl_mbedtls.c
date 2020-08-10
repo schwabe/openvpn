@@ -208,22 +208,41 @@ mbedtls_ssl_export_keys_cb(void *p_expkey, const unsigned char *ms,
     struct key_state_ssl *ks_ssl = &session->key[KS_PRIMARY].ks_ssl;
     unsigned char client_server_random[64];
 
-    ks_ssl->exported_key_material = gc_malloc(session->opt->ekm_size,
-                                              true, NULL);
-
     memcpy(client_server_random, client_random, 32);
     memcpy(client_server_random + 32, server_random, 32);
 
     const size_t ms_len = sizeof(ks_ssl->ctx->session->master);
-    int ret = mbedtls_ssl_tls_prf(tls_prf_type, ms, ms_len,
+
+    int ret;
+    /* Generate user exported key if requested */
+    if (session->opt->ekm_size)
+    {
+
+        ks_ssl->exported_key_material_user = gc_malloc(session->opt->ekm_size,
+                                                       true, NULL);
+        ret = mbedtls_ssl_tls_prf(tls_prf_type, ms, ms_len,
                                   session->opt->ekm_label, client_server_random,
-                                  sizeof(client_server_random), ks_ssl->exported_key_material,
+                                  sizeof(client_server_random),
+                                  ks_ssl->exported_key_material_user,
                                   session->opt->ekm_size);
 
-    if (!mbed_ok(ret))
-    {
-        secure_memzero(ks_ssl->exported_key_material, session->opt->ekm_size);
+        if (!mbed_ok(ret))
+        {
+            secure_memzero(ks_ssl->exported_key_material_user,
+                           session->opt->ekm_size);
+            ks_ssl->exported_key_material_user = NULL;
+        }
     }
+    /* We always generate the data channel key here even if we are not using
+     * it */
+
+    ks_ssl->exported_key_material_data = gc_malloc(EXPORT_KEY_DATA_EKM_SIZE,
+                                                   true, NULL);
+    ret = mbedtls_ssl_tls_prf(tls_prf_type, ms, ms_len,
+                              EXPORT_KEY_DATA_LABEL, client_server_random,
+                              sizeof(client_server_random),
+                              ks_ssl->exported_key_material_data,
+                              EXPORT_KEY_DATA_EKM_SIZE);
 
     secure_memzero(client_server_random, sizeof(client_server_random));
 
@@ -239,9 +258,12 @@ key_state_export_keying_material(struct key_state_ssl *ssl,
 {
     if (key_id == EXPORT_KEY_USER)
     {
-        return ssl->exported_key_material;
+        return ssl->exported_key_material_user;
     }
-
+    else if (key_id == EXPORT_KEY_DATA)
+    {
+        return ssl->exported_key_material_data;
+    }
     return  NULL;
 }
 
@@ -1149,11 +1171,8 @@ key_state_ssl_init(struct key_state_ssl *ks_ssl,
 
 #ifdef HAVE_EXPORT_KEYING_MATERIAL
     /* Initialize keying material exporter */
-    if (session->opt->ekm_size)
-    {
-        mbedtls_ssl_conf_export_keys_ext_cb(ks_ssl->ssl_config,
-                                            mbedtls_ssl_export_keys_cb, session);
-    }
+    mbedtls_ssl_conf_export_keys_ext_cb(ks_ssl->ssl_config,
+                                        mbedtls_ssl_export_keys_cb, session);
 #endif
 
     /* Initialise SSL context */
@@ -1172,7 +1191,8 @@ key_state_ssl_free(struct key_state_ssl *ks_ssl)
 {
     if (ks_ssl)
     {
-        free(ks_ssl->exported_key_material);
+        free(ks_ssl->exported_key_material_user);
+        free(ks_ssl->exported_key_material_data);
 
         if (ks_ssl->ctx)
         {
