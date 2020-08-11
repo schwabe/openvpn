@@ -288,10 +288,6 @@ struct tls_options
     hash_algo_type verify_hash_algo;
     char *x509_username_field;
 
-    /* allow openvpn config info to be
-     * passed over control channel */
-    bool pass_config_info;
-
     /* struct crypto_option flags */
     unsigned int crypto_flags;
 
