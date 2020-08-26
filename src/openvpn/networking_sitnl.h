@@ -25,4 +25,32 @@
 typedef char openvpn_net_iface_t;
 typedef void *openvpn_net_ctx_t;
 
+/**
+ * @brief Add new interface (similar to ip link add)
+ *
+ * @param iface interface name
+ * @param type interface link type (for example "ovpn-dco")
+ * @return int 0 on success, negative error code on error
+ */
+int
+net_iface_new(const char *iface, const char *type);
+
+/**
+ * @brief Remove an interface (similar to ip link remove)
+ *
+ * @param iface interface name
+ * @return int 0 on success, negative error code on error
+ */
+int
+net_iface_del_name(const char *iface);
+
+/**
+ * @brief Remove an interface (similar to ip link remove)
+ *
+ * @param ifindex interface index
+ * @return int 0 on success, negative error code on error
+ */
+int
+net_iface_del_index(int ifindex);
+
 #endif /* NETWORKING_SITNL_H_ */
