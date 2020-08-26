@@ -1277,6 +1277,100 @@ net_route_v6_del(openvpn_net_ctx_t *ctx, const struct in6_addr *dst,
                            table, metric);
 }
 
+
+int
+net_iface_new(const char *iface, const char *type)
+{
+    struct sitnl_link_req req = { };
+    struct rtattr *tail = NULL;
+    int ret = -1;
+
+    req.n.nlmsg_len = NLMSG_LENGTH(sizeof(req.i));
+    req.n.nlmsg_flags = NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL ;
+    req.n.nlmsg_type = RTM_NEWLINK;
+
+    if (iface)
+    {
+        SITNL_ADDATTR(&req.n, sizeof(req), IFLA_IFNAME, iface, strlen(iface) + 1);
+    }
+    tail = NLMSG_TAIL(&req.n);
+    SITNL_ADDATTR(&req.n, sizeof(req), IFLA_LINKINFO, NULL, 0);
+    SITNL_ADDATTR(&req.n, sizeof(req), IFLA_INFO_KIND, type,
+                  strlen(type) + 1);
+    tail->rta_len = (uint8_t *)NLMSG_TAIL(&req.n) - (uint8_t *)tail;
+
+    req.i.ifi_family = AF_PACKET;
+    req.i.ifi_change = 0xFFFFFFFF;
+
+    msg(D_ROUTE, "%s: add %s type %s", __func__,  np(iface), type);
+
+    if (iface)
+    {
+        /* if we have an interface name we can use that name to later
+         * lookup what interface index we created */
+        ret = sitnl_send(&req.n, 0, 0, NULL, NULL);
+        if (!ret)
+        {
+            req.i.ifi_index = if_nametoindex(iface);
+        }
+
+    }
+    else
+    {
+        req.i.ifi_index = 1194;
+        do
+        {
+            /* for some reason RTM_NEWLINK does not have a reply */
+            /* Therefore we use try using different if indices untiles
+             * we get one that does not exist already  */
+            req.i.ifi_index++;
+            ret = sitnl_send(&req.n, 0, 0, NULL, NULL);
+        }
+        while (ret == -EEXIST);
+    }
+    if (!ret)
+    {
+        return req.i.ifi_index;
+    }
+
+err:
+    return ret;
+}
+
+int
+net_iface_del_name(const char *iface)
+{
+    int ifindex;
+
+    ifindex = if_nametoindex(iface);
+
+    msg(D_ROUTE,"%s: idel %s", __func__, iface);
+
+    if (ifindex == 0)
+    {
+        msg(D_ROUTE|M_ERRNO, "%s: rtnl: cannot get ifindex for %s:",
+            __func__, iface);
+        return -ENOENT;
+    }
+
+    return net_iface_del_index(ifindex);
+}
+
+int
+net_iface_del_index(int ifindex)
+{
+    struct sitnl_link_req req = { };
+
+    req.n.nlmsg_len = NLMSG_LENGTH(sizeof(req.i));
+    req.n.nlmsg_flags = NLM_F_REQUEST;
+    req.n.nlmsg_type = RTM_DELLINK;
+
+    req.i.ifi_family = AF_PACKET;
+    req.i.ifi_index = ifindex;
+
+    return sitnl_send(&req.n, 0, 0, NULL, NULL);
+}
+
 #endif /* !ENABLE_SITNL */
 
 #endif /* TARGET_LINUX */
