@@ -191,6 +191,15 @@ enum genkey_type {
     GENKEY_AUTH_TOKEN
 };
 
+struct verify_hash_list
+{
+    /* Currently we only support SHA256 for longer lists, for a one item
+     * list with SHA1 we ignore the 12 byte memory wasted */
+    uint8_t hash[32];
+    struct verify_hash_list *next;
+
+};
+
 /* Command line options */
 struct options
 {
@@ -553,7 +562,7 @@ struct options
     int ns_cert_type; /* set to 0, NS_CERT_CHECK_SERVER, or NS_CERT_CHECK_CLIENT */
     unsigned remote_cert_ku[MAX_PARMS];
     const char *remote_cert_eku;
-    uint8_t *verify_hash;
+    struct verify_hash_list *verify_hash;
     hash_algo_type verify_hash_algo;
     unsigned int ssl_flags; /* set to SSLF_x flags from ssl.h */
 
