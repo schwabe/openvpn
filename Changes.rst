@@ -37,6 +37,11 @@ Certificate pinning/verify peer fingerprint
     fingerprint of the peer. The option has use a number of
     SHA256 fingerprints.
 
+TLS mode with self-signed certificates
+    When ``--peer-fingerprint`` is used, the ``--ca`` and ``--capath`` option
+    become optional. This allows for small OpenVPN setups without setting up
+    a PKI with Easy-RSA or similar software.
+
 New features
 ------------
 Client-specific tls-crypt keys (``--tls-crypt-v2``)
