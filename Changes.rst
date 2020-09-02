@@ -1,5 +1,12 @@
 Overview of changes in 2.5
 ==========================
+New features in 2.5.1
+---------------------
+Certificate pinning/verify peer fingerprint
+    The ``--peer-fingerprint`` option has been introduced to give users a
+    easy to use alternative to the ``tls-verify`` for matching the
+    fingerprint of the peer. The option has use a number of
+    SHA256 fingerprints.
 
 New features
 ------------
