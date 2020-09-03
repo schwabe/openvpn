@@ -2763,14 +2763,18 @@ do_init_crypto_tls_c1(struct context *c)
 #endif /* if P2MP */
         }
 
-        /* Do not warn if we only have BF-CBC in options->ciphername
-         * because it is still the default cipher */
-        bool warn = !streq(options->ciphername, "BF-CBC")
-             || options->enable_ncp_fallback;
-        /* Get cipher & hash algorithms */
-        init_key_type(&c->c1.ks.key_type, options->ciphername, options->authname,
-                      options->keysize, true, warn);
 
+        if (!options->ncp_enabled || options->enable_ncp_fallback
+            || !streq(options->ciphername, "BF-CBC"))
+        {
+            /* Get cipher & hash algorithms
+             * skip BF-CBC for NCP setups when cipher as this is the default
+             * and is also special cased later to allow it to be not available
+             * as we need to construct a fake BF-CBC occ string
+             */
+            init_key_type(&c->c1.ks.key_type, options->ciphername, options->authname,
+                          options->keysize, true, true);
+        }
         /* Initialize PRNG with config-specified digest */
         prng_init(options->prng_hash, options->prng_nonce_secret_len);
 
