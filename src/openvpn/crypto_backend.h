@@ -699,4 +699,23 @@ const char *translate_cipher_name_from_openvpn(const char *cipher_name);
  */
 const char *translate_cipher_name_to_openvpn(const char *cipher_name);
 
+
+/**
+ * Calculates the TLS 1.0-1.1 PRF function. For the exact specification of the
+ * fun ction definition see the TLS RFCs like RFC 4346.
+ *
+ * @param seed          seed to use
+ * @param seed_len      length of the seed
+ * @param secret        secret to use
+ * @param secret_len    length of the secret
+ * @param output        output destination
+ * @param output_len    length of output/number of bytes to generate
+ */
+void
+ssl_tls1_PRF(const uint8_t *seed,
+             int seed_len,
+             const uint8_t *secret,
+             int secret_len,
+             uint8_t *output,
+             int output_len);
 #endif /* CRYPTO_BACKEND_H_ */
