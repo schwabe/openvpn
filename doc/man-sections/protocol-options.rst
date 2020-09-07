@@ -57,8 +57,10 @@ configured in a compatible way between both the local and remote side.
   http://www.cs.ucsd.edu/users/mihir/papers/hmac.html
 
 --cipher alg
-  This option is deprecated for server-client mode. ``--data-ciphers``
-  or possibly `--data-ciphers-fallback`` should be used instead.
+  This option is ignored for server-client mode cipher selection.
+  ``--data-ciphers`` or possibly ``--data-ciphers-fallback`` must be used
+  instead.  It only determines which cipher is send in the
+  OCC string (see ``opt-verify``) for compatbility with old peers.
 
   Encrypt data channel packets with cipher algorithm ``alg``.
 
