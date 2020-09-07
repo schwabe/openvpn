@@ -9,6 +9,12 @@ Keying Material Exporters (RFC 5705) based key generation
     the RFC5705 based key material generation to the current custom
     OpenVPN PRF. This feature requires OpenSSL or mbed TLS 2.18+.
 
+Compatibility with OpenSSL in FIPS mode
+    OpenVPN will now work with OpenSSL in FIPS mode. Note, no effort
+    has been made to check or implement all the
+    requirements/recommendation of FIPS 140-2. This just allows OpenVPN
+    to be run on a system that be configured OpenSSL in FIPS mode.
+
 Overview of changes in 2.5
 ==========================
 New features in 2.5.1
