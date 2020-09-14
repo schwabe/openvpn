@@ -2142,6 +2142,7 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
         if (session->opt->pull)
         {
             iv_proto |= IV_PROTO_REQUEST_PUSH;
+            iv_proto |= IV_PROTO_AUTH_PENDING_KW;
         }
 
         /* support for Negotiable Crypto Parameters */
@@ -3606,6 +3607,8 @@ tls_pre_decrypt(struct tls_multi *multi,
             }
         }
     }
+    /* Remember that we received a valid control channel packet */
+    ks->peer_last_packet = now;
 
 done:
     buf->len = 0;
