@@ -209,6 +209,29 @@ tls_common_name_hash(const struct tls_multi *multi, const char **cn, uint32_t *c
 void verify_user_pass(struct user_pass *up, struct tls_multi *multi,
                       struct tls_session *session);
 
+
+
+/**
+ * Runs the --client-crresponse script if one is defined.
+ *
+ * As with the management interface the script is stateless in the sense that
+ * it does not directly participate in the authentication but rather should set
+ * the files for the deferred auth like the management commands.
+ *
+ */
+void
+verify_crresponse_script(struct tls_multi *multi, const char *cr_response);
+
+/**
+ * Call the plugin OPENVPN_PLUGIN_CLIENT_CRRESPONSE.
+ *
+ * As with the management interface calling the plugin is stateless in the sense
+ * that it does not directly participate in the authentication but rather
+ * should set the files for the deferred auth like the management commands.
+ */
+void
+verify_crresponse_plugin(struct tls_multi *multi, const char *cr_response);
+
 /**
  * Perform final authentication checks, including locking of the cn, the allowed
  * certificate hashes, and whether a client config entry exists in the
