@@ -15,6 +15,9 @@ Compatibility with OpenSSL in FIPS mode
     requirements/recommendation of FIPS 140-2. This just allows OpenVPN
     to be run on a system that be configured OpenSSL in FIPS mode.
 
+Deferred auth support for scripts
+    The ``--auth-user-pass-verify`` script supports now deferred authentication.
+
 Overview of changes in 2.5
 ==========================
 New features in 2.5.1
