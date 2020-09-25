@@ -18,6 +18,13 @@ Compatibility with OpenSSL in FIPS mode
 Deferred auth support for scripts
     The ``--auth-user-pass-verify`` script supports now deferred authentication.
 
+Pending auth support for plugins and scripts
+    Both auth plugin and script can now signal pending authentication to
+    the client when using deferred authentication. The new ``client-crresponse``
+    script option and ``OPENVPN_PLUGIN_CLIENT_CRRESPONSE`` plugin function can
+    be used to parse a client response to a ``CR_TEXT`` two factor challenge.
+
+
 Overview of changes in 2.5
 ==========================
 New features in 2.5.1
