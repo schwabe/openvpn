@@ -19,6 +19,15 @@ Pending auth support for plugins and scripts
     be used to parse a client response to a ``CR_TEXT`` two factor challenge.
 
     See ``sample/sample-scripts/totpauth.py`` for an example.
+<<<<<<< HEAD
+=======
+
+Deprecated features
+-------------------
+``inetd`` has been removed
+    This was a very limited and not-well-tested way to run OpenVPN, on TCP
+    and TAP mode only.
+>>>>>>> 239e8cfd (Add example script demonstrating TOTP via auth-pending)
 
 
 Overview of changes in 2.5
