@@ -24,6 +24,8 @@ Pending auth support for plugins and scripts
     script option and ``OPENVPN_PLUGIN_CLIENT_CRRESPONSE`` plugin function can
     be used to parse a client response to a ``CR_TEXT`` two factor challenge.
 
+    See ``sample/sample-scripts/totpauth.py`` for an example.
+
 
 Overview of changes in 2.5
 ==========================
