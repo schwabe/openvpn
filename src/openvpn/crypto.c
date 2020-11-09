@@ -236,7 +236,7 @@ openvpn_encrypt_v1(struct buffer *buf, struct buffer work,
                 goto err;
             }
 
-            /* Encrypt packet ID, payload */
+            /* Encrypt packet ID (CBC only), payload */
             ASSERT(cipher_ctx_update(ctx->cipher, BEND(&work), &outlen, BPTR(buf), BLEN(buf)));
             ASSERT(buf_inc_len(&work, outlen));
 

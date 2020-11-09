@@ -117,11 +117,17 @@ struct frame {
     int extra_tun;              /**< Maximum number of bytes in excess of
                                  *   the tun/tap MTU that might be read
                                  *   from or written to the virtual
-                                 *   tun/tap network interface. */
+                                 *   tun/tap network interface.
+                                 *
+                                 *   Only set with the option --tun-mtu-extra
+                                 *   */
 
     int extra_link;             /**< Maximum number of bytes in excess of
                                  *   external network interface's MTU that
-                                 *   might be read from or written to it. */
+                                 *   might be read from or written to it.
+                                 *
+                                 *   Used by peer-id (3) and
+                                 *   socks UDP (10) */
 
     /*
      * Alignment control
