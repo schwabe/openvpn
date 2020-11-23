@@ -167,6 +167,12 @@ enum auth_deferred_result {
     ACF_FAILED        /**< deferred auth has failed */
 };
 
+enum dco_key_status {
+    DCO_NOT_INSTALLED,
+    DCO_INSTALLED_PRIMARY,
+    DCO_INSTALLED_SECONDARY
+};
+
 /**
  * Security parameter state of one TLS and data channel %key session.
  * @ingroup control_processor
@@ -241,6 +247,8 @@ struct key_state
 
     struct auth_deferred_status plugin_auth;
     struct auth_deferred_status script_auth;
+
+    enum dco_key_status dco_status;
 };
 
 /** Control channel wrapping (--tls-auth/--tls-crypt) context */
@@ -636,6 +644,11 @@ struct tls_multi
     /**< Array of \c tls_session objects
      *   representing control channel
      *   sessions with the remote peer. */
+
+    /* Only used when DCO is used to remember how many keys we installed
+     * for this session */
+    int dco_keys_installed;
+    bool dco_peer_added;
 };
 
 /**  gets an item  of \c key_state objects in the

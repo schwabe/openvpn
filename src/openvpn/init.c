@@ -54,6 +54,7 @@
 #include "forward.h"
 #include "auth_token.h"
 #include "mss.h"
+#include "dco.h"
 
 #include "memdbg.h"
 
@@ -1299,15 +1300,25 @@ do_init_timers(struct context *c, bool deferred)
     }
 
     /* initialize pings */
-
-    if (c->options.ping_send_timeout)
+#if defined(ENABLE_DCO)
+    if (dco_enabled(&c->options))
     {
-        event_timeout_init(&c->c2.ping_send_interval, c->options.ping_send_timeout, 0);
+        /* The DCO kernel module will send the pings instead of user space */
+        event_timeout_clear(&c->c2.ping_rec_interval);
+        event_timeout_clear(&c->c2.ping_send_interval);
     }
-
-    if (c->options.ping_rec_timeout)
+    else
+#endif
     {
-        event_timeout_init(&c->c2.ping_rec_interval, c->options.ping_rec_timeout, now);
+        if (c->options.ping_send_timeout)
+        {
+            event_timeout_init(&c->c2.ping_send_interval, c->options.ping_send_timeout, 0);
+        }
+
+        if (c->options.ping_rec_timeout)
+        {
+            event_timeout_init(&c->c2.ping_rec_interval, c->options.ping_rec_timeout, now);
+        }
     }
 
     if (!deferred)
@@ -2014,6 +2025,7 @@ tun_abort(void)
  * Handle delayed tun/tap interface bringup due to --up-delay or --pull
  */
 
+
 /**
  * Helper for do_up().  Take two option hashes and return true if they are not
  * equal, or either one is all-zeroes.
@@ -2026,6 +2038,85 @@ options_hash_changed_or_zero(const struct sha256_digest *a,
     return memcmp(a, b, sizeof(struct sha256_digest))
            || !memcmp(a, &zero, sizeof(struct sha256_digest));
 }
+
+#ifdef ENABLE_DCO
+static bool
+p2p_dco_add_new_peer(struct context *c)
+{
+    struct tls_multi *multi = c->c2.tls_multi;
+    struct link_socket *ls = c->c2.link_socket;
+
+    if (!dco_enabled(&c->options))
+    {
+        return true;
+    }
+
+    struct in6_addr remote_ip6 = { 0 };
+    struct in_addr remote_ip4 = { 0 };
+
+    struct in6_addr *remote_addr6 = NULL;
+    struct in_addr *remote_addr4 = NULL;
+
+    const char* gw = NULL;
+    /* In client mode if a P2P style topology is used we assume the
+     * remote-gateway is the IP of the peer */
+    if (c->options.topology == TOP_NET30 || c->options.topology == TOP_P2P)
+    {
+        gw = c->options.ifconfig_remote_netmask;
+    }
+    if (c->options.route_default_gateway)
+    {
+        gw = c->options.route_default_gateway;
+    }
+
+    /* These inet_pton conversion are fatal since options.c already implements
+     * checks to have only valid addresses when setting the options */
+    if (c->options.ifconfig_ipv6_remote)
+    {
+        if (inet_pton(AF_INET6, c->options.ifconfig_ipv6_remote, &remote_ip6) != 1)
+        {
+            msg(M_FATAL,
+                "DCO peer init: problem converting IPv6 ifconfig remote address %s to binary",
+                c->options.ifconfig_ipv6_remote);
+        }
+        remote_addr6 = &remote_ip6;
+    }
+
+    if (gw)
+    {
+        if (inet_pton(AF_INET, gw, &remote_ip4) != 1)
+        {
+            msg(M_FATAL, "DCO peer init: problem converting IPv4 ifconfig gateway address %s to binary", gw);
+        }
+        remote_addr4 = &remote_ip4;
+    }
+    else if (c->options.ifconfig_local)
+    {
+        msg(M_INFO, "DCO peer init: Need a peer VPN addresss to setup IPv4 (set --route-gateway)");
+    }
+
+    if (!c->c2.link_socket->info.dco_installed)
+    {
+        ASSERT(ls->info.connection_established);
+
+        struct sockaddr *remoteaddr = &ls->info.lsa->actual.dest.addr.sa;
+
+        dco_new_peer(c->c1.tuntap, multi->peer_id, c->c2.link_socket->sd, NULL,
+                     remoteaddr, remote_addr4, remote_addr6);
+
+        c->c2.tls_multi->dco_peer_added = true;
+        c->c2.link_socket->info.dco_installed = true;
+    }
+
+    if (c->options.ping_send_timeout)
+    {
+        ovpn_set_peer(c->c1.tuntap, multi->peer_id, c->options.ping_send_timeout,
+                      c->options.ping_rec_timeout);
+    }
+
+    return true;
+}
+#endif
 
 bool
 do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
@@ -2078,6 +2169,11 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
 
         if (c->c2.did_open_tun)
         {
+            /* If we are in DCO mode we need to set the new peer options now */
+#if defined(ENABLE_DCO)
+            p2p_dco_add_new_peer(c);
+#endif
+
             c->c1.pulled_options_digest_save = c->c2.pulled_options_digest;
 
             /* if --route-delay was specified, start timer */
@@ -2177,6 +2273,18 @@ do_deferred_p2p_ncp(struct context *c)
                                          frame_fragment, get_link_socket_info(c)))
     {
         msg(D_TLS_ERRORS, "ERROR: failed to set crypto cipher");
+        return false;
+    }
+    return true;
+}
+
+
+static bool check_dco_pull_options(struct options *o)
+{
+    if (!o->use_peer_id)
+    {
+        msg(D_TLS_ERRORS, "OPTIONS IMPORT: Server did not request DATA_V2 packet "
+                          "format required for data channel offloading");
         return false;
     }
     return true;
@@ -2293,8 +2401,17 @@ do_deferred_options(struct context *c, const unsigned int found)
             msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to import crypto options");
             return false;
         }
-    }
 
+        /* Check if the pushed options are compatible with DCO if we have DCO
+         * enabled */
+        if (dco_enabled(&c->options) && !check_dco_pull_options(&c->options))
+        {
+            msg(D_TLS_ERRORS, "OPTIONS ERROR: pushed options are incompatible with "
+                              "data channel offloading. Use --disable-dco to connect"
+                              "to this server");
+            return false;
+        }
+    }
     return true;
 }
 
@@ -4229,6 +4346,24 @@ sig:
     close_context(c, -1, flags);
     return;
 }
+#if defined(ENABLE_LINUXDCO)
+static void remove_dco_peer(struct context *c)
+{
+    if (!dco_enabled(&c->options))
+    {
+        return;
+    }
+    if (c->c1.tuntap && c->c2.tls_multi && c->c2.tls_multi->dco_peer_added)
+    {
+        c->c2.tls_multi->dco_peer_added = false;
+        dco_del_peer(c->c1.tuntap, c->c2.tls_multi->peer_id);
+    }
+}
+#else
+static void remove_dco_peer(struct context *c)
+{
+}
+#endif
 
 /*
  * Close a tunnel instance.
@@ -4254,6 +4389,10 @@ close_instance(struct context *c)
 
         /* free buffers */
         do_close_free_buf(c);
+
+        /* close peer for DCO if enabled, needs peer-id so must be done before
+         * closing TLS contexts */
+        remove_dco_peer(c);
 
         /* close TLS */
         do_close_tls(c);

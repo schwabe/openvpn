@@ -40,6 +40,7 @@
 #include "misc.h"
 #include "networking.h"
 #include "ring_buffer.h"
+#include "networking_linuxdco.h"
 
 #ifdef _WIN32
 #define WINTUN_COMPONENT_ID "wintun"
@@ -138,6 +139,7 @@ struct tuntap_options {
 
 struct tuntap_options {
     int txqueuelen;
+    bool disable_dco;
 };
 
 #else  /* if defined(_WIN32) || defined(TARGET_ANDROID) */
@@ -214,6 +216,8 @@ struct tuntap
 #endif
     /* used for printing status info only */
     unsigned int rwflags_debug;
+
+    dco_context_t dco;
 };
 
 static inline bool

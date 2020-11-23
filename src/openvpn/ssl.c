@@ -1884,6 +1884,10 @@ tls_session_update_crypto_params_do_work(struct tls_session *session,
     init_key_type(&session->opt->key_type, options->ciphername,
                   options->authname, true, true);
 
+#if defined(ENABLE_DCO)
+    session->opt->key_type.keep_key_data = dco_enabled(options);
+#endif
+
     bool packet_id_long_form = cipher_kt_mode_ofb_cfb(session->opt->key_type.cipher);
     session->opt->crypto_flags &= ~(CO_PACKET_ID_LONG_FORM);
     if (packet_id_long_form)
@@ -2234,7 +2238,7 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
             {
                 buf_printf(&out, "IV_HWADDR=%s\n", format_hex_ex(rgi.hwaddr, 6, 0, 1, ":", &gc));
             }
-            buf_printf(&out, "IV_SSL=%s\n", get_ssl_library_version() );
+            buf_printf(&out, "IV_SSL=%s\n", get_ssl_library_version());
 #if defined(_WIN32)
             buf_printf(&out, "IV_PLAT_VER=%s\n", win32_version_string(&gc, false));
 #endif

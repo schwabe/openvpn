@@ -845,6 +845,14 @@ init_key_ctx(struct key_ctx *ctx, const struct key *key,
              cipher_kt_iv_size(kt->cipher));
         warn_insecure_key_type(ciphername);
     }
+#if defined(ENABLE_DCO)
+    /* Keep key material for DCO */
+    static_assert(sizeof(key->cipher) == sizeof(ctx->aead_key), "DCO key size mismatch");
+    if (kt->keep_key_data)
+    {
+        memcpy(ctx->aead_key, key->cipher, sizeof(ctx->aead_key));
+    }
+#endif
     if (md_defined(kt->digest))
     {
         ctx->hmac = hmac_ctx_new();

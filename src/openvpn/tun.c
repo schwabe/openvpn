@@ -1957,6 +1957,10 @@ open_tun(const char *dev, const char *dev_type, const char *dev_node, struct tun
     {
         open_null(tt);
     }
+    else if (!tt->options.disable_dco)
+    {
+        open_tun_dco(tt, dev);
+    }
     else
     {
         /*
@@ -2206,7 +2210,14 @@ close_tun(struct tuntap *tt, openvpn_net_ctx_t *ctx)
         net_ctx_reset(ctx);
     }
 
-    close_tun_generic(tt);
+    if (!tt->options.disable_dco)
+    {
+        close_tun_dco(tt);
+    }
+    else
+    {
+        close_tun_generic(tt);
+    }
     free(tt);
 }
 

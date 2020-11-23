@@ -41,6 +41,7 @@
 #include "dhcp.h"
 #include "common.h"
 #include "ssl_verify.h"
+#include "dco.h"
 
 #include "memdbg.h"
 
@@ -50,7 +51,6 @@ counter_type link_read_bytes_global;  /* GLOBAL */
 counter_type link_write_bytes_global; /* GLOBAL */
 
 /* show event wait debugging info */
-
 #ifdef ENABLE_DEBUG
 
 static const char *
@@ -139,6 +139,22 @@ context_reschedule_sec(struct context *c, int sec)
         c->c2.timeval.tv_usec = 0;
     }
 }
+#if defined(ENABLE_DCO)
+static void
+check_dco_key_status(struct context *c)
+{
+    /* DCO context is not yet initialised or enabled */
+    if ((!c->c2.did_open_tun && !c->c1.tuntap)|| !dco_enabled(&c->options))
+    {
+        return;
+    }
+
+    struct tls_multi *multi = c->c2.tls_multi;
+
+    dco_do_key_dance(c->c1.tuntap, multi, c->options.ciphername);
+}
+#endif
+
 
 /*
  * In TLS mode, let TLS level respond to any control-channel
@@ -181,6 +197,13 @@ check_tls(struct context *c)
     }
 
     interval_schedule_wakeup(&c->c2.tmp_int, &wakeup);
+#if defined(ENABLE_DCO)
+    /* Our current code has no good hooks in the TLS machinery to install
+     * the keys to DCO. So we check/install keys after the whole TLS
+     * machinery has been completed
+     */
+    check_dco_key_status(c);
+#endif
 
     if (wakeup)
     {
@@ -1083,6 +1106,15 @@ process_incoming_link(struct context *c)
     perf_pop();
 }
 
+#if defined(ENABLE_LINUXDCO)
+static void
+process_incoming_dco(struct context *c)
+{
+    msg(M_INFO, __func__);
+    ovpn_do_read_dco(&c->c1.tuntap->dco);
+}
+#endif
+
 /*
  * Output: c->c2.buf
  */
@@ -1606,9 +1638,17 @@ process_outgoing_link(struct context *c)
                 socks_preprocess_outgoing_link(c, &to_addr, &size_delta);
 
                 /* Send packet */
-                size = link_socket_write(c->c2.link_socket,
-                                         &c->c2.to_link,
-                                         to_addr);
+#if defined(ENABLE_LINUXDCO)
+                if (c->c2.link_socket->info.dco_installed)
+                {
+                    size = ovpn_do_write_dco(&c->c1.tuntap->dco, c->c2.tls_multi->peer_id, &c->c2.to_link);
+                }
+                else
+#endif
+                {
+                    size = link_socket_write(c->c2.link_socket, &c->c2.to_link,
+                                             to_addr);
+                }
 
                 /* Undo effect of prepend */
                 link_socket_write_post_size_adjust(&size, size_delta, &c->c2.to_link);
@@ -1871,6 +1911,9 @@ io_wait_dowork(struct context *c, const unsigned int flags)
 #ifdef ENABLE_ASYNC_PUSH
     static int file_shift = FILE_SHIFT;
 #endif
+#ifdef ENABLE_LINUXDCO
+    static int dco_shift = 10;    /* Event from DCO module */
+#endif
 
     /*
      * Decide what kind of events we want to wait for.
@@ -1978,6 +2021,12 @@ io_wait_dowork(struct context *c, const unsigned int flags)
      */
     socket_set(c->c2.link_socket, c->c2.event_set, socket, (void *)&socket_shift, NULL);
     tun_set(c->c1.tuntap, c->c2.event_set, tuntap, (void *)&tun_shift, NULL);
+#if defined(ENABLE_LINUXDCO)
+    if (socket & EVENT_READ && c->c2.did_open_tun)
+    {
+        dco_event_set(&c->c1.tuntap->dco, c->c2.event_set, (void *) &dco_shift);
+    }
+#endif
 
 #ifdef ENABLE_MANAGEMENT
     if (management)
@@ -2100,4 +2149,13 @@ process_io(struct context *c)
             process_incoming_tun(c);
         }
     }
+#if defined(ENABLE_LINUXDCO)
+    else if (status & DCO_READ)
+    {
+        if(!IS_SIG(c))
+        {
+            process_incoming_dco(c);
+        }
+    }
+#endif
 }

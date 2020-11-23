@@ -140,6 +140,9 @@ struct key_type
 {
     const char *cipher;         /**< const name of the cipher */
     const char *digest;         /**< Message digest static parameters */
+#if defined(ENABLE_DCO)
+    bool keep_key_data;
+#endif
 };
 
 /**
@@ -166,6 +169,9 @@ struct key_ctx
     uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];
     /**< The implicit part of the IV */
     size_t implicit_iv_len;     /**< The length of implicit_iv */
+#if defined(ENABLE_DCO)
+    uint8_t aead_key[MAX_CIPHER_KEY_LENGTH];  /**< Keeps the key data for use with DCO */
+#endif
 };
 
 #define KEY_DIRECTION_BIDIRECTIONAL 0 /* same keys for both directions */

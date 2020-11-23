@@ -867,6 +867,33 @@ void options_string_import(struct options *options,
                            unsigned int *option_types_found,
                            struct env_set *es);
 
+
 bool key_is_external(const struct options *options);
 
+/**
+ * Returns whether the current configuration has dco enabled.
+ */
+#ifdef ENABLE_LINUXDCO
+static inline bool
+dco_enabled(struct options *o) { return !o->tuntap_options.disable_dco; }
+
+/**
+ * Checks whether the options struct has any option that is not supported by
+ * our current dco implementation. If so it prints a warning at warning level
+ * for the first conflicting option found and returns false
+ * @param msglevel  the msg level to use to print the warnings
+ * @param o         the optiions struct that hold the options
+ * @return          true if a conflict with dco is detected.
+ */
+bool
+check_option_conflict_dco(int msglevel, const struct options *o);
+#else
+/* Dummy functions to avoid ifdefs in the other code */
+
+static inline bool
+dco_enabled(struct options *o) { return false; }
+
+static inline bool
+check_option_conflict_dco(int msglevel, struct options *o) { return false; }
+#endif
 #endif /* ifndef OPTIONS_H */
