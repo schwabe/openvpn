@@ -30,6 +30,7 @@ AM_CFLAGS = \
 	$(OPTIONAL_LZ4_CFLAGS) \
 	$(OPTIONAL_PKCS11_HELPER_CFLAGS) \
 	$(OPTIONAL_INOTIFY_CFLAGS) \
+    ${OPTIONAL_DCO_CFLAGS} \
 	-DPLUGIN_LIBDIR=\"${plugindir}\"
 
 if WIN32
@@ -53,6 +54,7 @@ openvpn_SOURCES = \
 	crypto.c crypto.h crypto_backend.h \
 	crypto_openssl.c crypto_openssl.h \
 	crypto_mbedtls.c crypto_mbedtls.h \
+    dco.c dco.h \
 	dhcp.c dhcp.h \
 	env_set.c env_set.h \
 	errlevel.h \
@@ -85,7 +87,8 @@ openvpn_SOURCES = \
 	multi.c multi.h \
 	networking_iproute2.c networking_iproute2.h \
 	networking_sitnl.c networking_sitnl.h \
-	networking.h \
+	networking_linuxdco.c networking_linuxdco.h \
+    networking.h \
 	ntlm.c ntlm.h \
 	occ.c occ.h \
 	openssl_compat.h \
@@ -141,7 +144,8 @@ openvpn_LDADD = \
 	$(OPTIONAL_SELINUX_LIBS) \
 	$(OPTIONAL_SYSTEMD_LIBS) \
 	$(OPTIONAL_DL_LIBS) \
-	$(OPTIONAL_INOTIFY_LIBS)
+	$(OPTIONAL_INOTIFY_LIBS) \
+	$(OPTIONAL_DCO_LIBS)
 if WIN32
 openvpn_SOURCES += openvpn_win32_resources.rc block_dns.c block_dns.h ring_buffer.h
 openvpn_LDADD += -lgdi32 -lws2_32 -lwininet -lcrypt32 -liphlpapi -lwinmm -lfwpuclnt -lrpcrt4 -lncrypt -lsetupapi

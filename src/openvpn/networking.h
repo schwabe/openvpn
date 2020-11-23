@@ -27,6 +27,7 @@ struct context;
 
 #ifdef ENABLE_SITNL
 #include "networking_sitnl.h"
+#include "networking_linuxdco.h"
 #elif ENABLE_IPROUTE
 #include "networking_iproute2.h"
 #else

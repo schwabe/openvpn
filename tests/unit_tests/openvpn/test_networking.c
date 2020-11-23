@@ -2,6 +2,9 @@
 #include "syshead.h"
 #include "networking.h"
 
+#include "error.h"
+#include "mock_msg.h"
+
 
 static char *iface = "dummy0";
 
@@ -16,8 +19,10 @@ net__iface_up(bool up)
 static int
 net__iface_new(const char *name, const char* type)
 {
-    printf("CMD: ip link add %s type %s\n", name, type);
-    return net_iface_new(name, type);
+    printf("CMD: ip link add type %s\n", type);
+    int ifidx = net_iface_new(NULL, type);
+    printf("ifindex: %d\n", ifidx);
+    return ifidx;
 }
 
 static int

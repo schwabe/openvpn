@@ -990,6 +990,11 @@ init_key_ctx(struct key_ctx *ctx, const struct key *key,
              cipher_ctx_iv_length(ctx->cipher));
         warn_insecure_key_type(ciphername, kt->cipher);
     }
+#if defined(ENABLE_LINUXDCO)
+    // Keep key material for DCO
+    ASSERT(sizeof(key->cipher) == sizeof(ctx->aead_key));
+    memcpy(ctx->aead_key, key->cipher, sizeof(ctx->aead_key));
+#endif
     if (kt->digest && kt->hmac_length > 0)
     {
         ctx->hmac = hmac_ctx_new();

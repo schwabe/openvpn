@@ -60,6 +60,7 @@
 #include "forward.h"
 #include "ssl_verify.h"
 #include "platform.h"
+#include "networking_linuxdco.h"
 #include <ctype.h>
 
 #include "memdbg.h"
@@ -105,6 +106,9 @@ const char title_string[] =
 #endif
 #endif
     " [AEAD]"
+#ifdef ENABLE_LINUXDCO
+    " [DCO]"
+#endif
     " built on " __DATE__
 ;
 
@@ -3094,6 +3098,135 @@ options_postprocess_cipher(struct options *o)
     }
 }
 
+#if defined(ENABLE_DCO)
+static bool
+check_option_conflict_dco_ce(struct connection_entry *ce, int msglevel)
+{
+    if (ce->fragment)
+    {
+        msg(msglevel, "Note: --fragment disables data channel offload.");
+        return true;
+    }
+
+    if (ce->http_proxy_options)
+    {
+        msg(msglevel, "Note: --http-proxy disables data channel offload.");
+        return true;
+    }
+
+    if (ce->socks_proxy_server)
+    {
+        msg(msglevel, "Note --socks-proxy disable data channel offload.");
+        return true;
+    }
+
+    return false;
+}
+
+#if defined(ENABLE_LINUXDCO)
+static bool check_option_conflict_dco_platform(int msglevel, struct options *o)
+{
+    if (resolve_ovpn_netlink_id(D_TUNTAP_INFO) < 0)
+    {
+        msg(msglevel, "Note: Kernel support for ovpn-dco missing, disabling "
+                      "data channel offload.");
+        return true;
+    }
+    return false;
+}
+#endif
+
+bool check_option_conflict_dco(int msglevel, struct options *o)
+{
+    /* At this point the ciphers have already been normalised */
+    const char *dco_ciphers = "AES-128-GCM:AES-256-GCM:AES-192-GCM:"
+                              "CHACHA20-POLY1305";
+
+    if (o->tuntap_options.disable_dco)
+    {
+        /* already disabled by --disable-dco, no need to print warnings */
+        return true;
+    }
+
+    check_option_conflict_dco_platform(msglevel, o);
+
+    if (dev_type_enum(o->dev, o->dev_type) != DEV_TYPE_TUN)
+    {
+        msg(msglevel, "Note: dev-type not tun, disabling data channel offload.");
+        return true;
+    }
+
+    if (o->enable_ncp_fallback && !tls_item_in_cipher_list(o->ciphername, dco_ciphers))
+    {
+        msg(msglevel, "Note: --data-cipher-fallback with cipher '%s' "
+                      "disables data channel offload.", o->ciphername);
+        return true;
+    }
+
+    if (o->sockflags & SF_USE_IP_PKTINFO)
+    {
+        msg(msglevel, "Note: --multihome disables data channel offload.");
+        return true;
+    }
+
+    if (o->connection_list)
+    {
+        const struct connection_list *l = o->connection_list;
+        for (int i = 0; i < l->len; ++i)
+        {
+            if (check_option_conflict_dco_ce(l->array[i], msglevel))
+            {
+                return true;
+            }
+        }
+    }
+    else
+    {
+        if (check_option_conflict_dco_ce(&o->ce, msglevel))
+        {
+            return true;
+        }
+    }
+
+    if (o->mode == MODE_SERVER && o->topology != TOP_SUBNET)
+    {
+        msg(msglevel, "Note: NOT using '--topology subnet' disables data channel offload.");
+        return true;
+    }
+
+    if(o->comp.alg != COMP_ALG_UNDEF)
+    {
+        msg(msglevel, "Note: Using compression disables data channel offload.");
+
+        if (o->mode == MODE_SERVER && !(o->comp.flags & COMP_F_MIGRATE))
+        {
+            /* We can end up here from the multi.c call, only print the
+             * note if it is not already enabled */
+            msg(msglevel, "Consider using the '--compress migrate' option.");
+        }
+        return true;
+    }
+
+    struct gc_arena gc = gc_new();
+
+
+    char *tmp_ciphers = string_alloc(o->ncp_ciphers, &gc);
+    const char *token;
+    while ((token = strsep(&tmp_ciphers, ":")))
+    {
+        if (!tls_item_in_cipher_list(token, dco_ciphers))
+        {
+            msg(msglevel, "Note: cipher '%s' in --data-ciphers is not supported "
+                "by ovpn-dco, disabling data channel offload.", token);
+            gc_free(&gc);
+            return true;
+        }
+    }
+    gc_free(&gc);
+
+    return false;
+}
+#endif /* if defined(TARGET_LINUX) */
 
 static void
 options_postprocess_mutate(struct options *o)
@@ -3178,7 +3311,11 @@ options_postprocess_mutate(struct options *o)
             "option set). ");
         o->verify_hash_no_ca = true;
     }
-
+#if defined(ENABLE_LINUXDCO)
+    o->tuntap_options.disable_dco = check_option_conflict_dco(D_DCO, o);
+#elif defined(TARGET_LINUX)
+    o->tuntap_options.disable_dco  = true;
+#endif
     /*
      * Save certain parms before modifying options during connect, especially
      * when using --pull
@@ -5513,6 +5650,12 @@ add_option(struct options *options,
         options->windows_driver = parse_windows_driver(p[1], M_FATAL);
     }
 #endif
+    else if (streq(p[0], "disable-dco") || streq(p[0], "dco-disable"))
+    {
+#if defined(TARGET_LINUX)
+        options->tuntap_options.disable_dco = true;
+#endif
+    }
     else if (streq(p[0], "dev-node") && p[1] && !p[2])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);

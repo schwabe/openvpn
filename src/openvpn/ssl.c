@@ -2215,7 +2215,8 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 #ifdef HAVE_EXPORT_KEYING_MATERIAL
         iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
 #endif
-        iv_proto |= IV_PROTO_LONG_IMPLICT_IV;
+        // TODO: Implement full IV in dco
+        //iv_proto |= IV_PROTO_LONG_IMPLICT_IV;
 
         buf_printf(&out, "IV_PROTO=%d\n", iv_proto);
 
@@ -2236,7 +2237,7 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
             {
                 buf_printf(&out, "IV_HWADDR=%s\n", format_hex_ex(rgi.hwaddr, 6, 0, 1, ":", &gc));
             }
-            buf_printf(&out, "IV_SSL=%s\n", get_ssl_library_version() );
+            buf_printf(&out, "IV_SSL=%s\n", get_ssl_library_version());
 #if defined(_WIN32)
             buf_printf(&out, "IV_PLAT_VER=%s\n", win32_version_string(&gc, false));
 #endif
@@ -2603,9 +2604,9 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
         const char *remote_options = session->opt->remote_options;
         if (multi->opt.comp_options.flags & COMP_F_MIGRATE && multi->remote_usescomp)
         {
-            msg(D_SHOW_OCC, "Note: --comp-lzo migrate is enabled and remote "
-                            "announces comp-lzo, consider removing "
-                            "compress/comp-lzo options from remote config.");
+            msg(D_SHOW_OCC, "Note: remote peer announces comp-lzo, consider "
+                            "removing compress/comp-lzo options from remote "
+                            "config.");
             remote_options = options_string_compat_lzo(remote_options, &gc);
         }
 

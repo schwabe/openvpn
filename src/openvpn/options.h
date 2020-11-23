@@ -866,7 +866,7 @@ dco_enabled(struct options *o) { return !o->tuntap_options.disable_dco; }
  * @return          true if a conflict with dco is detected.
  */
 bool
-check_option_conflict_dco(int msglevel, struct options *o)
+check_option_conflict_dco(int msglevel, struct options *o);
 #else
 /* Dummy functions to avoid ifdefs in the other code */
 
@@ -876,5 +876,4 @@ dco_enabled(struct options *o) { return false; }
 static inline bool
 check_option_conflict_dco(int msglevel, struct options *o) { return false; }
 #endif
-
 #endif /* ifndef OPTIONS_H */

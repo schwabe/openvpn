@@ -252,6 +252,8 @@ struct context_2
 #define MANAGEMENT_READ  (1<<6)
 #define MANAGEMENT_WRITE (1<<7)
 #define FILE_CLOSED       (1<<8)
+#define DCO_READ          (1<<10)
+#define DCO_WRITE         (1<<11)       /* DCO NL socket ready for write, currently not used */
 
     unsigned int event_set_status;
 

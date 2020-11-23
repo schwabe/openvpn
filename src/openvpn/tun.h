@@ -40,6 +40,7 @@
 #include "misc.h"
 #include "networking.h"
 #include "ring_buffer.h"
+#include "networking_linuxdco.h"
 
 #ifdef _WIN32
 #define WINTUN_COMPONENT_ID "wintun"
@@ -134,6 +135,7 @@ struct tuntap_options {
 
 struct tuntap_options {
     int txqueuelen;
+    bool disable_dco;
 };
 
 #else  /* if defined(_WIN32) || defined(TARGET_ANDROID) */
@@ -214,6 +216,8 @@ struct tuntap
     /* Some TUN/TAP drivers like to be ioctled for mtu
      * after open */
     int post_open_mtu;
+
+    dco_context_t dco_ctx;
 };
 
 static inline bool

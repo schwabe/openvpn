@@ -447,10 +447,8 @@ p2p_mode_ncp(struct tls_multi *multi, struct tls_session *session)
     if (!common_cipher)
     {
         struct buffer out = alloc_buf_gc(128, &gc);
-        struct key_state *ks = get_key_scan(multi, KS_PRIMARY);
 
-        const cipher_ctx_t *ctx = ks->crypto_options.key_ctx_bi.encrypt.cipher;
-        const cipher_kt_t *cipher = cipher_ctx_get_cipher_kt(ctx);
+        const cipher_kt_t *cipher = session->opt->key_type.cipher;
         const char *fallback_name = cipher_kt_name(cipher);
 
         if (!cipher)

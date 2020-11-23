@@ -394,8 +394,6 @@ p2p_iow_flags(const struct context *c)
 static inline void
 io_wait(struct context *c, const unsigned int flags)
 {
-    void io_wait_dowork(struct context *c, const unsigned int flags);
-
     if (c->c2.fast_io && (flags & (IOW_TO_TUN|IOW_TO_LINK|IOW_MBUF)))
     {
         /* fast path -- only for TUN/TAP/UDP writes */

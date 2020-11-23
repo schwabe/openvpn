@@ -166,6 +166,9 @@ struct key_ctx
     cipher_ctx_t *cipher;       /**< Generic cipher %context. */
     hmac_ctx_t *hmac;           /**< Generic HMAC %context. */
     uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];  /**< The implicit part of the IV */
+#if defined(ENABLE_DCO)
+    uint8_t aead_key[MAX_CIPHER_KEY_LENGTH];
+#endif
 };
 
 #define KEY_DIRECTION_BIDIRECTIONAL 0 /* same keys for both directions */

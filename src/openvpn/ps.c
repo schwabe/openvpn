@@ -1001,6 +1001,7 @@ is_openvpn_protocol(const struct buffer *buf)
              * We don't do the 2 byte check for tls-crypt-v2 because it is very
              * unrealistic to have only 2 bytes available.
              */
+
             return  (plen >= 336 && plen < (1024 + 255));
         }
         else

@@ -157,8 +157,9 @@
     <ClCompile Include="crypto.c" />
     <ClCompile Include="crypto_openssl.c" />
     <ClCompile Include="cryptoapi.c" />
-    <ClCompile Include="env_set.c" />
+    <ClCompile Include="dco.c" />
     <ClCompile Include="dhcp.c" />
+    <ClCompile Include="env_set.c" />
     <ClCompile Include="error.c" />
     <ClCompile Include="event.c" />
     <ClCompile Include="fdmisc.c" />
