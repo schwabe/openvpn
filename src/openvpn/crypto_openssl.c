@@ -730,6 +730,11 @@ cipher_kt_mode_aead(const cipher_kt_t *cipher)
 {
     if (cipher)
     {
+        if (EVP_CIPHER_mode(cipher) == OPENVPN_MODE_GCM)
+        {
+            return true;
+        }
+
         switch (EVP_CIPHER_nid(cipher))
         {
             case NID_aes_128_gcm:
