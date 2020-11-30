@@ -1862,33 +1862,18 @@ cleanup:
     return ret;
 }
 
+
 bool
-tls_session_update_crypto_params(struct tls_session *session,
-                                 struct options *options, struct frame *frame,
+tls_session_update_crypto_params_do_work(struct tls_session *session,
+                                 struct options* options, struct frame *frame,
                                  struct frame *frame_fragment)
 {
     if (session->key[KS_PRIMARY].crypto_options.key_ctx_bi.initialized)
     {
         /* keys already generated, nothing to do */
         return true;
+
     }
-
-    bool cipher_allowed_as_fallback = options->enable_ncp_fallback
-                                      && streq(options->ciphername, session->opt->config_ciphername);
-
-    if (!session->opt->server && !cipher_allowed_as_fallback
-        && !tls_item_in_cipher_list(options->ciphername, options->ncp_ciphers))
-    {
-        msg(D_TLS_ERRORS, "Error: pushed cipher not allowed - %s not in %s",
-            options->ciphername, options->ncp_ciphers);
-        /* undo cipher push, abort connection setup */
-        options->ciphername = session->opt->config_ciphername;
-        return false;
-    }
-
-    /* Import crypto settings that might be set by pull/push */
-    session->opt->crypto_flags |= options->data_channel_crypto_flags;
-
     if (strcmp(options->ciphername, session->opt->config_ciphername))
     {
         msg(D_HANDSHAKE, "Data Channel: using negotiated cipher '%s'",
@@ -1944,6 +1929,32 @@ tls_session_update_crypto_params(struct tls_session *session,
 
     return tls_session_generate_data_channel_keys(session);
 }
+
+bool
+tls_session_update_crypto_params(struct tls_session *session,
+                                 struct options *options, struct frame *frame,
+                                 struct frame *frame_fragment)
+{
+
+    bool cipher_allowed_as_fallback = options->enable_ncp_fallback
+        && streq(options->ciphername, session->opt->config_ciphername);
+
+    if (!session->opt->server && !cipher_allowed_as_fallback
+        && !tls_item_in_cipher_list(options->ciphername, options->ncp_ciphers))
+    {
+        msg(D_TLS_ERRORS, "Error: negotiated cipher not allowed - %s not in %s",
+            options->ciphername, options->ncp_ciphers);
+        /* undo cipher push, abort connection setup */
+        options->ciphername = session->opt->config_ciphername;
+        return false;
+    }
+
+    /* Import crypto settings that might be set by pull/push */
+    session->opt->crypto_flags |= options->data_channel_crypto_flags;
+
+    return tls_session_update_crypto_params_do_work(session, options, frame, frame_fragment);
+}
+
 
 static bool
 random_bytes_to_buf(struct buffer *buf,
@@ -2138,12 +2149,10 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 {
     struct gc_arena gc = gc_new();
     bool ret = false;
+    struct buffer out = alloc_buf_gc(512 * 3, &gc);
 
-    if (session->opt->push_peer_info_detail > 0)
+    if (session->opt->push_peer_info_detail > 1)
     {
-        struct env_set *es = session->opt->es;
-        struct buffer out = alloc_buf_gc(512*3, &gc);
-
         /* push version */
         buf_printf(&out, "IV_VER=%s\n", PACKAGE_VERSION);
 
@@ -2165,7 +2174,11 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 #elif defined(_WIN32)
         buf_printf(&out, "IV_PLAT=win\n");
 #endif
+    }
 
+    /* These are the IV variable that are sent to peers in p2p mode */
+    if (session->opt->push_peer_info_detail > 0)
+    {
         /* support for P_DATA_V2 */
         int iv_proto = IV_PROTO_DATA_V2;
 
@@ -2188,20 +2201,29 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 
                 buf_printf(&out, "IV_NCP=2\n");
             }
-            buf_printf(&out, "IV_CIPHERS=%s\n", session->opt->config_ncp_ciphers);
+        }
+        else
+        {
+            /* We are not using pull or p2mp server, instead do P2P NCP */
+            iv_proto |= IV_PROTO_NCP_P2P;
+        }
+
+        buf_printf(&out, "IV_CIPHERS=%s\n", session->opt->config_ncp_ciphers);
 
 #ifdef HAVE_EXPORT_KEYING_MATERIAL
-            iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
+        iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
 #endif
-            iv_proto |= IV_PROTO_LONG_IMPLICT_IV;
-        }
+        iv_proto |= IV_PROTO_LONG_IMPLICT_IV;
 
         buf_printf(&out, "IV_PROTO=%d\n", iv_proto);
 
-        /* push compression status */
+        if (session->opt->push_peer_info_detail > 1)
+        {
+            /* push compression status */
 #ifdef USE_COMP
-        comp_generate_peer_info_string(&session->opt->comp_options, &out);
+            comp_generate_peer_info_string(&session->opt->comp_options, &out);
 #endif
+        }
 
         if (session->opt->push_peer_info_detail >= 2)
         {
@@ -2218,23 +2240,28 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 #endif
         }
 
-        /* push env vars that begin with UV_, IV_PLAT_VER and IV_GUI_VER */
-        for (struct env_item *e = es->list; e != NULL; e = e->next)
+        if (session->opt->push_peer_info_detail > 1)
         {
-            if (e->string)
+            struct env_set *es = session->opt->es;
+            /* push env vars that begin with UV_, IV_PLAT_VER and IV_GUI_VER */
+            for (struct env_item *e = es->list; e != NULL; e = e->next)
             {
-                if ((((strncmp(e->string, "UV_", 3)==0
-                       || strncmp(e->string, "IV_PLAT_VER=", sizeof("IV_PLAT_VER=")-1)==0)
-                      && session->opt->push_peer_info_detail >= 2)
-                     || (strncmp(e->string,"IV_GUI_VER=",sizeof("IV_GUI_VER=")-1)==0)
-                     || (strncmp(e->string,"IV_SSO=",sizeof("IV_SSO=")-1)==0)
-                     )
-                    && buf_safe(&out, strlen(e->string)+1))
+                if (e->string)
                 {
-                    buf_printf(&out, "%s\n", e->string);
+                    if ((((strncmp(e->string, "UV_", 3) == 0
+                        || strncmp(e->string, "IV_PLAT_VER=", sizeof("IV_PLAT_VER=") - 1) == 0)
+                        && session->opt->push_peer_info_detail >= 2)
+                        || (strncmp(e->string, "IV_GUI_VER=", sizeof("IV_GUI_VER=") - 1) == 0)
+                        || (strncmp(e->string, "IV_SSO=", sizeof("IV_SSO=") - 1) == 0)
+                    )
+                        && buf_safe(&out, strlen(e->string) + 1))
+                    {
+                        buf_printf(&out, "%s\n", e->string);
+                    }
                 }
             }
         }
+
 
         if (!write_string(buf, BSTR(&out), -1))
         {
@@ -2352,23 +2379,41 @@ key_method_2_write(struct buffer *buf, struct tls_multi *multi, struct tls_sessi
     }
 
     /*
-     * Generate tunnel keys if we're a TLS server.
+     * Generate tunnel keys if are not using NCP as TLS server.
      *
      * If we're a p2mp server to allow NCP, the first key
      * generation is postponed until after the connect script finished and the
      * NCP options can be processed. Since that always happens at after connect
      * script options are available the CAS_SUCCEEDED status is identical to
      * NCP options are processed and we have no extra state for NCP finished.
+     *
+     * As P2P TLS server we also postpone the key generation just long enough
+     * until the TLS session is fully established.
      */
-    if (session->opt->server && (session->opt->mode != MODE_SERVER
-            || multi->context_auth == CAS_SUCCEEDED))
+    if (session->opt->server)
     {
-        if (ks->authenticated > KS_AUTH_FALSE)
+        if(session->opt->mode != MODE_SERVER && ks->key_id == 0)
         {
-            if (!tls_session_generate_data_channel_keys(session))
+            /* tls-server option set and not P2MP server, so we
+             * are a P2P client running in tls-server mode */
+            p2p_mode_ncp(multi, session);
+        }
+
+        if ((session->opt->mode == MODE_SERVER && multi->context_auth == CAS_SUCCEEDED)
+            || ks->key_id > 0)
+        {
+            /* if key_id >= 1, is a renegotiation, so we use the already established
+             * parameters and do not need to delay anything. */
+
+            /* key-id == 0 and context_auth == CAS_SUCCEEDED is a special case of
+             * the server reusing the session of a reconnecting client. */
+            if (ks->authenticated > KS_AUTH_FALSE)
             {
-                msg(D_TLS_ERRORS, "TLS Error: server generate_key_expansion failed");
-                goto error;
+                if (!tls_session_generate_data_channel_keys(session))
+                {
+                    msg(D_TLS_ERRORS, "TLS Error: server generate_key_expansion failed");
+                    goto error;
+                }
             }
         }
     }
@@ -2563,15 +2608,28 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
 
     /*
      * Generate tunnel keys if we're a client.
-     * If --pull is enabled, the first key generation is postponed until after the
-     * pull/push, so we can process pushed cipher directives.
+     * If NCP is enabled, the first key generation is postponed until the TLS
+     * handshake has completed or even further delayed or after the pull
+     * response so we initialise the cipher after it is negotiated.
+     *
      */
-    if (!session->opt->server && (!session->opt->pull || ks->key_id > 0))
+    if (!session->opt->server)
     {
-        if (!tls_session_generate_data_channel_keys(session))
+        if (!session->opt->pull && ks->key_id == 0)
         {
-            msg(D_TLS_ERRORS, "TLS Error: client generate_key_expansion failed");
-            goto error;
+            /* We are a p2p tls-client without pull with NCP, enable common
+             * protocol options */
+            p2p_mode_ncp(multi, session);
+        }
+        else if (ks->key_id > 0)
+        {
+            /* if key_id >= 1, is a renogiation, so we use the channel
+             * paramter and do not need to delay anything */
+            if (!tls_session_generate_data_channel_keys(session))
+            {
+                msg(D_TLS_ERRORS, "TLS Error: client generate_key_expansion failed");
+                goto error;
+            }
         }
     }
 

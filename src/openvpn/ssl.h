@@ -125,6 +125,11 @@
 /** Support using the implicit IV for the full IV length */
 #define IV_PROTO_LONG_IMPLICT_IV (1<<5)
 
+/** Support doing NCP in P2P mode. This mode works by both peers looking at
+ * each other's IV_ variables and deterministically deciding both on the same
+ * result. */
+#define IV_PROTO_NCP_P2P         (1<<6)
+
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 
