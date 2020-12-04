@@ -174,7 +174,10 @@ auth_token_test_timeout(void **state)
 
     now = 100000;
     generate_auth_token(&ctx->up, &ctx->multi);
+
     strcpy(ctx->up.password, ctx->multi.auth_token);
+    free(ctx->multi.auth_token_initial);
+    ctx->multi.auth_token_initial = NULL;
 
     /* No time has passed */
     assert_int_equal(verify_auth_token(&ctx->up, &ctx->multi, ctx->session),
@@ -244,10 +247,10 @@ auth_token_test_known_keys(void **state)
 
     now = 0;
     /* Preload the session id so the same session id is used here */
-    ctx->multi.auth_token = strdup(now0key0);
+    ctx->multi.auth_token_initial = strdup(now0key0);
 
     /* Zero the hmac part to ensure we have a newly generated token */
-    zerohmac(ctx->multi.auth_token);
+    zerohmac(ctx->multi.auth_token_initial);
 
     generate_auth_token(&ctx->up, &ctx->multi);
 
@@ -305,12 +308,15 @@ auth_token_test_env(void **state)
 {
     struct test_context *ctx = (struct test_context *) *state;
 
+
     struct key_state *ks = &ctx->multi.session[TM_ACTIVE].key[KS_PRIMARY];
     
     ks->auth_token_state_flags = 0;
+
     ctx->multi.auth_token = NULL;
     add_session_token_env(ctx->session, &ctx->multi, &ctx->up);
     assert_string_equal(lastsesion_statevalue, "Initial");
+
 
     ks->auth_token_state_flags = 0;
     strcpy(ctx->up.password, now0key0);
@@ -331,6 +337,7 @@ auth_token_test_env(void **state)
 
     ks->auth_token_state_flags = AUTH_TOKEN_HMAC_OK|AUTH_TOKEN_EXPIRED|AUTH_TOKEN_VALID_EMPTYUSER;
     add_session_token_env(ctx->session, &ctx->multi, &ctx->up);
+
     assert_string_equal(lastsesion_statevalue, "ExpiredEmptyUser");
 }
 
@@ -341,13 +348,13 @@ auth_token_test_random_keys(void **state)
 
     now = 0x5c331e9c;
     /* Preload the session id so the same session id is used here */
-    ctx->multi.auth_token = strdup(random_token);
+    ctx->multi.auth_token_initial = strdup(random_token);
 
     free_key_ctx(&ctx->multi.opt.auth_token_key);
     auth_token_init_secret(&ctx->multi.opt.auth_token_key, random_key, true);
 
     /* Zero the hmac part to ensure we have a newly generated token */
-    zerohmac(ctx->multi.auth_token);
+    zerohmac(ctx->multi.auth_token_initial);
 
     generate_auth_token(&ctx->up, &ctx->multi);
 
