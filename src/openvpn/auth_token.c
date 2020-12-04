@@ -64,9 +64,9 @@ add_session_token_env(struct tls_session *session, struct tls_multi *multi,
     {
         state = "Initial";
     }
-    else if (multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
+    else if (session->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
     {
-        switch (multi->auth_token_state_flags & (AUTH_TOKEN_VALID_EMPTYUSER|AUTH_TOKEN_EXPIRED))
+        switch (session->auth_token_state_flags & (AUTH_TOKEN_VALID_EMPTYUSER|AUTH_TOKEN_EXPIRED))
         {
             case 0:
                 state = "Authenticated";
@@ -98,8 +98,8 @@ add_session_token_env(struct tls_session *session, struct tls_multi *multi,
 
     /* We had a valid session id before */
     const char *session_id_source;
-    if (multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK
-        &!(multi->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
+    if ((session->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
+        && !(session->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
     {
         session_id_source = up->password;
     }
@@ -108,11 +108,11 @@ add_session_token_env(struct tls_session *session, struct tls_multi *multi,
         /*
          * No session before, generate a new session token for the new session
          */
-        if (!multi->auth_token)
+        if (!multi->auth_token_initial)
         {
             generate_auth_token(up, multi);
         }
-        session_id_source = multi->auth_token;
+        session_id_source = multi->auth_token_initial;
     }
     /*
      * In the auth-token the auth token is already base64 encoded
@@ -173,6 +173,8 @@ auth_token_init_secret(struct key_ctx *key_ctx, const char *key_file,
 void
 generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 {
+    struct tls_session *session = &multi->session[TM_ACTIVE];
+
     struct gc_arena gc = gc_new();
 
     int64_t timestamp = htonll((uint64_t)now);
@@ -183,7 +185,7 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 
     uint8_t sessid[AUTH_TOKEN_SESSION_ID_LEN];
 
-    if (multi->auth_token)
+    if (multi->auth_token_initial)
     {
         /* Just enough space to fit 8 bytes+ 1 extra to decode a non padded
          * base64 string (multiple of 3 bytes). 9 bytes => 12 bytes base64
@@ -195,7 +197,7 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
          * reuse the same session id and timestamp and null terminate it at
          * for base64 decode it only decodes the session id part of it
          */
-        char *old_sessid = multi->auth_token + strlen(SESSION_ID_PREFIX);
+        char *old_sessid = multi->auth_token_initial + strlen(SESSION_ID_PREFIX);
         char *old_tsamp_initial = old_sessid + AUTH_TOKEN_SESSION_ID_LEN*8/6;
 
         old_tsamp_initial[12] = '\0';
@@ -236,7 +238,7 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
      * a new token with the empty username since we do not want to loose
      * the information that the username cannot be trusted
      */
-    if (multi->auth_token_state_flags & AUTH_TOKEN_VALID_EMPTYUSER)
+    if (session->auth_token_state_flags & AUTH_TOKEN_VALID_EMPTYUSER)
     {
         hmac_ctx_update(ctx, (const uint8_t *) "", 0);
     }
@@ -274,6 +276,15 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 
     dmsg(D_SHOW_KEYS, "Generated token for client: %s (%s)",
          multi->auth_token, up->username);
+
+    if (!multi->auth_token_initial)
+    {
+        /*
+         * Save the initial auth token for clients that ignore
+         * the updates to the token
+         */
+        multi->auth_token_initial = strdup(multi->auth_token);
+    }
 
     gc_free(&gc);
 }

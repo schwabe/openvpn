@@ -1513,7 +1513,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
      */
     if (session->opt->auth_token_generate && is_auth_token(up->password))
     {
-        multi->auth_token_state_flags = verify_auth_token(up, multi, session);
+        session->auth_token_state_flags = verify_auth_token(up, multi, session);
         if (session->opt->auth_token_call_auth)
         {
             /*
@@ -1522,7 +1522,7 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
              * decide what to do with the result
              */
         }
-        else if (multi->auth_token_state_flags == AUTH_TOKEN_HMAC_OK)
+        else if (session->auth_token_state_flags == AUTH_TOKEN_HMAC_OK)
         {
             /*
              * We do not want the EXPIRED or EMPTY USER flags here so check
@@ -1621,8 +1621,8 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
              * the initial timestamp and session id can be extracted from it
              */
             if (!multi->auth_token
-                && (multi->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
-                && !(multi->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
+                && (session->auth_token_state_flags & AUTH_TOKEN_HMAC_OK)
+                && !(session->auth_token_state_flags & AUTH_TOKEN_EXPIRED))
             {
                 multi->auth_token = strdup(up->password);
             }
@@ -1641,7 +1641,9 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
          * Otherwise the auth-token get pushed out as part of the "normal"
          * push-reply
          */
-        if (multi->auth_token_initial)
+        bool initial_connect = session->key[KS_PRIMARY].key_id == 0;
+
+        if (multi->auth_token_initial && !initial_connect)
         {
             /*
              * We do not explicitly schedule the sending of the
