@@ -441,6 +441,21 @@ struct tls_session
     struct link_socket_actual untrusted_addr;
 
     struct key_state key[KS_SIZE];
+
+#define  AUTH_TOKEN_HMAC_OK              (1<<0)
+    /**< Auth-token sent from client has valid hmac */
+#define  AUTH_TOKEN_EXPIRED              (1<<1)
+    /**< Auth-token sent from client has expired */
+#define  AUTH_TOKEN_VALID_EMPTYUSER      (1<<2)
+    /**<
+     * Auth-token is only valid for an empty username
+     * and not the username actually supplied from the client
+     *
+     * OpenVPN 3 clients sometimes wipes or replaces the username with a
+     * username hint from their config.
+     */
+    int auth_token_state_flags;
+    /**< The state of the auth-token sent from the client last time */
 };
 
 /** @addtogroup control_processor
@@ -552,20 +567,6 @@ struct tls_multi
     /**< The first auth-token we sent to a client, for clients that do
      * not update their auth-token (older OpenVPN3 core versions)
      */
-#define  AUTH_TOKEN_HMAC_OK              (1<<0)
-    /**< Auth-token sent from client has valid hmac */
-#define  AUTH_TOKEN_EXPIRED              (1<<1)
-    /**< Auth-token sent from client has expired */
-#define  AUTH_TOKEN_VALID_EMPTYUSER      (1<<2)
-    /**<
-     * Auth-token is only valid for an empty username
-     * and not the username actually supplied from the client
-     *
-     * OpenVPN 3 clients sometimes wipes or replaces the username with a
-     * username hint from their config.
-     */
-    int auth_token_state_flags;
-    /**< The state of the auth-token sent from the client last time */
 
     /* For P_DATA_V2 */
     uint32_t peer_id;
