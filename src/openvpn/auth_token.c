@@ -109,11 +109,11 @@ add_session_token_env(struct tls_session *session, struct tls_multi *multi,
         /*
          * No session before, generate a new session token for the new session
          */
-        if (!multi->auth_token)
+        if (!multi->auth_token_initial)
         {
             generate_auth_token(up, multi);
         }
-        session_id_source = multi->auth_token;
+        session_id_source = multi->auth_token_initial;
     }
     /*
      * In the auth-token the auth token is already base64 encoded
@@ -184,7 +184,7 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 
     uint8_t sessid[AUTH_TOKEN_SESSION_ID_LEN];
 
-    if (multi->auth_token)
+    if (multi->auth_token_initial)
     {
         /* Just enough space to fit 8 bytes+ 1 extra to decode a non padded
          * base64 string (multiple of 3 bytes). 9 bytes => 12 bytes base64
@@ -192,12 +192,17 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
          */
         char old_tstamp_decode[9];
 
+        /* Make a copy of the string to not modify multi->auth_token_initial */
+        char* initial_token_copy = string_alloc(multi->auth_token_initial, &gc);
+
         /*
          * reuse the same session id and timestamp and null terminate it at
          * for base64 decode it only decodes the session id part of it
          */
-        char *old_sessid = multi->auth_token + strlen(SESSION_ID_PREFIX);
+        char *old_sessid =initial_token_copy + strlen(SESSION_ID_PREFIX);
         char *old_tsamp_initial = old_sessid + AUTH_TOKEN_SESSION_ID_LEN*8/6;
+
+
 
         old_tsamp_initial[12] = '\0';
         ASSERT(openvpn_base64_decode(old_tsamp_initial, old_tstamp_decode, 9) == 9);
@@ -212,10 +217,6 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 
         old_tsamp_initial[0] = '\0';
         ASSERT(openvpn_base64_decode(old_sessid, sessid, AUTH_TOKEN_SESSION_ID_LEN)==AUTH_TOKEN_SESSION_ID_LEN);
-
-
-        /* free the auth-token, we will replace it with a new one */
-        free(multi->auth_token);
     }
     else if (!rand_bytes(sessid, AUTH_TOKEN_SESSION_ID_LEN))
     {
@@ -272,10 +273,21 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
 
     free(b64output);
 
+    /* free the auth-token if defined, we will replace it with a new one */
+    free(multi->auth_token);
     multi->auth_token = strdup((char *)BPTR(&session_token));
 
     dmsg(D_SHOW_KEYS, "Generated token for client: %s (%s)",
          multi->auth_token, up->username);
+
+    if (!multi->auth_token_initial)
+    {
+        /*
+         * Save the initial auth token for clients that ignore
+         * the updates to the token
+         */
+        multi->auth_token_initial = strdup(multi->auth_token);
+    }
 
     gc_free(&gc);
 }
