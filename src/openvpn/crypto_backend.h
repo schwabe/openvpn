@@ -263,6 +263,9 @@ int cipher_kt_key_size(const cipher_kt_t *cipher_kt);
  * Returns the size of the IV used by the cipher, in bytes, or 0 if no IV is
  * used.
  *
+ * @note                For ciphers that support variable IV this is will report
+ *                      the default IV.
+ *
  * @param cipher_kt     Static cipher parameters
  *
  * @return              Size of the IV, in bytes, or 0 if the cipher does not
