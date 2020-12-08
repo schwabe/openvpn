@@ -37,6 +37,34 @@
 
 #include "memdbg.h"
 
+/**
+ * Does the actual encryption part of the AEAD encryption.
+ */
+inline static void
+openvpn_aead_encrypt_dowork(const struct key_ctx *ctx, const uint8_t *iv,
+                            const struct buffer *buf, uint8_t *mac_out,
+                            const int mac_len, struct buffer *work)
+{
+    int outlen;
+
+    /* Init cipher_ctx with IV.  key & keylen are already initialized */
+    ASSERT(cipher_ctx_reset(ctx->cipher, iv));
+
+    /* For AEAD ciphers, authenticate Additional Data, including opcode */
+    ASSERT(cipher_ctx_update_ad(ctx->cipher, BPTR(work), BLEN(work) - mac_len));
+
+    /* Encrypt packet ID, payload */
+    ASSERT(cipher_ctx_update(ctx->cipher, BEND(work), &outlen, BPTR(buf), BLEN(buf)));
+    ASSERT(buf_inc_len(work, outlen));
+
+    /* Flush the encryption buffer */
+    ASSERT(cipher_ctx_final(ctx->cipher, BEND(work), &outlen));
+    ASSERT(buf_inc_len(work, outlen));
+
+    /* Write authentication tag */
+    ASSERT(cipher_ctx_get_tag(ctx->cipher, mac_out, mac_len));
+}
+
 /*
  * Encryption and Compression Routines.
  *
@@ -65,7 +93,6 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
                      struct crypto_options *opt)
 {
     struct gc_arena gc;
-    int outlen = 0;
     const struct key_ctx *ctx = &opt->key_ctx_bi.encrypt;
     uint8_t *mac_out = NULL;
     const cipher_kt_t *cipher_kt = cipher_ctx_get_cipher_kt(ctx->cipher);
@@ -79,33 +106,28 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
     gc_init(&gc);
 
     /* Prepare IV */
+    struct buffer iv_buffer;
+    uint8_t iv[OPENVPN_MAX_IV_LENGTH] = {0};
+    const int iv_len = cipher_ctx_iv_length(ctx->cipher);
+
+    ASSERT(iv_len >= OPENVPN_AEAD_MIN_IV_LEN && iv_len <= OPENVPN_MAX_IV_LENGTH);
+
+    buf_set_write(&iv_buffer, iv, iv_len);
+
+    /* IV starts with packet id to make the IV unique for packet */
+    if (!packet_id_write(&opt->packet_id.send, &iv_buffer, false, false))
     {
-        struct buffer iv_buffer;
-        uint8_t iv[OPENVPN_MAX_IV_LENGTH] = {0};
-        const int iv_len = cipher_ctx_iv_length(ctx->cipher);
-
-        ASSERT(iv_len >= OPENVPN_AEAD_MIN_IV_LEN && iv_len <= OPENVPN_MAX_IV_LENGTH);
-
-        buf_set_write(&iv_buffer, iv, iv_len);
-
-        /* IV starts with packet id to make the IV unique for packet */
-        if (!packet_id_write(&opt->packet_id.send, &iv_buffer, false, false))
-        {
-            msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
-            goto err;
-        }
-
-        /* Remainder of IV consists of implicit part (unique per session) */
-        ASSERT(buf_write(&iv_buffer, ctx->implicit_iv, ctx->implicit_iv_len));
-        ASSERT(iv_buffer.len == iv_len);
-
-        /* Write explicit part of IV to work buffer */
-        ASSERT(buf_write(&work, iv, iv_len - ctx->implicit_iv_len));
-        dmsg(D_PACKET_CONTENT, "ENCRYPT IV: %s", format_hex(iv, iv_len, 0, &gc));
-
-        /* Init cipher_ctx with IV.  key & keylen are already initialized */
-        ASSERT(cipher_ctx_reset(ctx->cipher, iv));
+        msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
+        goto err;
     }
+
+    /* Remainder of IV consists of implicit part (unique per session) */
+    ASSERT(buf_write(&iv_buffer, ctx->implicit_iv, ctx->implicit_iv_len));
+    ASSERT(iv_buffer.len == iv_len);
+
+    /* Write explicit part of IV to work buffer */
+    ASSERT(buf_write(&work, iv, iv_len - ctx->implicit_iv_len));
+    dmsg(D_PACKET_CONTENT, "ENCRYPT IV: %s", format_hex(iv, iv_len, 0, &gc));
 
     /* Reserve space for authentication tag */
     mac_out = buf_write_alloc(&work, mac_len);
@@ -123,21 +145,11 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
         goto err;
     }
 
-    /* For AEAD ciphers, authenticate Additional Data, including opcode */
-    ASSERT(cipher_ctx_update_ad(ctx->cipher, BPTR(&work), BLEN(&work) - mac_len));
     dmsg(D_PACKET_CONTENT, "ENCRYPT AD: %s",
          format_hex(BPTR(&work), BLEN(&work) - mac_len, 0, &gc));
 
-    /* Encrypt packet ID, payload */
-    ASSERT(cipher_ctx_update(ctx->cipher, BEND(&work), &outlen, BPTR(buf), BLEN(buf)));
-    ASSERT(buf_inc_len(&work, outlen));
-
-    /* Flush the encryption buffer */
-    ASSERT(cipher_ctx_final(ctx->cipher, BEND(&work), &outlen));
-    ASSERT(buf_inc_len(&work, outlen));
-
-    /* Write authentication tag */
-    ASSERT(cipher_ctx_get_tag(ctx->cipher, mac_out, mac_len));
+    /* Do the actual encryption */
+    openvpn_aead_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
 
     *buf = work;
 
@@ -343,6 +355,46 @@ crypto_check_replay(struct crypto_options *opt,
     }
     return ret;
 }
+/**
+ * Does an AEAD decription using from buf to work and using the additional data
+ * in ad and return true or false depending on whether the decryption
+ * was succesful .
+ */
+static inline bool
+openvpn_decrypt_aead_dowork(const struct key_ctx *ctx, const uint8_t *iv,
+                            struct buffer *work, struct buffer* buf,
+                            const uint8_t *ad, const int ad_size,
+                            uint8_t *tag, const int tag_size)
+{
+    static const char error_prefix[] = "AEAD Decrypt error";
+    int outlen;
+
+    /* Load IV, ctx->cipher was already initialized with key & keylen */
+    if (!cipher_ctx_reset(ctx->cipher, iv))
+    {
+        CRYPT_ERROR("cipher init failed");
+    }
+
+    ASSERT(cipher_ctx_update_ad(ctx->cipher, ad, ad_size));
+
+    /* Decrypt and authenticate packet */
+    if (!cipher_ctx_update(ctx->cipher, BPTR(work), &outlen, BPTR(buf),
+                           BLEN(buf)))
+    {
+        CRYPT_ERROR("cipher update failed");
+    }
+    ASSERT(buf_inc_len(work, outlen));
+    if (!cipher_ctx_final_check_tag(ctx->cipher, BPTR(work) + outlen,
+                                    &outlen, tag, tag_size))
+    {
+        CRYPT_ERROR("cipher final failed");
+    }
+    ASSERT(buf_inc_len(work, outlen));
+
+    return true;
+    error_exit:
+        return false;
+}
 
 /**
  * Unwrap (authenticate, decrypt and check replay protection) AEAD-mode data
@@ -363,7 +415,6 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     const cipher_kt_t *cipher_kt = cipher_ctx_get_cipher_kt(ctx->cipher);
     uint8_t *tag_ptr = NULL;
     int tag_size = 0;
-    int outlen;
     struct gc_arena gc;
 
     gc_init(&gc);
@@ -385,28 +436,21 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     ASSERT(packet_id_initialized(&opt->packet_id));
 
     /* Combine IV from explicit part from packet and implicit part from context */
+
+    uint8_t iv[OPENVPN_MAX_IV_LENGTH] = { 0 };
+    const int iv_len = cipher_ctx_iv_length(ctx->cipher);
+    const size_t packet_iv_len = iv_len - ctx->implicit_iv_len;
+
+    ASSERT(ctx->implicit_iv_len <= iv_len);
+    if (buf->len + ctx->implicit_iv_len < iv_len)
     {
-        uint8_t iv[OPENVPN_MAX_IV_LENGTH] = { 0 };
-        const int iv_len = cipher_ctx_iv_length(ctx->cipher);
-        const size_t packet_iv_len = iv_len - ctx->implicit_iv_len;
-
-        ASSERT(ctx->implicit_iv_len <= iv_len);
-        if (buf->len + ctx->implicit_iv_len < iv_len)
-        {
-            CRYPT_ERROR("missing IV info");
-        }
-
-        memcpy(iv, BPTR(buf), packet_iv_len);
-        memcpy(iv + packet_iv_len, ctx->implicit_iv, ctx->implicit_iv_len);
-
-        dmsg(D_PACKET_CONTENT, "DECRYPT IV: %s", format_hex(iv, iv_len, 0, &gc));
-
-        /* Load IV, ctx->cipher was already initialized with key & keylen */
-        if (!cipher_ctx_reset(ctx->cipher, iv))
-        {
-            CRYPT_ERROR("cipher init failed");
-        }
+        CRYPT_ERROR("missing IV info");
     }
+
+    memcpy(iv, BPTR(buf), packet_iv_len);
+    memcpy(iv + packet_iv_len, ctx->implicit_iv, ctx->implicit_iv_len);
+
+    dmsg(D_PACKET_CONTENT, "DECRYPT IV: %s", format_hex(iv, iv_len, 0, &gc));
 
     /* Read packet ID from packet */
     if (!packet_id_read(&pin, buf, false))
@@ -416,11 +460,14 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
 
     /* keep the tag value to feed in later */
     tag_size = cipher_kt_tag_size(cipher_kt);
+
+
     if (buf->len < tag_size)
     {
         CRYPT_ERROR("missing tag");
     }
     tag_ptr = BPTR(buf);
+
     ASSERT(buf_advance(buf, tag_size));
     dmsg(D_PACKET_CONTENT, "DECRYPT MAC: %s", format_hex(tag_ptr, tag_size, 0, &gc));
 
@@ -437,27 +484,16 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
         CRYPT_ERROR("potential buffer overflow");
     }
 
+    /* feed in tag and the authenticated data */
+    const int ad_size = BPTR(buf) - ad_start - tag_size;
+    dmsg(D_PACKET_CONTENT, "DECRYPT AD: %s",
+         format_hex(BPTR(buf) - ad_size - tag_size, ad_size, 0, &gc));
+
+    if (!openvpn_decrypt_aead_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
     {
-        /* feed in tag and the authenticated data */
-        const int ad_size = BPTR(buf) - ad_start - tag_size;
-        ASSERT(cipher_ctx_update_ad(ctx->cipher, ad_start, ad_size));
-        dmsg(D_PACKET_CONTENT, "DECRYPT AD: %s",
-             format_hex(BPTR(buf) - ad_size - tag_size, ad_size, 0, &gc));
+        goto error_exit;
     }
 
-    /* Decrypt and authenticate packet */
-    if (!cipher_ctx_update(ctx->cipher, BPTR(&work), &outlen, BPTR(buf),
-                           BLEN(buf)))
-    {
-        CRYPT_ERROR("cipher update failed");
-    }
-    ASSERT(buf_inc_len(&work, outlen));
-    if (!cipher_ctx_final_check_tag(ctx->cipher, BPTR(&work) + outlen,
-                                    &outlen, tag_ptr, tag_size))
-    {
-        CRYPT_ERROR("cipher final failed");
-    }
-    ASSERT(buf_inc_len(&work, outlen));
 
     dmsg(D_PACKET_CONTENT, "DECRYPT TO: %s",
          format_hex(BPTR(&work), BLEN(&work), 80, &gc));
