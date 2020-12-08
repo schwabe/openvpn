@@ -879,7 +879,7 @@ init_key_ctx(struct key_ctx *ctx, const struct key *key,
              format_hex(key->cipher, kt->cipher_length, 0, &gc));
         dmsg(D_CRYPTO_DEBUG, "%s: CIPHER block_size=%d iv_size=%d",
              prefix, cipher_kt_block_size(kt->cipher),
-             cipher_kt_iv_size(kt->cipher));
+             cipher_ctx_iv_length(ctx->cipher));
         warn_insecure_key_type(ciphername, kt->cipher);
     }
     if (kt->digest && kt->hmac_length > 0)
@@ -1135,14 +1135,14 @@ test_crypto(struct crypto_options *co, struct frame *frame)
 
     /* init implicit IV */
     {
-        const cipher_kt_t *cipher =
-            cipher_ctx_get_cipher_kt(co->key_ctx_bi.encrypt.cipher);
+        const cipher_ctx_t *ctx = co->key_ctx_bi.encrypt.cipher;
+        const cipher_kt_t *cipher = cipher_ctx_get_cipher_kt(ctx);
 
         if (cipher_kt_mode_aead(cipher))
         {
-            size_t impl_iv_len = cipher_kt_iv_size(cipher) - sizeof(packet_id_type);
-            ASSERT(cipher_kt_iv_size(cipher) <= OPENVPN_MAX_IV_LENGTH);
-            ASSERT(cipher_kt_iv_size(cipher) >= OPENVPN_AEAD_MIN_IV_LEN);
+            size_t impl_iv_len = cipher_ctx_iv_length(ctx) - sizeof(packet_id_type);
+            ASSERT(cipher_ctx_iv_length(ctx) <= OPENVPN_MAX_IV_LENGTH);
+            ASSERT(cipher_ctx_iv_length(ctx) >= OPENVPN_AEAD_MIN_IV_LEN);
 
             /* Generate dummy implicit IV */
             ASSERT(rand_bytes(co->key_ctx_bi.encrypt.implicit_iv,
