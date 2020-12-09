@@ -149,7 +149,28 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
          format_hex(BPTR(&work), BLEN(&work) - mac_len, 0, &gc));
 
     /* Do the actual encryption */
-    openvpn_aead_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
+    if (cipher_kt_mode(cipher_kt) == OPENVPN_MODE_CCM)
+    {
+        /* Use temporary variables to make it easier to read rather than inlining it all
+         * in the cipher_ctx_do_ccm_encrypt call */
+        int ad_len = BLEN(&work) - mac_len;
+        uint8_t *ad = BPTR(&work);
+
+        int src_len = BLEN(buf);
+        uint8_t *src = BPTR(buf);
+
+        uint8_t *dst = BEND(&work);
+
+        int olen = cipher_ctx_do_ccm_encrypt(ctx->cipher, iv, iv_len, dst,
+                                             ad, ad_len, src, src_len,
+                                             mac_out, mac_len);
+        ASSERT(buf_inc_len(&work, olen));
+
+    }
+    else
+    {
+        openvpn_aead_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
+    }
 
     *buf = work;
 
@@ -489,9 +510,32 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     dmsg(D_PACKET_CONTENT, "DECRYPT AD: %s",
          format_hex(BPTR(buf) - ad_size - tag_size, ad_size, 0, &gc));
 
-    if (!openvpn_decrypt_aead_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
+
+    if (cipher_kt_mode(cipher_kt) == OPENVPN_MODE_CCM)
     {
-        goto error_exit;
+        size_t outlen;
+        uint8_t *src = BPTR(buf);
+        int src_len = BLEN(buf);
+
+        uint8_t *dst = BPTR(&work);
+
+
+        if(!cipher_ctx_do_ccm_decrypt(ctx->cipher, iv, iv_len, dst, &outlen,
+                                      ad_start, ad_size, src, src_len,
+                                      tag_ptr, tag_size))
+        {
+            CRYPT_ERROR("ccm decryption failed");
+            goto error_exit;
+        }
+        ASSERT(buf_inc_len(&work, outlen));
+
+    }
+    else
+    {
+        if (!openvpn_decrypt_aead_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
+        {
+            goto error_exit;
+        }
     }
 
 

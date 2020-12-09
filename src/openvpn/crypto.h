@@ -267,9 +267,11 @@ struct crypto_options
 
 /**
  * Minimal IV length for AEAD mode ciphers (in bytes):
- * 4-byte packet id + 8 bytes implicit IV.
+ * 4-byte packet id + 7 bytes implicit IV.
+ *
+ * The CCM modes with (L=4 and M=16) only use a 11 byte IV
  */
-#define OPENVPN_AEAD_MIN_IV_LEN (sizeof(packet_id_type) + 8)
+#define OPENVPN_AEAD_MIN_IV_LEN (sizeof(packet_id_type) + 7)
 
 #define RKF_MUST_SUCCEED (1<<0)
 #define RKF_INLINE       (1<<1)
