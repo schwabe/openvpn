@@ -63,6 +63,9 @@ typedef mbedtls_md_context_t hmac_ctx_t;
 /** Cipher is in GCM mode */
 #define OPENVPN_MODE_GCM        MBEDTLS_MODE_GCM
 
+/** Cipher is in GCM mode */
+#define OPENVPN_MODE_CCM        MBEDTLS_MODE_CCM
+
 /** Cipher should encrypt */
 #define OPENVPN_OP_ENCRYPT      MBEDTLS_ENCRYPT
 

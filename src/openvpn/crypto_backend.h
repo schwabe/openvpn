@@ -41,6 +41,11 @@
 /* TLS uses a tag of 128 bits, let's do the same for OpenVPN */
 #define OPENVPN_AEAD_TAG_LENGTH 16
 
+/* Constants for OpenVPN's usage of AES-CCM, we use 4 bytes for size, the
+ * same as IPSEC to theoretically being able to support super jumpo packets
+ * of 65k+ bytes. */
+#define OPENVPN_CCM_CONSTANT_L   4
+
 /* Maximum cipher block size (bytes) */
 #define OPENVPN_MAX_CIPHER_BLOCK_SIZE 32
 
@@ -264,7 +269,8 @@ int cipher_kt_key_size(const cipher_kt_t *cipher_kt);
  * used.
  *
  * @note                For ciphers that support variable IV this is will report
- *                      the default IV.
+ *                      the default IV size. Use \c cipher_ctx_iv_length to
+ *                      query the actual IV size.
  *
  * @param cipher_kt     Static cipher parameters
  *
@@ -487,6 +493,65 @@ int cipher_ctx_final(cipher_ctx_t *ctx, uint8_t *dst, int *dst_len);
  */
 int cipher_ctx_final_check_tag(cipher_ctx_t *ctx, uint8_t *dst, int *dst_len,
                                uint8_t *tag, size_t tag_len);
+
+/**
+ * Like \c cipher_ctx_update_ad, \c cipher_ctx_update and \c cipher_ctx_final,
+ * but combined into a single function for CCM to satisfy the requirement
+ * of crypto libraries.
+ *
+ * This function reports failure when the tags
+ * don't match.
+ *
+ * @param ctx           Cipher's context. May not be NULL.
+ * @param iv_buf        The IV to use.
+ * @param iv_len        Length of the IV
+ * @param dst           Destination buffer.
+ * @param ad            Additional data to authenticate input buffer.
+ * @param ad_len        Length of the ad buffer, in bytes.
+ * @param src           Destination buffer.
+ * @param src_len       Length of the destination buffer, in bytes.
+ * @param tag           The authentication tag output.
+ * @param tag_len       The length of tag, in bytes.
+ *
+ * @return              \c 0 on failure, \c 1 on success.
+ */
+int
+cipher_ctx_do_ccm_encrypt(cipher_ctx_t *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst,
+                          const uint8_t *ad, size_t ad_len,
+                          uint8_t *src, size_t src_len,
+                          uint8_t *tag, size_t tag_len);
+
+/**
+ * Like \c cipher_ctx_update_ad, \c cipher_ctx_update and \c cipher_ctx_final,
+ * but combined into a single function for CCM to satisfy the requirement
+ * of crypto libraries.
+ *
+ * This function reports failure when the tags
+ * don't match.
+ *
+ * @param ctx           Cipher's context. May not be NULL.
+ * @param iv_buf        The IV to use.
+ * @param iv_len        Length of the IV
+ * @param dst           Destination buffer.
+ * @param dst_len       Length of the destination buffer, in bytes.
+ * @param ad            Additional data to authenticate input buffer.
+ * @param ad_len        Length of the ad buffer, in bytes.
+ * @param src           Destination buffer.
+ * @param src_len       Length of the destination buffer, in bytes.
+ * @param tag           The expected authentication tag.
+ * @param tag_len       The length of tag, in bytes.
+ *
+ * @return              \c false on failure, \c true on success.
+ */
+bool
+cipher_ctx_do_ccm_decrypt(cipher_ctx_t *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst, size_t *dst_len,
+                          const uint8_t *ad, size_t ad_len,
+                          const uint8_t *src, size_t src_len,
+                          const uint8_t *tag, size_t tag_len);
 
 
 /*

@@ -695,6 +695,14 @@ EC_GROUP_order_bits(const EC_GROUP *group)
 #define RSA_F_RSA_OSSL_PRIVATE_ENCRYPT       RSA_F_RSA_EAY_PRIVATE_ENCRYPT
 #endif
 
+#if !defined(EVP_CTRL_AEAD_SET_TAG)
+#define EVP_CTRL_AEAD_SET_TAG EVP_CTRL_GCM_SET_TAG
+#endif
+
+#if !defined(EVP_CTRL_AEAD_GET_TAG)
+#define EVP_CTRL_AEAD_GET_TAG EVP_CTRL_GCM_GET_TAG
+#endif
+
 #ifndef SSL_CTX_get_min_proto_version
 /** Return the min SSL protocol version currently enabled in the context.
  *  If no valid version >= TLS1.0 is found, return 0. */

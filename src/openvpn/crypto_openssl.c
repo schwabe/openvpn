@@ -265,6 +265,9 @@ const cipher_name_pair cipher_name_translation_table[] = {
     { "AES-128-GCM", "id-aes128-GCM" },
     { "AES-192-GCM", "id-aes192-GCM" },
     { "AES-256-GCM", "id-aes256-GCM" },
+    { "AES-128-CCM", "id-aes128-CCM" },
+    { "AES-192-CCM", "id-aes192-CCM" },
+    { "AES-256-CCM", "id-aes256-CCM" },
     { "CHACHA20-POLY1305", "ChaCha20-Poly1305" },
 };
 const size_t cipher_name_translation_table_count =
@@ -735,6 +738,11 @@ cipher_kt_mode_aead(const cipher_kt_t *cipher)
             return true;
         }
 
+        if (EVP_CIPHER_mode(cipher) == OPENVPN_MODE_CCM)
+        {
+            return true;
+        }
+
         switch (EVP_CIPHER_nid(cipher))
         {
             case NID_aes_128_gcm:
@@ -781,6 +789,14 @@ cipher_ctx_init(EVP_CIPHER_CTX *ctx, const uint8_t *key, int key_len,
     {
         crypto_msg(M_FATAL, "EVP cipher init #1");
     }
+    if(EVP_CIPHER_mode(kt) == OPENVPN_MODE_CCM)
+    {
+        /* Setup CCM to use the right constants, this must be done before
+         * EVP_CipherInitEx, otherwise the constants are not correctly
+         * applied to OpenSSL's internal state */
+        ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, OPENVPN_AEAD_TAG_LENGTH, NULL));
+        ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_L, OPENVPN_CCM_CONSTANT_L, NULL));
+    }
 #ifdef HAVE_EVP_CIPHER_CTX_SET_KEY_LENGTH
     if (!EVP_CIPHER_CTX_set_key_length(ctx, key_len))
     {
@@ -791,6 +807,7 @@ cipher_ctx_init(EVP_CIPHER_CTX *ctx, const uint8_t *key, int key_len,
     {
         crypto_msg(M_FATAL, "EVP cipher init #2");
     }
+
 
     /* make sure we used a big enough key */
     ASSERT(EVP_CIPHER_CTX_key_length(ctx) <= key_len);
@@ -805,7 +822,7 @@ cipher_ctx_iv_length(const EVP_CIPHER_CTX *ctx)
 int
 cipher_ctx_get_tag(EVP_CIPHER_CTX *ctx, uint8_t *tag_buf, int tag_size)
 {
-    return EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_size, tag_buf);
+    return EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, tag_size, tag_buf);
 }
 
 int
@@ -866,12 +883,83 @@ cipher_ctx_final_check_tag(EVP_CIPHER_CTX *ctx, uint8_t *dst, int *dst_len,
                            uint8_t *tag, size_t tag_len)
 {
     ASSERT(tag_len < SIZE_MAX);
-    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_len, tag))
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, tag))
     {
         return 0;
     }
 
     return cipher_ctx_final(ctx, dst, dst_len);
+}
+
+int
+cipher_ctx_do_ccm_encrypt(EVP_CIPHER_CTX *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst,
+                          const uint8_t *ad, size_t ad_len,
+                          uint8_t *src, size_t src_len,
+                          uint8_t *tag, size_t tag_len)
+{
+    int len, outlen;
+
+    /* Set the tag length. Without this, OpenSSL seems to forget the tag length
+     * and reset to the default of 12 */
+    ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 11, NULL));
+    ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, NULL));
+
+
+    /* Init cipher_ctx with IV.  key & keylen are already initialized */
+    ASSERT(EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, iv));
+
+    /* For CCM ciphers the cipher needs to know the length beforehand */
+    ASSERT(EVP_EncryptUpdate(ctx, NULL, &outlen, NULL, src_len));
+
+    /* Provide additional Data to authenticate */
+    ASSERT(EVP_EncryptUpdate(ctx, NULL, &outlen, ad, ad_len));
+
+    /* Encrypt payload */
+    ASSERT(EVP_EncryptUpdate(ctx, dst, &outlen, src, src_len));
+    len = outlen;
+
+    /* Flush the encryption buffer, this is most likely a noop fo
+     * OpenSSL and CCM but should be done anyway*/
+    ASSERT(EVP_EncryptFinal_ex(ctx, dst + len, &outlen));
+    len += outlen;
+
+    /* Write authentication tag */
+    ASSERT(cipher_ctx_get_tag(ctx, tag, tag_len));
+    return len;
+}
+
+bool
+cipher_ctx_do_ccm_decrypt(cipher_ctx_t *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst, size_t *dst_len,
+                          const uint8_t *ad, size_t ad_len,
+                          const uint8_t *src, size_t src_len,
+                          const uint8_t *tag, size_t tag_len)
+{
+    int outlen;
+    /* Set tag. CCM requires this to be before any other data,
+     * the Openssl documention does this before EVP_DecryptInit_ex,
+     * so we follow suit */
+    ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, tag_len, (void *) tag));
+    ASSERT(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 11, NULL));
+
+
+    /* Init cipher_ctx with IV.  key & keylen are already initialized,
+     * tag and */
+    ASSERT(EVP_DecryptInit_ex(ctx, NULL, NULL, NULL, iv));
+
+    /* For CCM ciphers the cipher needs to know the length beforehand */
+    ASSERT(EVP_DecryptUpdate(ctx, NULL, &outlen, NULL, src_len));
+
+    /* authenticate Additional Data */
+    ASSERT(cipher_ctx_update_ad(ctx, ad, ad_len));
+
+    /* CCM mode does not use a call EVP_DecryptFinal, instead  EVP_DecryptUpdate
+     * can be called only once and takes the role of EVP_DecryptFinal */
+    return EVP_DecryptUpdate(ctx, dst, (int *)dst_len, src, src_len);
+
 }
 
 void

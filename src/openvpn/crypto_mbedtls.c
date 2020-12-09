@@ -52,6 +52,7 @@
 #include <mbedtls/cipher.h>
 #include <mbedtls/havege.h>
 #include <mbedtls/pem.h>
+#include <mbedtls/ccm.h>
 
 #include <mbedtls/entropy.h>
 #include <mbedtls/ssl.h>
@@ -576,6 +577,9 @@ cipher_kt_mode_aead(const cipher_kt_t *cipher)
 #ifdef MBEDTLS_CHACHAPOLY_C
                       || cipher_kt_mode(cipher) == MBEDTLS_MODE_CHACHAPOLY
 #endif
+#ifdef MBEDTLS_CCM_C
+                      || cipher_kt_mode(cipher) == OPENVPN_MODE_CCM
+#endif
                       );
 }
 
@@ -626,6 +630,13 @@ cipher_ctx_init(mbedtls_cipher_context_t *ctx, const uint8_t *key, int key_len,
 int
 cipher_ctx_iv_length(const mbedtls_cipher_context_t *ctx)
 {
+    if (cipher_ctx_mode(ctx->cipher_ctx) == MBEDTLS_MODE_CCM)
+    {
+        /* mbed TLS always reports 12 for AES-CCM and does not allow
+         * to set the default, so we fake here the correct 11 as IV length
+         */
+        return 11;
+    }
     return mbedtls_cipher_get_iv_size(ctx);
 }
 
@@ -764,6 +775,33 @@ cipher_ctx_final_check_tag(mbedtls_cipher_context_t *ctx, uint8_t *dst,
     }
 
     return 1;
+}
+
+int
+cipher_ctx_do_ccm_encrypt(mbedtls_cipher_context_t *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst,
+                          const uint8_t *ad, size_t ad_len,
+                          uint8_t *src, size_t src_len,
+                          uint8_t *tag, size_t tag_len)
+{
+    size_t len;
+    ASSERT(mbed_ok(mbedtls_cipher_auth_encrypt(ctx, iv, iv_len, ad, ad_len, src,
+                                               src_len, dst, &len, tag, tag_len)));
+    return len;
+}
+
+bool
+cipher_ctx_do_ccm_decrypt(mbedtls_cipher_context_t *ctx,
+                          const uint8_t *iv, size_t iv_len,
+                          uint8_t *dst, size_t *dst_len,
+                          const uint8_t *ad, size_t ad_len,
+                          const uint8_t *src, size_t src_len,
+                          const uint8_t *tag, size_t tag_len)
+{
+    return mbed_ok(mbedtls_cipher_auth_decrypt(ctx, iv, iv_len, ad, ad_len,
+                                               src, src_len, dst, dst_len,
+                                               tag, tag_len));
 }
 
 void

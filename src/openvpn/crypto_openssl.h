@@ -43,6 +43,9 @@ typedef EVP_MD md_kt_t;
 /** Generic cipher %context. */
 typedef EVP_CIPHER_CTX cipher_ctx_t;
 
+/** CCM cipher %context */
+typedef EVP_CIPHER_CTX cipher_ccm_ctx_t;
+
 /** Generic message digest %context. */
 typedef EVP_MD_CTX md_ctx_t;
 
@@ -63,6 +66,9 @@ typedef HMAC_CTX hmac_ctx_t;
 
 /** Cipher is in GCM mode */
 #define OPENVPN_MODE_GCM        EVP_CIPH_GCM_MODE
+
+/** Cipher is in CCM mode */
+#define OPENVPN_MODE_CCM        EVP_CIPH_CCM_MODE
 
 /** Cipher should encrypt */
 #define OPENVPN_OP_ENCRYPT      1

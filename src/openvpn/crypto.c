@@ -65,6 +65,28 @@ openvpn_aead_encrypt_dowork(const struct key_ctx *ctx, const uint8_t *iv,
     ASSERT(cipher_ctx_get_tag(ctx->cipher, mac_out, mac_len));
 }
 
+inline static void
+openvpn_ccm_encrypt_dowork(const struct key_ctx *ctx, const uint8_t *iv,
+                           const struct buffer *buf, uint8_t *mac_out,
+                           const int mac_len, struct buffer *work)
+{
+    /* Use temporary variables to make it easier to read rather than inlining it all
+     * in the cipher_ctx_do_ccm_encrypt call */
+    const int iv_len = cipher_ctx_iv_length(ctx->cipher);
+
+    uint8_t *ad = BPTR(work);
+    int ad_len = BLEN(work) - mac_len;
+
+    int src_len = BLEN(buf);
+    uint8_t *src = BPTR(buf);
+
+    uint8_t *dst = BEND(work);
+
+    int olen = cipher_ctx_do_ccm_encrypt(ctx->cipher, iv, iv_len, dst,
+                                         ad, ad_len, src, src_len,
+                                         mac_out, mac_len);
+    ASSERT(buf_inc_len(work, olen));
+}
 /*
  * Encryption and Compression Routines.
  *
@@ -149,7 +171,14 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
          format_hex(BPTR(&work), BLEN(&work) - mac_len, 0, &gc));
 
     /* Do the actual encryption */
-    openvpn_aead_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
+    if (cipher_kt_mode(cipher_kt) == OPENVPN_MODE_CCM)
+    {
+        openvpn_ccm_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
+    }
+    else
+    {
+        openvpn_aead_encrypt_dowork(ctx, iv, buf, mac_out, mac_len, &work);
+    }
 
     *buf = work;
 
@@ -356,7 +385,7 @@ crypto_check_replay(struct crypto_options *opt,
     return ret;
 }
 /**
- * Does an AEAD decription using from buf to work and using the additional data
+ * Does an AEAD decryption using from buf to work and using the additional data
  * in ad and return true or false depending on whether the decryption
  * was succesful .
  */
@@ -394,6 +423,29 @@ openvpn_decrypt_aead_dowork(const struct key_ctx *ctx, const uint8_t *iv,
     return true;
     error_exit:
         return false;
+}
+
+static inline bool
+openvpn_decrypt_ccm_dowork(const struct key_ctx *ctx, const uint8_t *iv,
+                           struct buffer *work, struct buffer* buf,
+                           const uint8_t *ad, const int ad_size,
+                           uint8_t *tag, const int tag_size)
+{
+    size_t outlen;
+    uint8_t *src = BPTR(buf);
+    int src_len = BLEN(buf);
+    uint8_t *dst = BPTR(work);
+    const int iv_len = cipher_ctx_iv_length(ctx->cipher);
+
+
+    if (!cipher_ctx_do_ccm_decrypt(ctx->cipher, iv, iv_len, dst, &outlen,
+                                   ad, ad_size, src, src_len,
+                                   tag, tag_size))
+    {
+        return false;
+    }
+    ASSERT(buf_inc_len(work, outlen));
+    return true;
 }
 
 /**
@@ -489,9 +541,20 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     dmsg(D_PACKET_CONTENT, "DECRYPT AD: %s",
          format_hex(BPTR(buf) - ad_size - tag_size, ad_size, 0, &gc));
 
-    if (!openvpn_decrypt_aead_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
+
+    if (cipher_kt_mode(cipher_kt) == OPENVPN_MODE_CCM)
     {
-        goto error_exit;
+        if (!openvpn_decrypt_ccm_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
+        {
+            goto error_exit;
+        }
+    }
+    else
+    {
+        if (!openvpn_decrypt_aead_dowork(ctx, iv, &work, buf, ad_start, ad_size, tag_ptr, tag_size))
+        {
+            goto error_exit;
+        }
     }
 
 

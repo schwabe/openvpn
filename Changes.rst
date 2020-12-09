@@ -26,6 +26,12 @@ Pending auth support for plugins and scripts
 
     See ``sample/sample-scripts/totpauth.py`` for an example.
 
+AES-CCM data channel cipher support
+    Added support for using the AES-128-GCM/AES-256-CCM cipher in the OpenVPN data
+    channel. The CCM ciphers are AEAD cipher that allow fast operation on hardware
+    that supports acclerated AES-CBC and AES-CTR mode but not AES-GCM. These ciphers
+    are not enabled by default and need to be manually added to data-ciphers
+
 Deprecated features
 -------------------
 ``inetd`` has been removed
