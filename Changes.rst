@@ -32,6 +32,13 @@ AES-CCM data channel cipher support
     that supports acclerated AES-CBC and AES-CTR mode but not AES-GCM. These ciphers
     are not enabled by default and need to be manually added to data-ciphers
 
+AEAD implicit IV using full IV size
+    If both peers support this feature, the IV generation to be more like the
+    generation of the IV in TLS 1.3. This avoids a (purely theoretical)
+    precompute attack based on known-plaintext. As a user visible benefit the
+    packet-id is scrambled and the number of packet already sent per key cannot
+    be inferred from a single packet.
+
 Deprecated features
 -------------------
 ``inetd`` has been removed

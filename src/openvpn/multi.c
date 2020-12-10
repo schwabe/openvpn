@@ -1799,6 +1799,10 @@ multi_client_set_protocol_options(struct context *c)
         o->data_channel_crypto_flags |= CO_USE_TLS_KEY_MATERIAL_EXPORT;
     }
 #endif
+    if (proto & IV_PROTO_LONG_IMPLICT_IV)
+    {
+        o->data_channel_crypto_flags |= CO_USE_FULL_IMPLICIT_IV;
+    }
 
     /* Select cipher if client supports Negotiable Crypto Parameters */
     if (!o->ncp_enabled)

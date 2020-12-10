@@ -343,6 +343,24 @@ packet_id_send_update(struct packet_id_send *p, bool long_form)
 }
 
 bool
+packet_id_write_xor(struct packet_id_send *p, uint8_t* buf)
+{
+    if (!packet_id_send_update(p, false))
+    {
+        return false;
+    }
+    const packet_id_type net_id = htonl(p->id);
+
+    packet_id_type  *dest = ((packet_id_type *) buf);
+
+    /* the result should be network byte order and dest
+     * is already in network byte order */
+    *dest = *dest ^ net_id;
+
+    return true;
+}
+
+bool
 packet_id_write(struct packet_id_send *p, struct buffer *buf, bool long_form,
                 bool prepend)
 {

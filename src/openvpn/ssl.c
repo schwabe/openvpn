@@ -249,9 +249,10 @@ static const tls_cipher_name_pair tls_cipher_name_translation_table[] = {
  * @param ctx                   Encrypt/decrypt key context
  * @param key                   HMAC key, used to calculate implicit IV
  * @param key_len               HMAC key length
+ * @param long_impl_iv          The implicit IV has the same length as the IV
  */
 static void
-key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len);
+key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len, bool long_impl_iv);
 
 const tls_cipher_name_pair *
 tls_get_cipher_name_pair(const char *cipher_name, size_t len)
@@ -1635,7 +1636,7 @@ static void
 init_key_contexts(struct key_ctx_bi *key,
                   const struct key_type *key_type,
                   bool server,
-                  struct key2 *key2)
+                  struct key2 *key2, bool long_impl_iv)
 {
     /* Initialize key contexts */
     int key_direction = server ? KEY_DIRECTION_INVERSE : KEY_DIRECTION_NORMAL;
@@ -1643,9 +1644,9 @@ init_key_contexts(struct key_ctx_bi *key,
 
     /* Initialize implicit IVs */
     key_ctx_update_implicit_iv(&key->encrypt, (*key2).keys[(int)server].hmac,
-                               MAX_HMAC_KEY_LENGTH);
+                               MAX_HMAC_KEY_LENGTH, long_impl_iv);
     key_ctx_update_implicit_iv(&key->decrypt, (*key2).keys[1-(int)server].hmac,
-                               MAX_HMAC_KEY_LENGTH);
+                               MAX_HMAC_KEY_LENGTH, long_impl_iv);
 
 }
 
@@ -1783,7 +1784,8 @@ generate_key_expansion(struct key_ctx_bi *key,
             goto exit;
         }
     }
-    init_key_contexts(key, &session->opt->key_type, server, &key2);
+    init_key_contexts(key, &session->opt->key_type, server, &key2,
+                      session->opt->crypto_flags & CO_USE_FULL_IMPLICIT_IV);
     ret = true;
 
 exit:
@@ -1793,7 +1795,8 @@ exit:
 }
 
 static void
-key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len)
+key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len,
+                           bool long_impl_iv)
 {
     const cipher_kt_t *cipher_kt = cipher_ctx_get_cipher_kt(ctx->cipher);
 
@@ -1801,12 +1804,27 @@ key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len)
     if (cipher_kt_mode_aead(cipher_kt))
     {
         size_t impl_iv_len = 0;
-        ASSERT(cipher_ctx_iv_length(ctx->cipher) >= OPENVPN_AEAD_MIN_IV_LEN);
-        impl_iv_len = cipher_ctx_iv_length(ctx->cipher) - sizeof(packet_id_type);
+        size_t iv_len = cipher_ctx_iv_length(ctx->cipher);
+        ASSERT(iv_len >= OPENVPN_AEAD_MIN_IV_LEN);
+        if (long_impl_iv)
+        {
+            impl_iv_len = iv_len;
+        }
+        else
+        {
+            impl_iv_len = iv_len - sizeof(packet_id_type);
+        }
         ASSERT(impl_iv_len <= OPENVPN_MAX_IV_LENGTH);
         ASSERT(impl_iv_len <= key_len);
-        memcpy(ctx->implicit_iv, key, impl_iv_len);
-        ctx->implicit_iv_len = impl_iv_len;
+
+        CLEAR(ctx->implicit_iv);
+        /*
+         * We copy only the length of the implicit IV to the struct. If the
+         * implicit IV is the short variant the remaining bits are left as
+         * 0 so XORing the packet counter later, will be the same as appending
+         * the implicit IV to the packet it.
+         */
+        memcpy(ctx->implicit_iv + (iv_len - impl_iv_len), key, impl_iv_len);
     }
 }
 
@@ -2176,6 +2194,7 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
 #ifdef HAVE_EXPORT_KEYING_MATERIAL
             iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
 #endif
+            iv_proto |= IV_PROTO_LONG_IMPLICT_IV;
         }
 
         buf_printf(&out, "IV_PROTO=%d\n", iv_proto);

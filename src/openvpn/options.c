@@ -7996,6 +7996,11 @@ add_option(struct options *options,
             msg(msglevel, "Unknown key-derivation method %s", p[1]);
         }
     }
+    else if (streq(p[0], "long-implicit-iv") && !p[1])
+    {
+        VERIFY_PERMISSION(OPT_P_NCP)
+        options->data_channel_crypto_flags |= CO_USE_FULL_IMPLICIT_IV;
+    }
     else if (streq(p[0], "ncp-disable") && !p[1])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_INSTANCE);

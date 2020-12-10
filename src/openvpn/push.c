@@ -597,6 +597,10 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
     {
         push_option_fmt(gc, push_list, M_USAGE, "key-derivation tls-ekm");
     }
+    if (o->data_channel_crypto_flags & CO_USE_FULL_IMPLICIT_IV)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "long-implicit-iv");
+    }
     return true;
 }
 

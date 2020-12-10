@@ -165,9 +165,7 @@ struct key_ctx
 {
     cipher_ctx_t *cipher;       /**< Generic cipher %context. */
     hmac_ctx_t *hmac;           /**< Generic HMAC %context. */
-    uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];
-    /**< The implicit part of the IV */
-    size_t implicit_iv_len;     /**< The length of implicit_iv */
+    uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];  /**< The implicit part of the IV */
 };
 
 #define KEY_DIRECTION_BIDIRECTIONAL 0 /* same keys for both directions */
@@ -257,6 +255,11 @@ struct crypto_options
 #define CO_USE_TLS_KEY_MATERIAL_EXPORT  (1<<3)
     /**< Bit-flag indicating that data channel key derivation
      * is done using TLS keying material export [RFC5705]
+     */
+#define CO_USE_FULL_IMPLICIT_IV         (1<<4)
+    /**< Bit-flag indication that the implicit IV is the same length as
+     * IV and is XORed to the packet counter instead being short and
+     * prepended.
      */
     unsigned int flags;         /**< Bit-flags determining behavior of
                                  *   security operation functions. */

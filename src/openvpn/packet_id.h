@@ -265,6 +265,31 @@ bool packet_id_read(struct packet_id_net *pin, struct buffer *buf, bool long_for
 bool packet_id_write(struct packet_id_send *p, struct buffer *buf,
                      bool long_form, bool prepend);
 
+/**
+ * Write a short packet ID to buf by xoring the first 4 byte it with
+ * written packet and update the packet ID state.
+ *
+ * @param p             Packet ID state.
+ * @param buf           Buffer to write the packet ID too
+ *
+ * @return true if successful, false otherwise.
+ */
+bool
+packet_id_write_xor(struct packet_id_send *p, uint8_t* buf);
+
+
+/**
+ * Xor the network part of the packet with the supplied value
+ *
+ * @param pin       Packet ID
+ * @param val       value to XOR in host byte order
+ */
+static inline void
+packet_id_xor(struct packet_id_net *pin, uint32_t val)
+{
+    pin->id = pin->id ^ val;
+}
+
 /*
  * Inline functions.
  */

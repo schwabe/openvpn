@@ -122,6 +122,9 @@
 /** Supports signaling keywords with AUTH_PENDING, e.g. timeout=xy */
 #define IV_PROTO_AUTH_PENDING_KW (1<<4)
 
+/** Support using the implicit IV for the full IV length */
+#define IV_PROTO_LONG_IMPLICT_IV (1<<5)
+
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 
