@@ -445,6 +445,12 @@ ssl_set_auth_token(const char *token)
     set_auth_token(&auth_user_pass, &auth_token, token);
 }
 
+void
+ssl_set_auth_token_user(const char *username)
+{
+    set_auth_token_user(&auth_token, username);
+}
+
 /*
  * Cleans an auth token and checks if it was active
  */
@@ -2270,8 +2276,8 @@ key_method_2_write(struct buffer *buf, struct tls_session *session)
         }
     }
 
-    /* write username/password if specified */
-    if (auth_user_pass_enabled)
+    /* write username/password if specified or we are using a auth-token*/
+    if (auth_user_pass_enabled || (auth_token.token_defined && auth_token.defined))
     {
 #ifdef ENABLE_MANAGEMENT
         auth_user_pass_setup(session->opt->auth_user_pass_file, session->opt->sci);
@@ -2284,7 +2290,7 @@ key_method_2_write(struct buffer *buf, struct tls_session *session)
          * If we have a valid auth-token, send that instead of real
          * username/password
          */
-        if (auth_token.defined)
+        if (auth_token.token_defined && auth_token.defined)
         {
             up = &auth_token;
         }
