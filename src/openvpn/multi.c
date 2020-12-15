@@ -675,7 +675,7 @@ multi_close_instance(struct multi_context *m,
 #ifdef ENABLE_MANAGEMENT
     set_cc_config(mi, NULL);
 #endif
-    if (mi->context.c2.context_auth == CAS_SUCCEEDED)
+    if (mi->context.c2.tls_multi->context_auth == CAS_SUCCEEDED)
     {
         multi_client_disconnect_script(mi);
     }
@@ -785,7 +785,7 @@ multi_create_instance(struct multi_context *m, const struct mroute_addr *real)
         goto err;
     }
 
-    mi->context.c2.context_auth = CAS_PENDING;
+    mi->context.c2.tls_multi->context_auth = CAS_PENDING;
 
     if (hash_n_elements(m->hash) >= m->max_clients)
     {
@@ -2415,18 +2415,18 @@ multi_client_connect_late_setup(struct multi_context *m,
     mi->reporting_addr_ipv6 = mi->context.c2.push_ifconfig_ipv6_local;
 
     /* set context-level authentication flag */
-    mi->context.c2.context_auth = CAS_SUCCEEDED;
+    mi->context.c2.tls_multi->context_auth = CAS_SUCCEEDED;
 
     /* authentication complete, calculate dynamic client specific options */
     if (!multi_client_set_protocol_options(&mi->context))
     {
-        mi->context.c2.context_auth = CAS_FAILED;
+        mi->context.c2.tls_multi->context_auth = CAS_FAILED;
     }
     /* Generate data channel keys only if setting protocol options
      * has not failed */
     else if (!multi_client_generate_tls_keys(&mi->context))
     {
-        mi->context.c2.context_auth = CAS_FAILED;
+        mi->context.c2.tls_multi->context_auth = CAS_FAILED;
     }
 
     /* send push reply if ready */
@@ -2574,7 +2574,7 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
 
     /* We are only called for the CAS_PENDING_x states, so we
      * can ignore other states here */
-    bool from_deferred = (mi->context.c2.context_auth != CAS_PENDING);
+    bool from_deferred = (mi->context.c2.tls_multi->context_auth != CAS_PENDING);
 
     int *cur_handler_index = &mi->client_connect_defer_state.cur_handler_index;
     unsigned int *option_types_found =
@@ -2586,7 +2586,7 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
         *cur_handler_index = 0;
         *option_types_found = 0;
         /* Initially we have no handler that has returned a result */
-        mi->context.c2.context_auth = CAS_PENDING_DEFERRED;
+        mi->context.c2.tls_multi->context_auth = CAS_PENDING_DEFERRED;
 
         multi_client_connect_early_setup(m, mi);
     }
@@ -2609,7 +2609,7 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
                  * Remember that we already had at least one handler
                  * returning a result should we go to into deferred state
                  */
-                mi->context.c2.context_auth = CAS_PENDING_DEFERRED_PARTIAL;
+                mi->context.c2.tls_multi->context_auth = CAS_PENDING_DEFERRED_PARTIAL;
                 break;
 
             case CC_RET_SKIPPED:
@@ -2661,12 +2661,12 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
     {
         /* run the disconnect script if we had a connect script that
          * did not fail */
-        if (mi->context.c2.context_auth == CAS_PENDING_DEFERRED_PARTIAL)
+        if (mi->context.c2.tls_multi->context_auth == CAS_PENDING_DEFERRED_PARTIAL)
         {
             multi_client_disconnect_script(mi);
         }
 
-        mi->context.c2.context_auth = CAS_FAILED;
+        mi->context.c2.tls_multi->context_auth = CAS_FAILED;
     }
 
     /* increment number of current authenticated clients */
@@ -2969,7 +2969,7 @@ multi_process_post(struct multi_context *m, struct multi_instance *mi, const uns
         {
             /* connection is "established" when SSL/TLS key negotiation succeeds
              * and (if specified) auth user/pass succeeds */
-            if (is_cas_pending(mi->context.c2.context_auth)
+            if (is_cas_pending(mi->context.c2.tls_multi->context_auth)
                 && CONNECTION_ESTABLISHED(&mi->context))
             {
                 multi_connection_established(m, mi);
@@ -3935,7 +3935,7 @@ management_client_auth(void *arg,
         {
             if (auth)
             {
-                if (is_cas_pending(mi->context.c2.context_auth))
+                if (is_cas_pending(mi->context.c2.tls_multi->context_auth))
                 {
                     set_cc_config(mi, cc_config);
                     cc_config_owned = false;
