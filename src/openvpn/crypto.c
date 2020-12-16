@@ -781,6 +781,47 @@ openvpn_decrypt(struct buffer *buf, struct buffer work,
     return ret;
 }
 
+int
+calculate_frame_crypto_overhead(struct frame *frame,
+                                const struct key_type *kt,
+                                bool packet_id,
+                                bool packet_id_long_form)
+{
+    unsigned int crypto_overhead = 0;
+
+    if (kt->cipher && cipher_kt_mode_aead(kt->cipher))
+    {
+        /* For AEAD ciphers, we basically use a stream cipher/CTR for
+         * the encryption, so no overhead apart from the extra bytes
+         * we add */
+        crypto_overhead += cipher_kt_tag_size(kt->cipher);
+        crypto_overhead += packet_id_size(false);
+
+    }
+    else if (kt->cipher)
+    {
+        /* CBC, OFB or CFB mode */
+
+        /* This is a worst case upper bound of needing to add
+         * a full extra block for padding */
+        crypto_overhead += cipher_kt_block_size(kt->cipher);
+
+        crypto_overhead += kt->hmac_length;
+
+    }
+    else
+    {
+        /* No encryption */
+        if (packet_id)
+        {
+            crypto_overhead += packet_id_size(packet_id_long_form);
+        }
+
+
+    }
+    return crypto_overhead;
+}
+
 void
 crypto_adjust_frame_parameters(struct frame *frame,
                                const struct key_type *kt,
