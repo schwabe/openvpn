@@ -15,11 +15,23 @@ Compatibility with OpenSSL in FIPS mode
     requirements/recommendation of FIPS 140-2. This just allows OpenVPN
     to be run on a system that be configured OpenSSL in FIPS mode.
 
+Deferred auth support for scripts
+    The ``--auth-user-pass-verify`` script supports now deferred authentication.
+
+Pending auth support for plugins and scripts
+    Both auth plugin and script can now signal pending authentication to
+    the client when using deferred authentication. The new ``client-crresponse``
+    script option and ``OPENVPN_PLUGIN_CLIENT_CRRESPONSE`` plugin function can
+    be used to parse a client response to a ``CR_TEXT`` two factor challenge.
+
+    See ``sample/sample-scripts/totpauth.py`` for an example.
+
 Deprecated features
 -------------------
 ``inetd`` has been removed
     This was a very limited and not-well-tested way to run OpenVPN, on TCP
     and TAP mode only.
+
 
 
 Overview of changes in 2.5
