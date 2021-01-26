@@ -234,7 +234,17 @@ struct context_2
     int event_set_max;
     bool event_set_owned;
 
-    /* event flags returned by io_wait */
+    /* event flags returned by io_wait,
+     * All these event are their respective shift as defined in io_wait_dowork
+     * adding a shift of 0 for the READ event and 1 for the write event.
+     *
+     * E.g. management_shift = 6;
+     * MANAGMENT_READ = (1<<(6+0)),
+     * MANAGEMNET_WRITE = (1<<(6+1))
+     *
+     * Some shifts (error, file_close) are using read/write for diferent
+     * signals.
+     */
 #define SOCKET_READ       (1<<0)
 #define SOCKET_WRITE      (1<<1)
 #define TUN_READ          (1<<2)

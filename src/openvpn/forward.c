@@ -1882,7 +1882,8 @@ io_wait_dowork(struct context *c, const unsigned int flags)
     unsigned int tuntap = 0;
     struct event_set_return esr[4];
 
-    /* These shifts all depend on EVENT_READ and EVENT_WRITE */
+    /* These shifts all depend on EVENT_READ (=1) and EVENT_WRITE (=2) */
+    /* and are added to the shift. */
     static int socket_shift = 0;   /* depends on SOCKET_READ and SOCKET_WRITE */
     static int tun_shift = 2;      /* depends on TUN_READ and TUN_WRITE */
     static int err_shift = 4;      /* depends on ES_ERROR */
