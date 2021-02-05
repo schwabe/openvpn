@@ -2645,6 +2645,13 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
 
         (*cur_handler_index)++;
     }
+    /* Check if we have forbidding options in the current mode */
+    if (dco_enabled( &mi->context.options)
+        && check_option_conflict_dco(D_MULTI_ERRORS, &mi->context.options))
+    {
+        msg(D_MULTI_ERRORS, "MULTI: client has been reject due to incompatible options");
+        cc_succeeded = false;
+    }
 
     if (cc_succeeded)
     {

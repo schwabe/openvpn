@@ -193,7 +193,6 @@ run_up_down(const char *command,
 static void
 update_options_ce_post(struct options *options)
 {
-#if P2MP
     /*
      * In pull mode, we usually import --ping/--ping-restart parameters from
      * the server.  However we should also set an initial default --ping-restart
@@ -207,7 +206,6 @@ update_options_ce_post(struct options *options)
         options->ping_rec_timeout = PRE_PULL_INITIAL_PING_RESTART;
         options->ping_rec_timeout_action = PING_RESTART;
     }
-#endif
 }
 
 #ifdef ENABLE_MANAGEMENT
@@ -593,7 +591,6 @@ init_query_passwords(const struct context *c)
         pem_password_setup(c->options.key_pass_file);
     }
 
-#if P2MP
     /* Auth user/pass input */
     if (c->options.auth_user_pass_file)
     {
@@ -603,7 +600,6 @@ init_query_passwords(const struct context *c)
         auth_user_pass_setup(c->options.auth_user_pass_file, NULL);
 #endif
     }
-#endif
 }
 
 /*
@@ -1447,14 +1443,12 @@ do_init_timers(struct context *c, bool deferred)
 static void
 do_init_traffic_shaper(struct context *c)
 {
-#ifdef ENABLE_FEATURE_SHAPER
     /* initialize traffic shaper (i.e. transmit bandwidth limiter) */
     if (c->options.shaper)
     {
         shaper_init(&c->c2.shaper, c->options.shaper);
         shaper_msg(&c->c2.shaper);
     }
-#endif
 }
 
 /*
@@ -1979,9 +1973,7 @@ do_close_tun_simple(struct context *c)
         c->c1.tuntap = NULL;
     }
     c->c1.tuntap_owned = false;
-#if P2MP
     CLEAR(c->c1.pulled_options_digest_save);
-#endif
 }
 
 static void
@@ -2132,7 +2124,6 @@ tun_abort(void)
  * Handle delayed tun/tap interface bringup due to --up-delay or --pull
  */
 
-#if P2MP
 /**
  * Helper for do_up().  Take two option hashes and return true if they are not
  * equal, or either one is all-zeroes.
@@ -2145,7 +2136,6 @@ options_hash_changed_or_zero(const struct sha256_digest *a,
     return memcmp(a, b, sizeof(struct sha256_digest))
            || !memcmp(a, &zero, sizeof(struct sha256_digest));
 }
-#endif /* P2MP */
 
 bool
 do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
@@ -2177,7 +2167,6 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
             c->c2.did_open_tun = do_open_tun(c);
             update_time();
 
-#if P2MP
             /*
              * Was tun interface object persisted from previous restart iteration,
              * and if so did pulled options string change from previous iteration?
@@ -2195,14 +2184,11 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
                 c->c2.did_open_tun = do_open_tun(c);
                 update_time();
             }
-#endif
         }
 
         if (c->c2.did_open_tun)
         {
-#if P2MP
             c->c1.pulled_options_digest_save = c->c2.pulled_options_digest;
-#endif
 
             /* if --route-delay was specified, start timer */
             if ((route_order() == ROUTE_AFTER_TUN) && c->options.route_delay_defined)
@@ -2419,6 +2405,7 @@ do_deferred_options(struct context *c, const unsigned int found)
     /* process (potentially pushed) crypto options */
     if (c->options.pull)
     {
+
         if (!check_pull_client_ncp(c, found))
         {
             return false;
@@ -2491,12 +2478,10 @@ socket_restart_pause(struct context *c)
     }
 #endif
 
-#if P2MP
     if (auth_retry_get() == AR_NOINTERACT)
     {
         sec = 10;
     }
-#endif
 
     /* Slow down reconnection after 5 retries per remote -- for tcp only in client mode */
     if (c->options.ce.proto != PROTO_TCP_SERVER)
@@ -2780,7 +2765,6 @@ do_init_crypto_tls_c1(struct context *c)
         init_ssl(options, &(c->c1.ks.ssl_ctx));
         if (!tls_ctx_initialised(&c->c1.ks.ssl_ctx))
         {
-#if P2MP
             switch (auth_retry_get())
             {
                 case AR_NONE:
@@ -2799,9 +2783,6 @@ do_init_crypto_tls_c1(struct context *c)
             }
             c->sig->signal_text = "private-key-password-failure";
             return;
-#else  /* if P2MP */
-            msg(M_FATAL, "Error: private key password verification failed");
-#endif /* if P2MP */
         }
 
        /*
@@ -3025,10 +3006,8 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
 
     to.x509_track = options->x509_track;
 
-#if P2MP
 #ifdef ENABLE_MANAGEMENT
     to.sci = &options->sc_info;
-#endif
 #endif
 
 #ifdef USE_COMP
@@ -3294,7 +3273,6 @@ do_option_warnings(struct context *c)
         msg(M_WARN, "WARNING: you are using chroot without specifying user and group -- this may cause the chroot jail to be insecure");
     }
 
-#if P2MP
     if (o->pull && o->ifconfig_local && c->first_time)
     {
         msg(M_WARN, "WARNING: using --pull/--client and --ifconfig together is probably not what you want");
@@ -3320,7 +3298,6 @@ do_option_warnings(struct context *c)
             msg(M_WARN, "WARNING: --keepalive option is missing from server config");
         }
     }
-#endif /* if P2MP */
 
     if (!o->replay)
     {
@@ -3858,13 +3835,11 @@ do_setup_fast_io(struct context *c)
         }
         else
         {
-#ifdef ENABLE_FEATURE_SHAPER
             if (c->options.shaper)
             {
                 msg(M_INFO, "NOTE: --fast-io is disabled since we are using --shaper");
             }
             else
-#endif
             {
                 c->c2.fast_io = true;
             }
@@ -4228,13 +4203,11 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
         platform_mlockall(true);
     }
 
-#if P2MP
     /* get passwords if undefined */
     if (auth_retry_get() == AR_INTERACT)
     {
         init_query_passwords(c);
     }
-#endif
 
     /* initialize context level 2 --verb/--mute parms */
     init_verb_mute(c, IVM_LEVEL_2);

@@ -58,8 +58,6 @@
 
 extern const char title_string[];
 
-#if P2MP
-
 /* certain options are saved before --pull modifications are applied */
 struct options_pre_pull
 {
@@ -86,7 +84,6 @@ struct options_pre_pull
     int foreign_option_index;
 };
 
-#endif
 #if !defined(ENABLE_CRYPTO_OPENSSL) && !defined(ENABLE_CRYPTO_MBEDTLS)
 #error "At least one of OpenSSL or mbed TLS needs to be defined."
 #endif
@@ -273,9 +270,7 @@ struct options
     const char *ifconfig_ipv6_remote;
     bool ifconfig_noexec;
     bool ifconfig_nowarn;
-#ifdef ENABLE_FEATURE_SHAPER
     int shaper;
-#endif
 
     int proto_force;
 
@@ -411,10 +406,6 @@ struct options
     struct plugin_option_list *plugin_list;
 #endif
 
-
-
-#if P2MP
-
     /* the tmp dir is for now only used in the P2P server context */
     const char *tmp_dir;
     bool server_defined;
@@ -511,8 +502,6 @@ struct options
 #ifdef ENABLE_MANAGEMENT
     struct static_challenge_info sc_info;
 #endif
-#endif /* if P2MP */
-
     /* Cipher parms */
     const char *shared_secret_file;
     bool shared_secret_file_inline;
@@ -707,10 +696,8 @@ struct options
 
 #define OPT_P_DEFAULT   (~(OPT_P_INSTANCE|OPT_P_PULL_MODE))
 
-#if P2MP
 #define PULL_DEFINED(opt) ((opt)->pull)
 #define PUSH_DEFINED(opt) ((opt)->push_list)
-#endif
 
 #ifndef PULL_DEFINED
 #define PULL_DEFINED(opt) (false)
@@ -726,11 +713,8 @@ struct options
 #define ROUTE_OPTION_FLAGS(o) (0)
 #endif
 
-#ifdef ENABLE_FEATURE_SHAPER
+
 #define SHAPER_DEFINED(opt) ((opt)->shaper)
-#else
-#define SHAPER_DEFINED(opt) (false)
-#endif
 
 #ifdef ENABLE_PLUGIN
 #define PLUGIN_OPTION_LIST(opt) ((opt)->plugin_list)
@@ -849,8 +833,6 @@ const char *print_topology(const int topology);
  * Manage auth-retry variable
  */
 
-#if P2MP
-
 #define AR_NONE       0
 #define AR_INTERACT   1
 #define AR_NOINTERACT 2
@@ -861,13 +843,38 @@ bool auth_retry_set(const int msglevel, const char *option);
 
 const char *auth_retry_print(void);
 
-#endif
-
 void options_string_import(struct options *options,
                            const char *config,
                            const int msglevel,
                            const unsigned int permission_mask,
                            unsigned int *option_types_found,
                            struct env_set *es);
+
+/**
+ * Returns whether the current configuration has dco enabled.
+ */
+#ifdef ENABLE_LINUXDCO
+static inline bool
+dco_enabled(struct options *o) { return !o->tuntap_options.disable_dco; }
+
+/**
+ * Checks wether the optiosn struct has any option that is not supported by
+ * our current dco implementation. If so it prints a warning at warning level
+ * for the first conflicting option found and returns false
+ * @param msglevel  the msg level to use to print the warnings
+ * @param o         the optiions struct that hold the options
+ * @return          true if a conflict with dco is detected.
+ */
+bool
+check_option_conflict_dco(int msglevel, struct options *o)
+#else
+/* Dummy functions to avoid ifdefs in the other code */
+
+static inline bool
+dco_enabled(struct options *o) { return false; }
+
+static inline bool
+check_option_conflict_dco(int msglevel, struct options *o) { return false; }
+#endif
 
 #endif /* ifndef OPTIONS_H */
