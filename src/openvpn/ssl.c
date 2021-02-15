@@ -60,6 +60,7 @@
 #include "ssl_verify.h"
 #include "ssl_backend.h"
 #include "ssl_ncp.h"
+#include "ssl_util.h"
 #include "auth_token.h"
 
 #include "memdbg.h"
@@ -2282,6 +2283,16 @@ error:
     return ret;
 }
 
+static bool
+write_compat_local_options(struct buffer *buf, const char *options)
+{
+    struct gc_arena gc = gc_new();
+    const char* local_options = options_string_compat_lzo(options, &gc);
+    bool ret = write_string(buf, local_options, TLS_OPTIONS_LEN);
+    gc_free(&gc);
+    return ret;
+}
+
 /**
  * Handle the writing of key data, peer-info, username/password, OCC
  * to the TLS control channel (cleartext).
@@ -2313,7 +2324,15 @@ key_method_2_write(struct buffer *buf, struct tls_multi *multi, struct tls_sessi
 
     /* write options string */
     {
-        if (!write_string(buf, session->opt->local_options, TLS_OPTIONS_LEN))
+        if (multi->remote_usescomp && session->opt->mode == MODE_SERVER
+           && multi->opt.comp_options.flags & COMP_F_MIGRATE)
+        {
+            if (!write_compat_local_options(buf, session->opt->local_options))
+            {
+                goto error;
+            }
+        }
+        else if (!write_string(buf, session->opt->local_options, TLS_OPTIONS_LEN))
         {
             goto error;
         }
@@ -2530,6 +2549,7 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
     free(multi->remote_ciphername);
     multi->remote_ciphername =
         options_string_extract_option(options, "cipher", NULL);
+    multi->remote_usescomp = strstr(options, ",comp-lzo,") != NULL;
 
     /* In OCC we send '[null-cipher]' instead 'none' */
     if (multi->remote_ciphername
@@ -2579,7 +2599,17 @@ key_method_2_read(struct buffer *buf, struct tls_multi *multi, struct tls_sessio
     if (!session->opt->disable_occ
         && !options_cmp_equal(options, session->opt->remote_options))
     {
-        options_warning(options, session->opt->remote_options);
+        const char *remote_options = session->opt->remote_options;
+        if (multi->opt.comp_options.flags & COMP_F_MIGRATE && multi->remote_usescomp)
+        {
+            msg(D_SHOW_OCC, "Note: --comp-lzo migrate is enabled and remote "
+                            "announces comp-lzo, consider removing "
+                            "compress/comp-lzo options from remote config.");
+            remote_options = options_string_compat_lzo(remote_options, &gc);
+        }
+
+        options_warning(options, remote_options);
+
         if (session->opt->ssl_flags & SSLF_OPT_VERIFY)
         {
             msg(D_TLS_ERRORS, "Option inconsistency warnings triggering disconnect due to --opt-verify");
