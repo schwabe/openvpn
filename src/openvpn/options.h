@@ -790,9 +790,9 @@ char *options_string_extract_option(const char *options_string,
 
 void options_postprocess(struct options *options);
 
-void pre_pull_save(struct options *o);
+void pre_connect_save(struct options *o);
 
-void pre_pull_restore(struct options *o, struct gc_arena *gc);
+void pre_connect_restore(struct options *o, struct gc_arena *gc);
 
 bool apply_push_options(struct options *options,
                         struct buffer *buf,
