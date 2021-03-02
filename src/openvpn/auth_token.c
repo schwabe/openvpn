@@ -181,7 +181,8 @@ generate_auth_token(const struct user_pass *up, struct tls_multi *multi)
          * reuse the same session id and timestamp and null terminate it at
          * for base64 decode it only decodes the session id part of it
          */
-        char *old_sessid = multi->auth_token + strlen(SESSION_ID_PREFIX);
+        char *auth_token_copy = string_alloc(multi->auth_token, &gc);
+        char *old_sessid = auth_token_copy + strlen(SESSION_ID_PREFIX);
         char *old_tsamp_initial = old_sessid + AUTH_TOKEN_SESSION_ID_LEN*8/6;
 
         old_tsamp_initial[12] = '\0';
