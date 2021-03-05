@@ -2208,7 +2208,20 @@ link_socket_init_phase2(struct context *c)
     /* If a valid remote has been found, create the socket with its addrinfo */
     if (sock->info.lsa->current_remote)
     {
-        create_socket(sock, sock->info.lsa->current_remote);
+#if ENABLE_WINDCO
+        if (dco_win_enabled(&c->options))
+        {
+            sock->sd = dco_create_socket(sock->info.lsa->current_remote,
+                              sock->bind_local, sock->info.lsa->bind_local);
+            sock->info.dco_installed = true;
+            return;
+        }
+        else
+#endif
+        {
+            create_socket(sock, sock->info.lsa->current_remote);
+        }
+
     }
 
     /* If socket has not already been created create it now */
@@ -3226,12 +3239,19 @@ link_socket_read_tcp(struct link_socket *sock,
     if (!sock->stream_buf.residual_fully_formed)
     {
 #ifdef _WIN32
-        len = socket_finalize(sock->sd, &sock->reads, buf, NULL);
+        if (sock->info.dco_installed)
+        {
+            len = tun_finalize(sock->sd, &sock->reads, buf);
+        }
+        else
+        {
+            len = socket_finalize(sock->sd, &sock->reads, buf, NULL);
+        }
 #else
         struct buffer frag;
         stream_buf_get_next(&sock->stream_buf, &frag);
         len = recv(sock->sd, BPTR(&frag), BLEN(&frag), MSG_NOSIGNAL);
-#endif
+#endif.
 
         if (!len)
         {
@@ -3505,8 +3525,18 @@ socket_recv_queue(struct link_socket *sock, int maxsize)
         /* the overlapped read will signal this event on I/O completion */
         ASSERT(ResetEvent(sock->reads.overlapped.hEvent));
         sock->reads.flags = 0;
-
-        if (proto_is_udp(sock->info.proto))
+        
+        if (sock->info.dco_installed)
+        {
+            status = ReadFile(
+                sock->sd,
+                wsabuf[0].buf,
+                wsabuf[0].len,
+                &sock->reads.size,
+                &sock->reads.overlapped
+            );
+        }
+        else if (proto_is_udp(sock->info.proto))
         {
             sock->reads.addr_defined = true;
             sock->reads.addrlen = sizeof(sock->reads.addr6);
@@ -3604,7 +3634,18 @@ socket_send_queue(struct link_socket *sock, struct buffer *buf, const struct lin
         ASSERT(ResetEvent(sock->writes.overlapped.hEvent));
         sock->writes.flags = 0;
 
-        if (proto_is_udp(sock->info.proto))
+        if (sock->info.dco_installed)
+        {
+            status = WriteFile(
+                    sock->sd,
+                    wsabuf[0].buf,
+                    wsabuf[0].len,
+                    &sock->writes.size,
+                    &sock->writes.overlapped
+            );
+
+        }
+        else if (proto_is_udp(sock->info.proto))
         {
             /* set destination address for UDP writes */
             sock->writes.addr_defined = true;

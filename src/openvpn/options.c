@@ -2221,6 +2221,7 @@ options_postprocess_verify_ce(const struct options *options,
     {
         msg(M_USAGE, "--windows-driver wintun requires --dev tun");
     }
+
 #endif /* ifdef _WIN32 */
 
     /*
@@ -3130,6 +3131,17 @@ static bool check_option_conflict_dco_platform(int msglevel, struct options *o)
     {
         msg(msglevel, "Note: Kernel support for ovpn-dco missing, disabling "
                       "data channel offload.");
+        return true;
+    }
+    return false;
+}
+#elif defined(ENABLE_WINDCO)
+static bool check_option_conflict_dco_platform(int msglevel, struct options *o)
+{
+    if (o->mode == MODE_SERVER)
+    {
+        msg(msglevel, "Only client and p2p data channel offload is supported "
+                      "with ovpn-dco-win.");
         return true;
     }
     return false;
@@ -4337,9 +4349,14 @@ parse_windows_driver(const char *str, const int msglevel)
     {
         return WINDOWS_DRIVER_WINTUN;
     }
+    else if (streq(str, "ovpn-dco-win"))
+    {
+        return WINDOWS_DRIVER_WINDCO;
+    }
     else
     {
-        msg(msglevel, "--windows-driver must be tap-windows6 or wintun");
+        msg(msglevel, "--windows-driver must be tap-windows6, wintun "
+                      "or ovpn-dco-win");
         return WINDOWS_DRIVER_UNSPECIFIED;
     }
 }

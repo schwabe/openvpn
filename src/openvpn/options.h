@@ -853,10 +853,30 @@ void options_string_import(struct options *options,
 /**
  * Returns whether the current configuration has dco enabled.
  */
-#ifdef ENABLE_LINUXDCO
+#if defined(ENABLE_LINUXDCO)
 static inline bool
 dco_enabled(struct options *o) { return !o->tuntap_options.disable_dco; }
 
+#elif defined(ENABLE_WINDCO)
+static inline bool dco_enabled(struct options *o)
+{
+    return o->windows_driver == WINDOWS_DRIVER_WINDCO;
+}
+#else
+/* Dummy functions to avoid ifdefs in the other code */
+static inline bool
+dco_enabled(struct options *o) { return false; }
+#endif
+
+#if defined(ENABLE_WINDCO)
+static inline bool
+dco_win_enabled(struct options *o) { return dco_enabled(o); }
+#else
+static inline bool
+dco_win_enabled(struct options *o) { return false; }
+#endif
+
+#if ENABLE_DCO
 /**
  * Checks wether the optiosn struct has any option that is not supported by
  * our current dco implementation. If so it prints a warning at warning level
@@ -868,11 +888,6 @@ dco_enabled(struct options *o) { return !o->tuntap_options.disable_dco; }
 bool
 check_option_conflict_dco(int msglevel, struct options *o);
 #else
-/* Dummy functions to avoid ifdefs in the other code */
-
-static inline bool
-dco_enabled(struct options *o) { return false; }
-
 static inline bool
 check_option_conflict_dco(int msglevel, struct options *o) { return false; }
 #endif

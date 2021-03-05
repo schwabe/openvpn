@@ -40,7 +40,7 @@
 #include "misc.h"
 #include "networking.h"
 #include "ring_buffer.h"
-#include "networking_linuxdco.h"
+#include "dco.h"
 
 #ifdef _WIN32
 #define WINTUN_COMPONENT_ID "wintun"
@@ -48,7 +48,8 @@
 enum windows_driver_type {
     WINDOWS_DRIVER_UNSPECIFIED,
     WINDOWS_DRIVER_TAP_WINDOWS6,
-    WINDOWS_DRIVER_WINTUN
+    WINDOWS_DRIVER_WINTUN,
+    WINDOWS_DRIVER_WINDCO
 };
 #endif
 
@@ -63,6 +64,8 @@ enum windows_driver_type {
 struct tuntap_options {
     /* --ip-win32 options */
     bool ip_win32_defined;
+
+    bool disable_dco;
 
 #define IPW32_SET_MANUAL       0   /* "--ip-win32 manual" */
 #define IPW32_SET_NETSH        1   /* "--ip-win32 netsh" */

@@ -8,12 +8,12 @@
 #define ENABLE_EUREPHIA 1
 #define ENABLE_FRAGMENT 1
 #define ENABLE_HTTP_PROXY 1
-#define ENABLE_LZO 1
+//#define ENABLE_LZO 1
 #define ENABLE_LZ4 1
 #define NEED_COMPAT_LZ4 1
 #define ENABLE_MANAGEMENT 1
 #define ENABLE_MULTIHOME 1
-#define ENABLE_PKCS11 1
+//#define ENABLE_PKCS11 0
 #define ENABLE_PLUGIN 1
 #define ENABLE_PORT_SHARE 1
 #define ENABLE_SOCKS 1
@@ -41,8 +41,8 @@
 #define HAVE_DIRECT_H 1
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_SYS_STAT_H 1
-#define HAVE_LZO_LZO1X_H 1
-#define HAVE_LZO_LZOUTIL_H 1
+//#define HAVE_LZO_LZO1X_H 1
+//#define HAVE_LZO_LZOUTIL_H 1
 #define HAVE_VERSIONHELPERS_H 1
 
 #define HAVE_ACCESS 1
@@ -172,3 +172,5 @@ typedef uint16_t in_port_t;
     #define HAVE_INET_NTOP
     #define HAVE_INET_PTON
 #endif
+#define ENABLE_WINDCO 1
+#define ENABLE_DCO 1
