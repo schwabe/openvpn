@@ -1669,7 +1669,8 @@ do_init_tun(struct context *c)
                             c->c1.link_socket_addr.remote_list,
                             !c->options.ifconfig_nowarn,
                             c->c2.es,
-                            &c->net_ctx);
+                            &c->net_ctx,
+                            c->c1.tuntap);
 
 #ifdef _WIN32
     c->c1.tuntap->windows_driver = c->options.windows_driver;
@@ -1693,7 +1694,11 @@ do_open_tun(struct context *c)
     bool ret = false;
 
 #ifndef TARGET_ANDROID
-    if (!c->c1.tuntap)
+    if (!c->c1.tuntap
+#ifdef _WIN32
+        || (c->c1.tuntap && !c->c1.tuntap->dco.real_tun_init)
+#endif
+        )
     {
 #endif
 
@@ -1761,9 +1766,12 @@ do_open_tun(struct context *c)
     /* Store the old fd inside the fd so open_tun can use it */
     c->c1.tuntap->fd = oldtunfd;
 #endif
-    /* open the tun device */
-    open_tun(c->options.dev, c->options.dev_type, c->options.dev_node,
-             c->c1.tuntap);
+    /* open the tun device. ovpn-dco-win already opend the device for the socket */
+    if (!is_windco(c->c1.tuntap))
+    {
+        open_tun(c->options.dev, c->options.dev_type, c->options.dev_node,
+            c->c1.tuntap);
+    }
 
     /* set the hardware address */
     if (c->options.lladdr)
@@ -3539,6 +3547,22 @@ do_close_free_key_schedule(struct context *c, bool free_ssl_ctx)
 static void
 do_close_link_socket(struct context *c)
 {
+#ifdef _WIN32
+    if (c->c2.link_socket->info.dco_installed && is_windco(c->c1.tuntap))
+    {
+        ASSERT(c->c2.link_socket_owned);
+        ASSERT(c->c1.tuntap);
+
+        /* We rely on the tun close to the handle if also setup
+         * routes etc, since they cannot be delete when the interface
+         * handle has been closed */
+        if (!c->c1.tuntap->dco.real_tun_init)
+        {
+            do_close_tun_simple(c);
+        }
+        c->c2.link_socket->sd = SOCKET_UNDEFINED;
+    }
+#endif
     if (c->c2.link_socket && c->c2.link_socket_owned)
     {
         link_socket_close(c->c2.link_socket);

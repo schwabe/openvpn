@@ -41,6 +41,7 @@ static inline void open_tun_dco(struct tuntap *tt, const char* dev) { ASSERT(fal
 
 static inline void close_tun_dco(struct tuntap *tt) { ASSERT(false); }
 #else
+#include "networking_windco.h"
 #include "networking_linuxdco.h"
 #include "crypto.h"
 

@@ -279,6 +279,7 @@
     <ClCompile Include="mtu.c" />
     <ClCompile Include="mudp.c" />
     <ClCompile Include="multi.c" />
+    <ClCompile Include="networking_windco.c" />
     <ClCompile Include="ntlm.c" />
     <ClCompile Include="occ.c" />
     <ClCompile Include="openvpn.c" />
@@ -367,6 +368,7 @@
     <ClInclude Include="mtu.h" />
     <ClInclude Include="mudp.h" />
     <ClInclude Include="multi.h" />
+    <ClInclude Include="networking_windco.h" />
     <ClInclude Include="ntlm.h" />
     <ClInclude Include="occ.h" />
     <ClInclude Include="openvpn.h" />

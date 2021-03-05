@@ -34,6 +34,7 @@
 #include "proxy.h"
 #include "socks.h"
 #include "misc.h"
+#include "tun.h"
 
 /*
  * OpenVPN's default port number as assigned by IANA.
@@ -1045,7 +1046,7 @@ link_socket_read_udp_win32(struct link_socket *sock,
                            struct buffer *buf,
                            struct link_socket_actual *from)
 {
-    sockethandle_t sh = { .s = sock->sd };
+    sockethandle_t sh = { .s = sock->sd, .hand = sock->info.dco_installed };
     return sockethandle_finalize(sh, &sock->reads, buf, from);
 }
 
@@ -1063,7 +1064,10 @@ link_socket_read(struct link_socket *sock,
                  struct buffer *buf,
                  struct link_socket_actual *from)
 {
-    if (proto_is_udp(sock->info.proto)) /* unified UDPv4 and UDPv6 */
+    if (proto_is_udp(sock->info.proto) 
+        || sock->info.dco_installed) 
+        /* unified UDPv4 and UDPv6, for DCO the kernel
+         * will strip the length header */
     {
         int res;
 
@@ -1125,6 +1129,29 @@ link_socket_write_win32(struct link_socket *sock,
     }
 }
 
+static inline int
+link_socket_write_win32_dco(struct link_socket* sock,
+    struct buffer* buf,
+    struct link_socket_actual* to)
+{
+    int err = 0;
+    int status = 0;
+    if (overlapped_io_active(&sock->writes))
+    {
+        status = tun_finalize((HANDLE)sock->sd, &sock->writes, NULL);
+    }
+    socket_send_queue(sock, buf, to);
+    if (status < 0)
+    {
+        SetLastError(err);
+        return status;
+    }
+    else
+    {
+        return BLEN(buf);
+    }
+}
+
 #else  /* ifdef _WIN32 */
 
 size_t link_socket_write_udp_posix_sendmsg(struct link_socket *sock,
@@ -1166,7 +1193,14 @@ link_socket_write_udp(struct link_socket *sock,
                       struct link_socket_actual *to)
 {
 #ifdef _WIN32
-    return link_socket_write_win32(sock, buf, to);
+    if (sock->info.dco_installed)
+    {
+        return link_socket_write_win32_dco(sock, buf, to);
+    }
+    else
+    {
+        return link_socket_write_win32(sock, buf, to);
+    }
 #else
     return link_socket_write_udp_posix(sock, buf, to);
 #endif
@@ -1178,8 +1212,9 @@ link_socket_write(struct link_socket *sock,
                   struct buffer *buf,
                   struct link_socket_actual *to)
 {
-    if (proto_is_udp(sock->info.proto)) /* unified UDPv4 and UDPv6 */
+    if (proto_is_udp(sock->info.proto) || sock->info.dco_installed) 
     {
+        /* unified UDPv4 and UDPv6 and DCO (kernel adds size header) */
         return link_socket_write_udp(sock, buf, to);
     }
     else if (proto_is_tcp(sock->info.proto)) /* unified TCPv4 and TCPv6 */

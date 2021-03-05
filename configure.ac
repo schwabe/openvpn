@@ -784,41 +784,63 @@ dnl  version in this tree which will be used by default.  The
 dnl  git checkout inside the ovpn-dco/ directory is managed via git
 dnl  submodule.
 dnl
-AC_ARG_VAR([DCO_SOURCEDIR], [Alternative ovpn-dco kernel module source directory])
-if test -z "${DCO_SOURCEDIR}"; then
-    DCO_SOURCEDIR="${srcdir}/../ovpn-dco"
-fi
-AC_MSG_NOTICE([Using ovpn-dco source directory: ${DCO_SOURCEDIR}])
-AC_SUBST([DCO_SOURCEDIR])
+	AC_ARG_VAR([DCO_SOURCEDIR], [Alternative ovpn-dco kernel module source directory])
+	if test -z "${DCO_SOURCEDIR}"; then
+		case "$host" in
+			*-mingw*) DCO_SOURCEDIR="${srcdir}/../ovpn-dco-win";;
+			*) DCO_SOURCEDIR="${srcdir}/../ovpn-dco";;
+		esac
+	fi
+	AC_MSG_NOTICE([Using ovpn-dco source directory: ${DCO_SOURCEDIR}])
+	AC_SUBST([DCO_SOURCEDIR])
 
+	case "$host" in
+		*-*-linux*)
 dnl
 dnl Include generic netlink library used to talk to ovpn-dco
 dnl
-	saved_CFLAGS="${CFLAGS}"
-    PKG_CHECK_MODULES(
-        [LIBNL_GENL],
-        [libnl-genl-3.0 >= 3.2.29],
-        [have_libnl="yes"],
-        [AC_MSG_ERROR([libnl-genl-3.0 package not found or too old. Is the development package and pkg-config installed? Must be version 3.4.0 or newer])]
-    )
+			saved_CFLAGS="${CFLAGS}"
+			PKG_CHECK_MODULES(
+				[LIBNL_GENL],
+				[libnl-genl-3.0 >= 3.2.29],
+				[have_libnl="yes"],
+				[AC_MSG_ERROR([libnl-genl-3.0 package not found or too old. Is the development package and pkg-config installed? Must be version 3.4.0 or newer])]
+			)
 
-    DCO_CFLAGS="-I${DCO_SOURCEDIR}/include/uapi ${LIBNL_GENL_CFLAGS}"
+			DCO_CFLAGS="-I${DCO_SOURCEDIR}/include/uapi ${LIBNL_GENL_CFLAGS}"
 
-    CFLAGS="${CFLAGS} ${DCO_CFLAGS}"
-    AC_CHECK_HEADERS(
-        [linux/ovpn_dco.h],
-        ,
-        [AC_MSG_ERROR([linux/ovpn_dco.h is missing (use DCO_SOURCE to set path to it, CFLAGS=${CFLAGS})])]
-    )
-    CFLAGS=${saved_CFLAGS}
-    OPTIONAL_DCO_CFLAGS="${DCO_CFLAGS}"
-    OPTIONAL_DCO_LIBS="${LIBNL_GENL_LIBS}"
+			CFLAGS="${CFLAGS} ${DCO_CFLAGS}"
+			AC_CHECK_HEADERS(
+				[linux/ovpn_dco.h],
+				,
+				[AC_MSG_ERROR([linux/ovpn_dco.h is missing (use DCO_SOURCE to set path to it, CFLAGS=${CFLAGS})])]
+			)
+			CFLAGS=${saved_CFLAGS}
 
-    AC_DEFINE(ENABLE_LINUXDCO, 1, [Enable linux data channel offload])
-    AC_DEFINE(ENABLE_DCO, 1, [Enable shared data channel offload])
+			OPTIONAL_DCO_LIBS="${LIBNL_GENL_LIBS}"
+
+			AC_DEFINE(ENABLE_LINUXDCO, 1, [Enable linux data channel offload])
+		;;
+
+		*-mingw*)
+			DCO_CFLAGS="-I${DCO_SOURCEDIR}"
+
+			saved_CFLAGS="${CFLAGS}"
+			CFLAGS="${CFLAGS} ${DCO_CFLAGS}"
+			AC_CHECK_HEADERS(
+				[uapi/ovpn-dco.h],
+				,
+				[AC_MSG_ERROR([uapi/ovpn-dco.h is missing (use DCO_SOURCEDIR to set path to it, CFLAGS=${CFLAGS})])]
+			)
+			CFLAGS=${saved_CFLAGS}
+
+			AC_DEFINE(ENABLE_WINDCO, 1, [Enable shared data channel offload for Windows])
+		;;
+	esac
+
+	OPTIONAL_DCO_CFLAGS="${DCO_CFLAGS}"
+	AC_DEFINE(ENABLE_DCO, 1, [Enable shared data channel offload])
 fi
-AM_CONDITIONAL([ENABLE_OVPNDCO], [test "${enable_dco}" = "yes"])
-
 
 if test "${with_crypto_library}" = "openssl"; then
 	AC_ARG_VAR([OPENSSL_CFLAGS], [C compiler flags for OpenSSL])

@@ -2119,6 +2119,30 @@ phase2_socks_client(struct link_socket *sock, struct signal_info *sig_info)
     resolve_remote(sock, 1, NULL, &sig_info->signal_received);
 }
 
+#if defined(ENABLE_WINDCO)
+static void
+create_socket_windco(struct context* c, struct link_socket* sock)
+{
+    struct tuntap* tt;
+    /* In this case persist-tun is enabled, which we don't support yet */
+    ASSERT(!c->c1.tuntap);
+
+    ALLOC_OBJ(tt, struct tuntap);
+    c->c1.tuntap = tt;
+
+    *tt = dco_create_socket(sock->info.lsa->current_remote,
+        sock->bind_local,
+        sock->info.lsa->bind_local,
+        c->options.dev_node,
+        &c->gc);
+    sock->info.dco_installed = true;
+
+    /* Ensure we can "safely" cast the handle to a socket */
+    static_assert(sizeof(sock->sd) == sizeof(tt->hand), "HANDLE and SOCKET size differs");
+    sock->sd = (SOCKET)tt->hand;
+}
+#endif
+
 /* finalize socket initialization */
 void
 link_socket_init_phase2(struct context *c)
@@ -2158,7 +2182,19 @@ link_socket_init_phase2(struct context *c)
     /* If a valid remote has been found, create the socket with its addrinfo */
     if (sock->info.lsa->current_remote)
     {
-        create_socket(sock, sock->info.lsa->current_remote);
+#if defined(ENABLE_WINDCO)
+        if (dco_win_enabled(&c->options))
+        {
+            create_socket_windco(c, sock);
+            linksock_print_addr(sock);
+            goto done;
+        }
+        else
+#endif
+        {
+            create_socket(sock, sock->info.lsa->current_remote);
+        }
+
     }
 
     /* If socket has not already been created create it now */
@@ -2221,6 +2257,7 @@ link_socket_init_phase2(struct context *c)
     }
 
     phase2_set_socket_flags(sock);
+
     linksock_print_addr(sock);
 
 done:
@@ -3167,7 +3204,7 @@ link_socket_read_tcp(struct link_socket *sock,
     if (!sock->stream_buf.residual_fully_formed)
     {
 #ifdef _WIN32
-        sockethandle_t sh = { .s = sock->sd };
+        sockethandle_t sh = { .s = sock->sd, .h = sock->info.dco_installed };
         len = sockethandle_finalize(sh, &sock->reads, buf, NULL);
 #else
         struct buffer frag;
@@ -3324,7 +3361,14 @@ link_socket_write_tcp(struct link_socket *sock,
     len = htonps(len);
     ASSERT(buf_write_prepend(buf, &len, sizeof(len)));
 #ifdef _WIN32
-    return link_socket_write_win32(sock, buf, to);
+    if (sock->info.dco_installed)
+    {
+        return link_socket_write_win32_dco(sock, buf, to);
+    }
+    else
+    {
+        return link_socket_write_win32(sock, buf, to);
+    }
 #else
     return link_socket_write_tcp_posix(sock, buf, to);
 #endif
@@ -3447,8 +3491,20 @@ socket_recv_queue(struct link_socket *sock, int maxsize)
         /* the overlapped read will signal this event on I/O completion */
         ASSERT(ResetEvent(sock->reads.overlapped.hEvent));
         sock->reads.flags = 0;
-
-        if (proto_is_udp(sock->info.proto))
+        
+        if (sock->info.dco_installed)
+        {
+            status = ReadFile(
+                    (HANDLE) sock->sd,
+                wsabuf[0].buf,
+                wsabuf[0].len,
+                &sock->reads.size,
+                &sock->reads.overlapped
+            );
+            /* Readfile status is inverted from WSARecv */
+            status = !status;
+        }
+        else if (proto_is_udp(sock->info.proto))
         {
             sock->reads.addr_defined = true;
             sock->reads.addrlen = sizeof(sock->reads.addr6);
@@ -3501,7 +3557,14 @@ socket_recv_queue(struct link_socket *sock, int maxsize)
         }
         else
         {
-            status = WSAGetLastError();
+            if (sock->info.dco_installed)
+            {
+                status = GetLastError();
+            }
+            else
+            {
+                status = WSAGetLastError();
+            }
             if (status == WSA_IO_PENDING) /* operation queued? */
             {
                 sock->reads.iostate = IOSTATE_QUEUED;
@@ -3546,7 +3609,21 @@ socket_send_queue(struct link_socket *sock, struct buffer *buf, const struct lin
         ASSERT(ResetEvent(sock->writes.overlapped.hEvent));
         sock->writes.flags = 0;
 
-        if (proto_is_udp(sock->info.proto))
+        if (sock->info.dco_installed)
+        {
+            status = WriteFile(
+                    (HANDLE)sock->sd,
+                    wsabuf[0].buf,
+                    wsabuf[0].len,
+                    &sock->writes.size,
+                    &sock->writes.overlapped
+            );
+
+            /* WriteFile status is inverted from WSASendTo */
+            status = !status;
+
+        }
+        else if (proto_is_udp(sock->info.proto))
         {
             /* set destination address for UDP writes */
             sock->writes.addr_defined = true;
@@ -3607,8 +3684,17 @@ socket_send_queue(struct link_socket *sock, struct buffer *buf, const struct lin
         }
         else
         {
-            status = WSAGetLastError();
-            if (status == WSA_IO_PENDING) /* operation queued? */
+            if (sock->info.dco_installed)
+            {
+                status = GetLastError();
+            }
+            else
+            {
+                status = WSAGetLastError();
+            }
+
+            /* both status code have the identical value */
+            if (status == WSA_IO_PENDING || status == ERROR_IO_PENDING) /* operation queued? */
             {
                 sock->writes.iostate = IOSTATE_QUEUED;
                 sock->writes.status = status;
@@ -3633,6 +3719,7 @@ socket_send_queue(struct link_socket *sock, struct buffer *buf, const struct lin
     return sock->writes.iostate;
 }
 
+/* Returns the nubmer of bytes successfully read */
 int
 sockethandle_finalize(sockethandle_t sh,
                       struct overlapped_io *io,
