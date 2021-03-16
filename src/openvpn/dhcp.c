@@ -113,7 +113,7 @@ do_extract(struct dhcp *dhcp, int optlen)
                         const int owlen = len + 2;        /* len of data to overwrite */
                         uint8_t *src = dest + owlen;
                         uint8_t *end = p + optlen;
-                        const int movlen = end - src;
+                        const size_t movlen = end - src;
                         if (movlen > 0)
                         {
                             memmove(dest, src, movlen);   /* overwrite router option */
