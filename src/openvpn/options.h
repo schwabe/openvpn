@@ -489,7 +489,7 @@ struct options
     bool ccd_exclusive;
     bool disable;
     int n_bcast_buf;
-    int tcp_queue_limit;
+    unsigned int tcp_queue_limit;
     struct iroute *iroutes;
     struct iroute_ipv6 *iroutes_ipv6;                   /* IPv6 */
     bool push_ifconfig_defined;

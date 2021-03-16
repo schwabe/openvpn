@@ -321,7 +321,7 @@ packet_id_close_to_wrapping(const struct packet_id_send *p)
 static inline bool
 check_timestamp_delta(time_t remote, unsigned int max_delta)
 {
-    unsigned int abs;
+    time_t abs;
     const time_t local_now = now;
 
     if (local_now >= remote)
