@@ -3548,7 +3548,7 @@ static void
 do_close_link_socket(struct context *c)
 {
 #ifdef _WIN32
-    if (c->c2.link_socket->info.dco_installed && is_windco(c->c1.tuntap))
+    if (c->c2.link_socket && c->c2.link_socket->info.dco_installed && is_windco(c->c1.tuntap))
     {
         ASSERT(c->c2.link_socket_owned);
         ASSERT(c->c1.tuntap);

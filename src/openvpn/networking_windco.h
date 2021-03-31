@@ -37,7 +37,7 @@ struct dco_context {
 struct tuntap
 dco_create_socket(struct addrinfo *remoteaddr, bool bind_local,
                   struct addrinfo *bind, const char* devname,
-                  struct gc_arena *gc);
+                  struct gc_arena *gc, int timeout, volatile int* signal_received);
 
 void dco_start_tun(struct tuntap* tt);
 

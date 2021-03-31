@@ -2121,25 +2121,33 @@ phase2_socks_client(struct link_socket *sock, struct signal_info *sig_info)
 
 #if defined(ENABLE_WINDCO)
 static void
-create_socket_windco(struct context* c, struct link_socket* sock)
+create_socket_windco(struct context* c, struct link_socket* sock, volatile int* signal_received)
 {
     struct tuntap* tt;
     /* In this case persist-tun is enabled, which we don't support yet */
     ASSERT(!c->c1.tuntap);
 
     ALLOC_OBJ(tt, struct tuntap);
-    c->c1.tuntap = tt;
 
     *tt = dco_create_socket(sock->info.lsa->current_remote,
         sock->bind_local,
         sock->info.lsa->bind_local,
         c->options.dev_node,
-        &c->gc);
+        &c->gc,
+        get_server_poll_remaining_time(sock->server_poll_timeout),
+        signal_received);
+    if (*signal_received)
+    {
+        goto done;
+    }
+    c->c1.tuntap = tt;
     sock->info.dco_installed = true;
 
     /* Ensure we can "safely" cast the handle to a socket */
     static_assert(sizeof(sock->sd) == sizeof(tt->hand), "HANDLE and SOCKET size differs");
     sock->sd = (SOCKET)tt->hand;
+done:
+    ;
 }
 #endif
 
@@ -2185,7 +2193,12 @@ link_socket_init_phase2(struct context *c)
 #if defined(ENABLE_WINDCO)
         if (dco_win_enabled(&c->options))
         {
-            create_socket_windco(c, sock);
+            create_socket_windco(c, sock, &sig_info->signal_received);
+            if (sig_info->signal_received)
+            {
+                goto done;
+            }
+
             linksock_print_addr(sock);
             goto done;
         }

@@ -6746,7 +6746,6 @@ netsh_delete_address_dns(const struct tuntap *tt, bool ipv6, struct gc_arena *gc
     argv_free(&argv);
 }
 
-static
 void close_tun_handle(struct tuntap* tt)
 {
     const char* adaptertype = print_windows_driver(tt->windows_driver);

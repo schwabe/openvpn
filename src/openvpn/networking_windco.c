@@ -72,10 +72,48 @@ void dco_start_tun(struct tuntap* tt)
     }
 }
 
+int dco_connect_wait(HANDLE handle, OVERLAPPED* ov, int timeout, volatile int* signal_received)
+{
+    while (timeout-- > 0)
+    {
+        DWORD transferred;
+        if (GetOverlappedResultEx(handle, ov, &transferred, 1000, FALSE) != 0)
+        {
+            /* TCP connection established by dco */
+            return 0;
+        }
+
+        DWORD err = GetLastError();
+        if (err != WAIT_TIMEOUT)
+        {
+            /* dco reported connection error */
+            struct gc_arena gc = gc_new();
+            msg(M_NONFATAL, "%s: %s", __func__, strerror_win32(err, &gc));
+            *signal_received = SIGUSR1;
+            gc_free(&gc);
+            return -1;
+        }
+
+        get_signal(signal_received);
+        if (*signal_received)
+        {
+            return -1;
+        }
+
+        management_sleep(0);
+    }
+
+    /* we end up here when timeout occurs in userspace */
+    msg(M_NONFATAL, "%s: dco connect timeout", __func__);
+    *signal_received = SIGUSR1;
+
+    return -1;
+}
+
 struct tuntap
 dco_create_socket(struct addrinfo *remoteaddr, bool bind_local,
                   struct addrinfo *bind, const char* devname,
-                  struct gc_arena *gc)
+                  struct gc_arena *gc, int timeout, volatile int* signal_received)
 {
     msg(D_DCO_DEBUG, "%s", __func__);
 
@@ -148,9 +186,21 @@ dco_create_socket(struct addrinfo *remoteaddr, bool bind_local,
 
     struct tuntap tt = create_dco_handle(devname, gc);
 
-    if (!DeviceIoControl(tt.hand, OVPN_IOCTL_NEW_PEER, &peer, sizeof(peer), NULL, 0, NULL, NULL))
+    OVERLAPPED ov = { 0 };
+    if (!DeviceIoControl(tt.hand, OVPN_IOCTL_NEW_PEER, &peer, sizeof(peer), NULL, 0, NULL, &ov))
     {
-        msg(M_ERR, "DeviceIoControl(OVPN_IOCTL_NEW_PEER) failed with code %d", GetLastError());
+        DWORD err = GetLastError();
+        if (err != ERROR_IO_PENDING)
+        {
+            msg(M_ERR, "DeviceIoControl(OVPN_IOCTL_NEW_PEER) failed with code %lu", err);
+        }
+        else
+        {
+            if (dco_connect_wait(tt.hand, &ov, timeout, signal_received))
+            {
+                close_tun_handle(&tt);
+            }
+        }
     }
     return tt;
 }

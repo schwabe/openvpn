@@ -260,6 +260,8 @@ void open_tun(const char *dev, const char *dev_type, const char *dev_node,
 
 void close_tun(struct tuntap *tt, openvpn_net_ctx_t *ctx);
 
+void close_tun_handle(struct tuntap* tt);
+
 int write_tun(struct tuntap *tt, uint8_t *buf, int len);
 
 int read_tun(struct tuntap *tt, uint8_t *buf, int len);
