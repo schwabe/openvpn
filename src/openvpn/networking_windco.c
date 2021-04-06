@@ -74,17 +74,22 @@ void dco_start_tun(struct tuntap* tt)
 
 int dco_connect_wait(HANDLE handle, OVERLAPPED* ov, int timeout, volatile int* signal_received)
 {
-    while (timeout-- > 0)
+    DWORD timeout_msec = timeout * 1000;
+    const int poll_interval_ms = 50;
+
+    while (timeout_msec > 0)
     {
+        timeout_msec -= poll_interval_ms;
+
         DWORD transferred;
-        if (GetOverlappedResultEx(handle, ov, &transferred, 1000, FALSE) != 0)
+        if (dco_get_overlapped_result(handle, ov, &transferred, poll_interval_ms, FALSE) != 0)
         {
             /* TCP connection established by dco */
             return 0;
         }
 
         DWORD err = GetLastError();
-        if (err != WAIT_TIMEOUT)
+        if ((err != WAIT_TIMEOUT) && (err != ERROR_IO_INCOMPLETE))
         {
             /* dco reported connection error */
             struct gc_arena gc = gc_new();
