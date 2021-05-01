@@ -256,7 +256,7 @@ jobs:
       - name: make check
         run: make check
 
-  msvc:
+  msbuild:
       strategy:
         fail-fast: false
         matrix:
@@ -313,3 +313,64 @@ jobs:
             ${{ matrix.plat }}-Output/${{env.BUILD_CONFIGURATION}}/*.dll
             ${{ matrix.plat }}-Output/${{env.BUILD_CONFIGURATION}}/*.pdb
             doc/openvpn.8.html
+
+  msvc:
+    strategy:
+      matrix:
+        arch: [x64, x86, amd64_arm64]
+
+    env:
+      # Indicates the CMake build directory where project files and binaries are being produced.
+      CMAKE_BUILD_DIR: ${{ github.workspace }}/builddir/
+      # Indicates the location of the vcpkg as a Git submodule of the project repository.
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg  
+      SOLUTION_FILE_PATH: .
+      BUILD_CONFIGURATION: Release
+      buildDir: '${{ github.workspace }}/build'
+    
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: lukka/get-cmake@latest
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.arch }}
+
+    - name: Restore from cache and install vcpkg
+      uses: lukka/run-vcpkg@v6
+      with:
+        setupOnly: true
+        vcpkgGitCommitId: 'a267ab118c09f56f3dae96c9a4b3410820ad2f0b'
+        additionalCachedPaths: ${{ env.buildDir }}/vcpkg_installed
+        appendedCacheKey: ${{ matrix.arch }}-${{ hashFiles( '**/vcpkg.json' ) }}
+
+    - name: Run CMake with vcpkg.json manifest
+      uses: lukka/run-cmake@v3
+      env:
+        VCPKG_OVERLAY_PORTS: '${{ github.workspace }}/contrib/vcpkg-ports'
+      with:
+        useVcpkgToolchainFile: true
+        buildWithCMake: true
+        buildDirectory: ${{ env.buildDir }}
+        cmakeAppendedArgs: '-GNinja'
+        
+    - uses: actions/upload-artifact@v2
+      with:
+        name: openvpn ${{ matrix.arch }}
+        path: '${{ github.workspace }}/build/openvpn.exe'
+
+    - name: Run unit tests
+      # evaluting matrix.arch in if: does not work so we emulate in powershell
+      run: |
+        if ("${{ matrix.arch }}" -ne "amd64_arm64")
+        {
+           echo "Running unit tests for ${{ matrix.arch }}"
+           ${{ env.buildDir }}/test_packet_id.exe
+           ${{ env.buildDir }}/test_crypto.exe
+           ${{ env.buildDir }}/test_ncp.exe
+           ${{ env.buildDir }}/test_auth_token.exe
+        }
+        else
+        {
+            echo "Skipped unit tests for ${{ matrix.arch }}"
+        }
