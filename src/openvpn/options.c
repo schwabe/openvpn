@@ -128,7 +128,9 @@ static const char usage_message[] =
     "Tunnel Options:\n"
     "--local host    : Local host name or ip address. Implies --bind.\n"
     "--remote host [port] : Remote host name or ip address.\n"
-    "--remote-random : If multiple --remote options specified, choose one randomly.\n"
+    "--remote-srv domain [service] : Perform DNS SRV remote host discovery.\n"
+    "--remote-random : If multiple --remote or --remote-srv options specified,\n"
+    "                  choose one randomly.\n"
     "--remote-random-hostname : Add a random string to remote DNS name.\n"
     "--mode m        : Major mode, m = 'p2p' (default, point-to-point) or 'server'.\n"
     "--proto p       : Use protocol p for communicating with peer.\n"
@@ -161,7 +163,7 @@ static const char usage_message[] =
     "                  up is a file containing username/password on 2 lines, or\n"
     "                  'stdin' to prompt for console.\n"
     "--socks-proxy-retry : Retry indefinitely on Socks proxy errors.\n"
-    "--resolv-retry n: If hostname resolve fails for --remote, retry\n"
+    "--resolv-retry n: If hostname resolve fails for --remote or --remote-srv, retry\n"
     "                  resolve for n seconds before failing (disabled by default).\n"
     "                  Set n=\"infinite\" to retry indefinitely.\n"
     "--float         : Allow remote to change its IP address/port, such as through\n"
@@ -1692,6 +1694,7 @@ show_connection_entry(const struct connection_entry *o)
     SHOW_STR(local_port);
     SHOW_STR(remote);
     SHOW_STR(remote_port);
+    SHOW_BOOL(remote_srv);
     SHOW_BOOL(remote_float);
     SHOW_BOOL(bind_defined);
     SHOW_BOOL(bind_local);
@@ -2241,6 +2244,62 @@ connection_entry_load_re(struct connection_entry *ce, const struct remote_entry 
     {
         ce->af = re->af;
     }
+    ce->remote_srv = re->remote_srv;
+}
+
+/* Part of options_postprocess_verify_ce that can be used
+ * in runtime after connection entry proto/hostname change.
+ */
+static bool
+options_postprocess_verify_ce_proto(const struct options *options,
+                                    const struct connection_entry *ce)
+{
+    int msglevel = M_WARN|M_NOPREFIX|M_OPTERR;
+
+    /*
+     * Sanity check on --local, --remote, and --ifconfig
+     */
+
+    if (proto_is_net(ce->proto)
+        && string_defined_equal(ce->local, ce->remote)
+        && string_defined_equal(ce->local_port, ce->remote_port))
+    {
+        msg(msglevel, "--remote and --local addresses are the same");
+        return false;
+    }
+
+    if (string_defined_equal(ce->remote, options->ifconfig_local)
+        || string_defined_equal(ce->remote, options->ifconfig_remote_netmask))
+    {
+        msg(msglevel, "--local and --remote addresses must be distinct from --ifconfig addresses");
+        return false;
+    }
+
+    /*
+     * Check that protocol options make sense.
+     */
+
+#ifdef ENABLE_FRAGMENT
+    if (!proto_is_udp(ce->proto) && ce->fragment)
+    {
+        msg(msglevel, "--fragment can only be used with --proto udp");
+        return false;
+    }
+#endif
+
+    if (!proto_is_udp(ce->proto) && ce->explicit_exit_notification)
+    {
+        msg(msglevel, "--explicit-exit-notify can only be used with --proto udp");
+        return false;
+    }
+
+    if ((ce->http_proxy_options) && ce->proto != PROTO_TCP_CLIENT)
+    {
+        msg(msglevel, "--http-proxy MUST be used in TCP Client mode (i.e. --proto tcp-client)");
+        return false;
+    }
+
+    return true;
 }
 
 static void
@@ -2317,6 +2376,11 @@ options_postprocess_verify_ce(const struct options *options,
             "--proto tcp-server or --proto tcp-client");
     }
 
+    if (ce->proto == PROTO_AUTO && !ce->remote_srv)
+    {
+        msg(M_USAGE, "--proto auto can be only used with --remote-srv");
+    }
+
     if (options->lladdr && dev != DEV_TYPE_TAP)
     {
         msg(M_USAGE, "--lladdr can only be used in --dev tap mode");
@@ -2330,7 +2394,9 @@ options_postprocess_verify_ce(const struct options *options,
         msg(M_USAGE, "only one of --tun-mtu or --link-mtu may be defined");
     }
 
-    if (!proto_is_udp(ce->proto) && options->mtu_test)
+    /* Defer validation for --remote-srv with auto protocol */
+    if (!proto_is_udp(ce->proto) && options->mtu_test
+        && !(ce->remote_srv && ce->proto == PROTO_AUTO))
     {
         msg(M_USAGE, "--mtu-test only makes sense with --proto udp");
     }
@@ -2341,6 +2407,11 @@ options_postprocess_verify_ce(const struct options *options,
     /*
      * Sanity check on --local, --remote, and --ifconfig
      */
+
+    if (ce->remote_srv && options->ip_remote_hint)
+    {
+        msg(M_USAGE, "--ip-remote-hint can't be used with --remote-srv");
+    }
 
     if (proto_is_net(ce->proto)
         && string_defined_equal(ce->local, ce->remote)
@@ -2465,22 +2536,31 @@ options_postprocess_verify_ce(const struct options *options,
      */
 
 #ifdef ENABLE_FRAGMENT
-    if (!proto_is_udp(ce->proto) && ce->fragment)
+    /* Defer validation for --remote-srv with auto protocol */
+    if (!proto_is_udp(ce->proto) && ce->fragment
+        && !(ce->remote_srv && ce->proto == PROTO_AUTO))
     {
         msg(M_USAGE, "--fragment can only be used with --proto udp");
     }
 #endif
+
+    /* Defer validation for --remote-srv with auto protocol */
+    if (!proto_is_udp(ce->proto) && ce->explicit_exit_notification
+        && !(ce->remote_srv && ce->proto == PROTO_AUTO))
+    {
+        msg(M_USAGE, "--explicit-exit-notify can only be used with --proto udp");
+    }
 
     if (!ce->remote && ce->proto == PROTO_TCP_CLIENT)
     {
         msg(M_USAGE, "--remote MUST be used in TCP Client mode");
     }
 
-    if ((ce->http_proxy_options) && ce->proto != PROTO_TCP_CLIENT)
+    /* Defer validation for --remote-srv with auto protocol */
+    if ((ce->http_proxy_options) && ce->proto != PROTO_TCP_CLIENT
+        && !(ce->remote_srv && ce->proto == PROTO_AUTO))
     {
-        msg(M_USAGE,
-            "--http-proxy MUST be used in TCP Client mode (i.e. --proto "
-            "tcp-client)");
+        msg(M_USAGE, "--http-proxy MUST be used in TCP Client mode (i.e. --proto tcp-client)");
     }
 
     if ((ce->http_proxy_options) && !ce->http_proxy_options->server)
@@ -2546,6 +2626,10 @@ options_postprocess_verify_ce(const struct options *options,
         if (ce->remote)
         {
             msg(M_USAGE, "--remote cannot be used with --mode server");
+        }
+        if (ce->remote_srv)
+        {
+            msg(M_USAGE, "--remote-srv cannot be used with --mode server");
         }
         if (!ce->bind_local)
         {
@@ -3054,26 +3138,14 @@ options_postprocess_verify_ce(const struct options *options,
     uninit_options(&defaults);
 }
 
-static void
-options_postprocess_mutate_ce(struct options *o, struct connection_entry *ce)
+/* Part of options_postprocess_mutate_ce that can be used
+ * in runtime after connection entry proto/hostname change.
+ */
+static bool
+options_postprocess_mutate_ce_proto(struct options *o,
+                                    struct connection_entry *ce)
 {
-    const int dev = dev_type_enum(o->dev, o->dev_type);
-
-    if (o->server_defined || o->server_bridge_defined || o->server_bridge_proxy_dhcp)
-    {
-        if (ce->proto == PROTO_TCP)
-        {
-            ce->proto = PROTO_TCP_SERVER;
-        }
-    }
-
-    if (o->client)
-    {
-        if (ce->proto == PROTO_TCP)
-        {
-            ce->proto = PROTO_TCP_CLIENT;
-        }
-    }
+    bool result = true;
 
     /* an option is present that requires local bind to enabled */
     bool need_bind = ce->local || ce->local_port_defined || ce->bind_defined;
@@ -3097,7 +3169,55 @@ options_postprocess_mutate_ce(struct options *o, struct connection_entry *ce)
     /* if protocol forcing is enabled, disable all protocols
      * except for the forced one
      */
-    if (o->proto_force >= 0 && o->proto_force != ce->proto)
+    if (o->proto_force >= 0 && o->proto_force != ce->proto
+        && !(ce->remote_srv && ce->proto == PROTO_AUTO))
+    {
+        result = false;
+    }
+
+    /* our socks code is not fully IPv6 enabled yet (TCP works, UDP not)
+     * so fall back to IPv4-only (trac #1221)
+     */
+    if (ce->socks_proxy_server && proto_is_udp(ce->proto) && ce->af != AF_INET)
+    {
+        if (ce->af == AF_INET6)
+        {
+            msg(M_INFO, "WARNING: '--proto udp6' is not compatible with "
+                "'--socks-proxy' today. Forcing IPv4 mode.");
+        }
+        else
+        {
+            msg(M_INFO, "NOTICE: dual-stack mode for '--proto udp' does not "
+                "work correctly with '--socks-proxy' today. Forcing IPv4.");
+        }
+        ce->af = AF_INET;
+    }
+
+    return result;
+}
+
+static void
+options_postprocess_mutate_ce(struct options *o, struct connection_entry *ce)
+{
+    const int dev = dev_type_enum(o->dev, o->dev_type);
+
+    if (o->server_defined || o->server_bridge_defined || o->server_bridge_proxy_dhcp)
+    {
+        if (ce->proto == PROTO_TCP)
+        {
+            ce->proto = PROTO_TCP_SERVER;
+        }
+    }
+
+    if (o->client)
+    {
+        if (ce->proto == PROTO_TCP)
+        {
+            ce->proto = PROTO_TCP_CLIENT;
+        }
+    }
+
+    if (!options_postprocess_mutate_ce_proto(o, ce))
     {
         ce->flags |= CE_DISABLED;
     }
@@ -3209,6 +3329,32 @@ options_postprocess_mutate_ce(struct options *o, struct connection_entry *ce)
     }
 }
 
+/*
+ * Merges servinfo's hostname, servname and proto into current connection
+ * entry if possible and doesn't conflict with the options.
+ * Used by runtime DNS SRV discovery.
+ */
+bool
+options_mutate_ce_servinfo(struct options *o, struct servinfo *si)
+{
+    struct connection_entry ce = o->ce;
+
+    ASSERT(ce.remote_srv);
+
+    ce.remote = si->hostname;
+    ce.remote_port = si->servname;
+    ce.proto = si->proto;
+
+    if (options_postprocess_mutate_ce_proto(o, &ce)
+        && options_postprocess_verify_ce_proto(o, &ce))
+    {
+        o->ce = ce;
+        return true;
+    }
+
+    return false;
+}
+
 #ifdef _WIN32
 /* If iservice is in use, we need def1 method for redirect-gateway */
 static void
@@ -3229,7 +3375,7 @@ remap_redirect_gateway_flags(struct options *opt)
  * Save/Restore certain option defaults before --pull is applied.
  */
 
-static void
+void
 pre_connect_save(struct options *o)
 {
     ALLOC_OBJ_CLEAR_GC(o->pre_connect, struct options_pre_connect, &o->gc);
@@ -6036,7 +6182,8 @@ add_option(struct options *options,
                                OPT_P_CONNECTION, option_types_found, es);
             if (!sub.ce.remote)
             {
-                msg(msglevel, "Each 'connection' block must contain exactly one 'remote' directive");
+                msg(msglevel, "Each 'connection' block must contain exactly one 'remote' "
+                    "or 'remote-srv' directive");
                 uninit_options(&sub);
                 goto err;
             }
@@ -6114,6 +6261,7 @@ add_option(struct options *options,
     {
         struct remote_entry re;
         re.remote = re.remote_port = NULL;
+        re.remote_srv = false;
         re.proto = -1;
         re.af = 0;
 
@@ -6148,6 +6296,61 @@ add_option(struct options *options,
         }
         else if (permission_mask & OPT_P_CONNECTION)
         {
+            if (options->ce.remote && options->ce.remote_srv)
+            {
+                msg(msglevel, "Each 'connection' block must contain exactly one 'remote' "
+                    "or 'remote-srv' directive");
+                goto err;
+            }
+            connection_entry_load_re(&options->ce, &re);
+        }
+    }
+    else if (streq(p[0], "remote-srv") && p[1] && !p[4])
+    {
+        struct remote_entry re;
+        re.remote = NULL;
+        re.remote_port = OPENVPN_SERVICE;
+        re.remote_srv = true;
+        re.proto = PROTO_AUTO;
+        re.af = 0;
+
+        VERIFY_PERMISSION(OPT_P_GENERAL|OPT_P_CONNECTION);
+        re.remote = p[1];
+        if (p[2])
+        {
+            re.remote_port = p[2];
+            if (p[3])
+            {
+                const int proto = ascii2proto(p[3]);
+                const sa_family_t af = ascii2af(p[3]);
+                if (proto < 0)
+                {
+                    msg(msglevel,
+                        "remote-srv: bad protocol associated with domain %s: "
+                        "'%s'", p[1], p[3]);
+                    goto err;
+                }
+                re.proto = proto;
+                re.af = af;
+            }
+        }
+        if (permission_mask & OPT_P_GENERAL)
+        {
+            struct remote_entry *e = alloc_remote_entry(options, msglevel);
+            if (!e)
+            {
+                goto err;
+            }
+            *e = re;
+        }
+        else if (permission_mask & OPT_P_CONNECTION)
+        {
+            if (options->ce.remote && !options->ce.remote_srv)
+            {
+                msg(msglevel, "Each 'connection' block must contain exactly one 'remote' "
+                    "or 'remote-srv' directive");
+                goto err;
+            }
             connection_entry_load_re(&options->ce, &re);
         }
     }
@@ -6620,7 +6823,7 @@ add_option(struct options *options,
         int proto_force;
         VERIFY_PERMISSION(OPT_P_GENERAL);
         proto_force = ascii2proto(p[1]);
-        if (proto_force < 0)
+        if (proto_force < 0 || proto_force == PROTO_AUTO)
         {
             msg(msglevel, "Bad --proto-force protocol: '%s'", p[1]);
             goto err;

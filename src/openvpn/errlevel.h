@@ -92,6 +92,7 @@
 #define D_PS_PROXY           LOGLEV(3, 44, 0)        /* messages related to --port-share option */
 #define D_IFCONFIG           LOGLEV(3, 0,  0)        /* show ifconfig info (don't mute) */
 #define D_DCO                LOGLEV(3, 0, 0)         /* show DCO related messages */
+#define D_RESOLVE            LOGLEV(3, 46, 0)        /* show hostname resolve info */
 
 #define D_SHOW_PARMS         LOGLEV(4, 50, 0)        /* show all parameters on program initiation */
 #define D_SHOW_OCC           LOGLEV(4, 51, 0)        /* show options compatibility string */

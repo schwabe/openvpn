@@ -42,6 +42,11 @@
 #define OPENVPN_PORT "1194"
 
 /*
+ * OpenVPN's default service name for DNS SRV discovery.
+ */
+#define OPENVPN_SERVICE "openvpn"
+
+/*
  * Number of seconds that "resolv-retry infinite"
  * represents.
  */
@@ -72,6 +77,19 @@ struct openvpn_sockaddr
     } addr;
 };
 
+/* struct to hold resolved service targets */
+struct servinfo
+{
+    const char *hostname;
+    const char *servname;
+    int proto;
+    int order;
+    unsigned short prio;
+    unsigned short weight;
+    struct addrinfo *ai;
+    struct servinfo *next;
+};
+
 /* struct to hold preresolved host names */
 struct cached_dns_entry {
     const char *hostname;
@@ -79,6 +97,7 @@ struct cached_dns_entry {
     int ai_family;
     int flags;
     struct addrinfo *ai;
+    struct servinfo *si;
     struct cached_dns_entry *next;
 };
 
@@ -107,6 +126,9 @@ struct link_socket_addr
     struct addrinfo *remote_list; /* complete remote list */
     struct addrinfo *current_remote; /* remote used in the
                                       * current connection attempt */
+    struct servinfo *service_list; /* complete service list */
+    struct servinfo *current_service; /* service used in the
+                                       * current connection attempt */
     struct link_socket_actual actual; /* reply to this address */
 };
 
@@ -333,6 +355,8 @@ void link_socket_init_phase2(struct context *c);
 
 void do_preresolve(struct context *c);
 
+void do_resolve_service(struct context *c);
+
 void link_socket_close(struct link_socket *sock);
 
 void sd_close(socket_descriptor_t *sd);
@@ -513,8 +537,12 @@ bool unix_socket_get_peer_uid_gid(const socket_descriptor_t sd, int *uid, int *g
 #define GETADDR_RANDOMIZE             (1<<9)
 #define GETADDR_PASSIVE               (1<<10)
 #define GETADDR_DATAGRAM              (1<<11)
+#define GETADDR_STREAM                (1<<12)
+#define GETADDR_SERVICE               (1<<13)
 
+#define GETADDR_PROTO_MASK              (GETADDR_DATAGRAM|GETADDR_STREAM)
 #define GETADDR_CACHE_MASK              (GETADDR_DATAGRAM|GETADDR_PASSIVE)
+#define GETADDR_CACHE_SERVICE_MASK      (GETADDR_PROTO_MASK|GETADDR_SERVICE)
 
 /**
  * Translate an IPv4 addr or hostname from string form to in_addr_t
@@ -542,6 +570,30 @@ int openvpn_getaddrinfo(unsigned int flags,
                         int ai_family,
                         struct addrinfo **res);
 
+int openvpn_getservinfo(unsigned int flags,
+                        const char *hostname,
+                        const char *servname,
+                        int resolve_retry_seconds,
+                        volatile int *signal_received,
+                        int family,
+                        struct servinfo **res);
+
+void freeservinfo(struct servinfo *res);
+
+/* Inline functions */
+
+inline static void
+gc_freeaddrinfo_callback(void *addr)
+{
+    freeaddrinfo((struct addrinfo *) addr);
+}
+
+inline static void
+gc_freeservinfo_callback(void *addr)
+{
+    freeservinfo((struct servinfo *) addr);
+}
+
 /*
  * Transport protocol naming and other details.
  */
@@ -556,6 +608,7 @@ enum proto_num {
     PROTO_TCP,
     PROTO_TCP_SERVER,
     PROTO_TCP_CLIENT,
+    PROTO_AUTO,
     PROTO_N
 };
 
@@ -563,7 +616,7 @@ static inline bool
 proto_is_net(int proto)
 {
     ASSERT(proto >= 0 && proto < PROTO_N);
-    return proto != PROTO_NONE;
+    return proto != PROTO_NONE && proto != PROTO_AUTO;
 }
 
 /**
@@ -594,6 +647,16 @@ proto_is_tcp(int proto)
 {
     ASSERT(proto >= 0 && proto < PROTO_N);
     return proto == PROTO_TCP_CLIENT || proto == PROTO_TCP_SERVER;
+}
+
+/**
+ * @brief Return if the protocol is stream (TCP)
+ *
+ */
+static inline bool
+proto_is_stream(int proto)
+{
+    return proto_is_tcp(proto);
 }
 
 

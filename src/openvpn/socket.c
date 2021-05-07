@@ -271,6 +271,37 @@ get_cached_dns_entry(struct cached_dns_entry *dns_cache,
     return -1;
 }
 
+/*
+ * get_cached_srv_entry return 0 on success and -1
+ * otherwise. (like getservinfo)
+ */
+static int
+get_cached_srv_entry(struct cached_dns_entry *dns_cache,
+                     const char *hostname,
+                     const char *servname,
+                     int ai_family,
+                     int resolve_flags,
+                     struct servinfo **si)
+{
+    struct cached_dns_entry *ph;
+    int flags;
+
+    /* Only use flags that are relevant for the structure */
+    flags = resolve_flags & GETADDR_CACHE_SERVICE_MASK;
+    flags |= GETADDR_SERVICE;
+
+    for (ph = dns_cache; ph; ph = ph->next)
+    {
+        if (streqnull(ph->hostname, hostname)
+            && streqnull(ph->servname, servname)
+            && ph->flags == flags)
+        {
+            *si = ph->si;
+            return 0;
+        }
+    }
+    return -1;
+}
 
 static int
 do_preresolve_host(struct context *c,
@@ -326,6 +357,77 @@ do_preresolve_host(struct context *c,
     return status;
 }
 
+static int
+do_preresolve_service(struct context *c,
+                      const char *hostname,
+                      const char *servname,
+                      const int af,
+                      const int flags,
+                      bool preresolve_host)
+{
+    struct servinfo *si;
+    int status;
+
+    if (get_cached_srv_entry(c->c1.dns_cache,
+                             hostname,
+                             servname,
+                             af,
+                             flags,
+                             &si) == 0)
+    {
+        /* entry already cached, return success */
+        return 0;
+    }
+
+    status = openvpn_getservinfo(flags, hostname, servname,
+                                 c->options.resolve_retry_seconds, NULL,
+                                 af, &si);
+    if (status == 0)
+    {
+        struct cached_dns_entry *ph;
+
+        ALLOC_OBJ_CLEAR_GC(ph, struct cached_dns_entry, &c->gc);
+        ph->si = si;
+        ph->hostname = hostname;
+        ph->servname = servname;
+        ph->flags = flags & GETADDR_CACHE_SERVICE_MASK;
+
+        if (!c->c1.dns_cache)
+        {
+            c->c1.dns_cache = ph;
+        }
+        else
+        {
+            struct cached_dns_entry *prev = c->c1.dns_cache;
+            while (prev->next)
+            {
+                prev = prev->next;
+            }
+            prev->next = ph;
+        }
+
+        gc_addspecial(si, &gc_freeservinfo_callback, &c->gc);
+
+        /* preresolve service targets unless disabled */
+        if (preresolve_host)
+        {
+            while (si)
+            {
+                int host_flags = flags & ~GETADDR_PROTO_MASK;
+                if (proto_is_dgram(si->proto))
+                {
+                    host_flags |= GETADDR_DATAGRAM;
+                }
+                /* ignore errors */
+                do_preresolve_host(c, si->hostname, si->servname,
+                                   af, host_flags);
+                si = si->next;
+            }
+        }
+    }
+    return status;
+}
+
 void
 do_preresolve(struct context *c)
 {
@@ -364,8 +466,31 @@ do_preresolve(struct context *c)
             remote = ce->remote;
         }
 
+        /* Preresolve remote services */
+        if (ce->remote_srv)
+        {
+            int service_flags = flags|GETADDR_SERVICE;
+
+            if (proto_is_dgram(ce->proto) || ce->proto == PROTO_AUTO)
+            {
+                service_flags |= GETADDR_DATAGRAM;
+            }
+            if (proto_is_stream(ce->proto) || ce->proto == PROTO_AUTO)
+            {
+                service_flags |= GETADDR_STREAM;
+            }
+
+            /* HTTP remote hostnames does not need to be resolved */
+            status = do_preresolve_service(c, remote, ce->remote_port,
+                                           ce->af, service_flags,
+                                           !ce->http_proxy_options);
+            if (status != 0)
+            {
+                goto err;
+            }
+        }
         /* HTTP remote hostname does not need to be resolved */
-        if (!ce->http_proxy_options)
+        else if (!ce->http_proxy_options)
         {
             status = do_preresolve_host(c, remote, ce->remote_port,
                                         ce->af, flags);
@@ -421,6 +546,630 @@ do_preresolve(struct context *c)
 
 err:
     throw_signal_soft(SIGHUP, "Preresolving failed");
+}
+
+/**
+ * Allocates new service structure on heap and stores
+ * its initial values.
+ *
+ * @param hostname - The peer host name or ip address
+ * @param port     - The peer TCP/UDP port
+ * @param proto    - Protocol for communicating with the peer
+ *
+ * @return A pointer to servinfo structure or NULL in case of
+ *     allocation error.
+ */
+static struct servinfo *
+alloc_servinfo(const char *hostname, uint16_t port, int proto)
+{
+    size_t namesize = hostname ? strlen(hostname) + 1 : 0;
+
+    char servname[sizeof("65535")];
+    openvpn_snprintf(servname, sizeof(servname), "%u", port);
+    size_t servsize = strlen(servname) + 1;
+
+    struct servinfo *si = calloc(1, sizeof(*si) + namesize + servsize);
+    if (si)
+    {
+        if (hostname)
+        {
+            si->hostname = (char *)(si + 1);
+            memcpy((char *)si->hostname, hostname, namesize);
+        }
+        si->servname = (char *)(si + 1) + namesize;
+        memcpy((char *)si->servname, servname, servsize);
+        si->proto = proto;
+    }
+    return si;
+}
+
+#ifdef _WIN32
+/**
+ * Queries DNS SRV records for specified DNS domain.
+ *
+ * @param domain - The DNS domain name
+ * @param proto  - TCP/UDP protocol for communicating with the peer
+ * @param next   - The servinfo structure list to be chained to
+ *                 the resulting servinfo list
+ * @param res    - The pointer to the resulting servinfo list
+ *
+ * @return 0 on success, a EAI-* status code otherwise
+ */
+static int
+query_servinfo(const char *domain, int proto,
+               struct servinfo *next, struct servinfo **res)
+{
+    PDNS_RECORD pDnsRecord;
+    int status;
+
+    ASSERT(res);
+
+    DNS_STATUS DnsStatus = DnsQuery(domain, DNS_TYPE_SRV, DNS_QUERY_STANDARD,
+                                    NULL, &pDnsRecord, NULL);
+    dmsg(D_SOCKET_DEBUG, "DNSQUERY type=%d domain=%s result=%d",
+         DNS_TYPE_SRV, domain, DnsStatus);
+    switch (DnsStatus)
+    {
+        case ERROR_SUCCESS:
+            break;
+
+        case DNS_ERROR_RCODE_NAME_ERROR:
+        case DNS_INFO_NO_RECORDS:
+            return EAI_NONAME; /* HOST_NOT_FOUND */
+
+        case DNS_ERROR_NO_DNS_SERVERS:
+        case DNS_ERROR_RCODE_FORMAT_ERROR:
+        case DNS_ERROR_RCODE_NOT_IMPLEMENTED:
+        case DNS_ERROR_RCODE_REFUSED:
+            return EAI_FAIL; /* NO_RECOVERY */
+
+        case ERROR_TIMEOUT:
+        case DNS_ERROR_RCODE_SERVER_FAILURE:
+        case DNS_ERROR_TRY_AGAIN_LATER:
+            return EAI_AGAIN; /* TRY_AGAIN */
+
+        default:
+            return EAI_FAIL;
+    }
+
+    struct servinfo *list = NULL, *first = NULL;
+    for (PDNS_RECORD rr = pDnsRecord; rr; rr = rr->pNext)
+    {
+        if (rr->wType == DNS_TYPE_SRV)
+        {
+            PDNS_SRV_DATA rdata = &rr->Data.Srv;
+
+            if (rr->wDataLength >= sizeof(DNS_SRV_DATA)
+                && *rdata->pNameTarget)
+            {
+                struct servinfo *si = alloc_servinfo(rdata->pNameTarget,
+                                                     rdata->wPort,
+                                                     proto);
+                if (!si)
+                {
+                    freeservinfo(list);
+                    status = EAI_MEMORY;
+                    goto done;
+                }
+                si->prio = rdata->wPriority;
+                si->weight = rdata->wWeight;
+                si->next = list, list = si;
+                if (!first)
+                {
+                    first = si;
+                }
+            }
+        }
+    }
+    if (list)
+    {
+        first->next = next;
+        *res = list;
+        status = 0;
+    }
+    else
+    {
+        status = EAI_FAIL;
+    }
+
+done:
+    DnsRecordListFree(pDnsRecord, DnsFreeRecordList);
+    return status;
+}
+
+#else
+/**
+ * Queries DNS SRV records for specified DNS domain.
+ *
+ * @param domain - The DNS domain name
+ * @param proto  - TCP/UDP protocol for communicating with the peer
+ * @param next   - The servinfo structure list to be chained to
+ *                 the resulting servinfo list
+ * @param res    - The pointer to the resulting servinfo list
+ *
+ * @return 0 on success, a EAI-* status code otherwise
+ */
+static int
+query_servinfo(const char *domain, int proto,
+               struct servinfo *next, struct servinfo **res)
+{
+    unsigned char answer[65535];
+    int status;
+
+    int n = res_query(domain, ns_c_in, ns_t_srv, answer, sizeof(answer));
+    dmsg(D_SOCKET_DEBUG, "RES_QUERY class=%d type=%d domain=%s result=%d",
+         ns_c_in, ns_t_srv, domain, n);
+    if (n < 0)
+    {
+        switch (h_errno)
+        {
+            case HOST_NOT_FOUND:
+            case NO_ADDRESS:
+#if NO_ADDRESS != NO_DATA
+            case NO_DATA:
+#endif
+                return EAI_NONAME;
+
+            case NO_RECOVERY:
+                return EAI_FAIL;
+
+            case TRY_AGAIN:
+                return EAI_AGAIN;
+        }
+        return EAI_SYSTEM;
+    }
+
+    ns_msg msg;
+    if (ns_initparse(answer, n, &msg) < 0)
+    {
+        return EAI_FAIL;
+    }
+
+    struct servinfo *list = NULL, *first = NULL;
+    for (int i = 0; i < ns_msg_count(msg, ns_s_an); i++)
+    {
+        ns_rr rr;
+
+        if (ns_parserr(&msg, ns_s_an, i, &rr) == 0
+            && ns_rr_type(rr) == ns_t_srv)
+        {
+            const unsigned char *rdata = ns_rr_rdata(rr);
+            char name[NS_MAXDNAME];
+
+            if (ns_rr_rdlen(rr) > 6
+                && dn_expand(ns_msg_base(msg), ns_msg_end(msg),
+                             rdata + 6, name, sizeof(name)) > 0 && *name)
+            {
+                struct servinfo *si = alloc_servinfo(name,
+                                                     ns_get16(rdata + 4),
+                                                     proto);
+                if (!si)
+                {
+                    freeservinfo(list);
+                    status = EAI_MEMORY;
+                    goto done;
+                }
+                si->prio = ns_get16(rdata);
+                si->weight = ns_get16(rdata + 2);
+                si->next = list, list = si;
+                if (!first)
+                {
+                    first = si;
+                }
+            }
+        }
+    }
+    if (list)
+    {
+        first->next = next;
+        *res = list;
+        status = 0;
+    }
+    else
+    {
+        status = EAI_FAIL;
+    }
+
+done:
+    return status;
+}
+#endif
+
+/**
+ * Servinfo qsort compare function for the server selection
+ * mechanism, defined in RFC 2782.
+ *
+ * @param a - Pointer to first servinfo structure
+ * @param b - Pointer to second servinfo structure
+ *
+ * @return
+ * @li 0, if equal
+ * @li 1, if "a" should be ordered after "b"
+ * @li -1, if "a" should be ordered before "b"
+ */
+static int
+servinfo_cmp(const void *a, const void *b)
+{
+    const struct servinfo *ae = *(struct servinfo **)a;
+    const struct servinfo *be = *(struct servinfo **)b;
+
+    /* lowest-numbered priority first */
+    if (ae->prio != be->prio)
+    {
+        return ae->prio < be->prio ? -1 : 1;
+    }
+
+    /* zero-weighted first */
+    if ((ae->weight == 0 && be->weight)
+        || (ae->weight && be->weight == 0))
+    {
+        return ae->weight < be->weight ? -1 : 1;
+    }
+
+    /* else keep received order, can't be equal */
+    return ae->order > be->order ? -1 : 1;
+}
+
+/**
+ * Sorts service list according the server selection mechanism,
+ * defined in RFC 2782.
+ *
+ * @param list - The pointer to servinfo list
+ *
+ * @return A pointer to the sorted servinfo list
+ */
+static struct servinfo *
+sort_servinfo(struct servinfo *list)
+{
+    struct servinfo ordered, *tail = &ordered;
+    int count = 0;
+    struct gc_arena gc = gc_new();
+
+    ASSERT(list);
+
+    /* count and number entries in reverse order */
+    for (struct servinfo *si = list; si; si = si->next)
+    {
+        si->order = count++;
+    }
+
+    struct servinfo **sorted;
+    ALLOC_ARRAY_CLEAR_GC(sorted, struct servinfo *, count, &gc);
+    for (struct servinfo *si = list; si; si = si->next)
+    {
+        sorted[si->order] = si;
+    }
+
+    /* sort records by priority and zero weight */
+    qsort(sorted, count, sizeof(sorted[0]), servinfo_cmp);
+
+    /* apply weighted selection mechanism */
+    ordered.next = NULL;
+    for (int i = 0; i < count;)
+    {
+        struct servinfo unordered;
+
+        /* compute the sum of the weights of records of the same
+         * priority and put them in the unordered list */
+        unordered.prio = sorted[i]->prio;
+        unordered.weight = 0;
+        unordered.next = NULL;
+        for (struct servinfo *prev = &unordered;
+             i < count && sorted[i]->prio == unordered.prio; i++)
+        {
+            unordered.weight += sorted[i]->weight;
+
+            /* add entry to the tail of unordered list */
+            sorted[i]->next = NULL;
+            prev->next = sorted[i], prev = sorted[i];
+        }
+
+        /* process the unordered list */
+        while (unordered.next)
+        {
+            /* choose a uniform random number between 0 and the sum
+             * computed (inclusive) */
+            int weight = get_random() % (unordered.weight + 1);
+
+            /* select the entries whose running sum value is the first
+             * in the selected order which is greater than or equal
+             * to the random number selected */
+            for (struct servinfo *si = unordered.next, *prev = &unordered;
+                 si; prev = si, si = si->next)
+            {
+                /* selected entry is the next one to be contacted */
+                if (si->weight >= weight)
+                {
+                    unordered.weight -= si->weight;
+
+                    /* move entry to the ordered list */
+                    prev->next = si->next;
+                    si->next = NULL;
+                    tail->next = si, tail = si;
+
+                    /*
+                     * RFC 2782 is ambiguous, it says:
+                     *   In the presence of records containing weights greater
+                     *   than 0, records with weight 0 should have a very
+                     *   small chance of being selected.
+                     * According that, within the same priority, after all
+                     * records containing weights greater than 0 were selected,
+                     * the rest of records with weight 0 should be skipped.
+                     * At the same time, it says:
+                     *   The following algorithm SHOULD be used to order the
+                     *   SRV RRs of the same priority:
+                     *   ...
+                     *   Continue the ordering process until there are no
+                     *   unordered SRV RRs.
+                     * This means records with wight 0 should always be
+                     * selected, as last ones in worst case.
+                     *
+                     * We implement the second option and do not skip any of
+                     * the records with unordered.weight == 0 after the last
+                     * one with weight greater than 0.
+                     */
+                }
+                weight -= si->weight;
+            }
+        }
+    }
+
+    gc_free(&gc);
+    return ordered.next;
+}
+
+/**
+ * Resolves DNS SRV records for given domain and service names.
+ *
+ * @param domain  - The DNS SRV domain name
+ * @param service - The DNS SRV service name
+ * @param flags   - GETADDR_* DNS resultion flags
+ * @param res     - The pointer to the resulting servinfo list
+ *
+ * @return 0 on success, a EAI-* status code otherwise
+ */
+static int
+getservinfo(const char *domain,
+            const char *service,
+            int flags,
+            struct servinfo **res)
+{
+    static const struct {
+        int flags;
+        int proto;
+        const char *name;
+    } proto[] = {
+        { GETADDR_DATAGRAM, PROTO_UDP, "udp" },
+        { GETADDR_STREAM, PROTO_TCP_CLIENT, "tcp" }
+    };
+    struct servinfo *list = NULL;
+    int status = EAI_SOCKTYPE;
+
+    ASSERT(res);
+
+    if (!domain)
+    {
+        return EAI_NONAME;
+    }
+    if (!service)
+    {
+        return EAI_SERVICE;
+    }
+
+    int proto_flags = flags & GETADDR_PROTO_MASK;
+    for (int i = 0; i < SIZE(proto); i++)
+    {
+        if (proto_flags & proto[i].flags)
+        {
+            proto_flags &= ~proto[i].flags;
+
+            char qname[256];
+            if (!openvpn_snprintf(qname, sizeof(qname), "_%s._%s.%s",
+                                  service, proto[i].name, domain))
+            {
+                freeservinfo(list);
+                return EAI_MEMORY;
+            }
+
+            status = query_servinfo(qname, proto[i].proto, list, &list);
+        }
+    }
+
+    if (list)
+    {
+        *res = sort_servinfo(list);
+        status = 0;
+    }
+
+    return status;
+}
+
+void
+freeservinfo(struct servinfo *res)
+{
+    while (res)
+    {
+        struct servinfo *si = res;
+        res = res->next;
+        free(si);
+    }
+}
+
+/*
+ * Translate IPv4/IPv6 hostname and service name into struct servinfo
+ * If resolve error, try again for resolve_retry_seconds seconds.
+ */
+int
+openvpn_getservinfo(unsigned int flags,
+                    const char *hostname,
+                    const char *servname,
+                    int resolve_retry_seconds,
+                    volatile int *signal_received,
+                    int family,
+                    struct servinfo **res)
+{
+    int status;
+    int sigrec = 0;
+    int msglevel = (flags & GETADDR_FATAL) ? M_FATAL : D_RESOLVE_ERRORS;
+    struct gc_arena gc = gc_new();
+    const char *print_hostname;
+    const char *print_servname;
+
+    ASSERT(res);
+
+    ASSERT(hostname || servname);
+    ASSERT(!(flags & GETADDR_HOST_ORDER));
+
+    if (hostname)
+    {
+        print_hostname = hostname;
+    }
+    else
+    {
+        print_hostname = "undefined";
+    }
+
+    if (servname)
+    {
+        print_servname = servname;
+    }
+    else
+    {
+        print_servname = "";
+    }
+
+    if (flags & GETADDR_MSG_VIRT_OUT)
+    {
+        msglevel |= M_MSG_VIRT_OUT;
+    }
+
+    if ((flags & (GETADDR_FATAL_ON_SIGNAL|GETADDR_WARN_ON_SIGNAL))
+        && !signal_received)
+    {
+        signal_received = &sigrec;
+    }
+
+    const int fail_wait_interval = 5; /* seconds */
+    /* Add +4 to cause integer division rounding up (1 + 4) = 5, (0+4)/5=0 */
+    int resolve_retries = (flags & GETADDR_TRY_ONCE) ? 1 :
+                          ((resolve_retry_seconds + 4)/ fail_wait_interval);
+    const char *fmt;
+    int level = 0;
+
+    fmt = "RESOLVE: Cannot resolve remote service: %s:%s (%s)";
+    if ((flags & GETADDR_MENTION_RESOLVE_RETRY)
+        && !resolve_retry_seconds)
+    {
+        fmt = "RESOLVE: Cannot resolve remote service: %s:%s (%s) "
+              "(I would have retried this name query if you had "
+              "specified the --resolv-retry option.)";
+    }
+
+#ifdef ENABLE_MANAGEMENT
+    if (flags & GETADDR_UPDATE_MANAGEMENT_STATE)
+    {
+        if (management)
+        {
+            management_set_state(management,
+                                 OPENVPN_STATE_RESOLVE,
+                                 NULL,
+                                 NULL,
+                                 NULL,
+                                 NULL,
+                                 NULL);
+        }
+    }
+#endif
+
+    /*
+     * Resolve service
+     */
+    while (true)
+    {
+#ifndef _WIN32
+        /* force resolv.conf reload */
+        res_init();
+#endif
+        dmsg(D_SOCKET_DEBUG, "GETSERVINFO flags=0x%04x family=%d %s:%s",
+             flags, family, print_hostname, print_servname);
+        status = getservinfo(hostname, servname, flags, res);
+
+        if (signal_received)
+        {
+            get_signal(signal_received);
+            if (*signal_received) /* were we interrupted by a signal? */
+            {
+                if (*signal_received == SIGUSR1) /* ignore SIGUSR1 */
+                {
+                    msg(level, "RESOLVE: Ignored SIGUSR1 signal received "
+                               "during DNS resolution attempt");
+                    *signal_received = 0;
+                }
+                else
+                {
+                    /* turn success into failure (interrupted syscall) */
+                    if (0 == status)
+                    {
+                        ASSERT(res);
+                        freeservinfo(*res);
+                        *res = NULL;
+                        status = EAI_AGAIN; /* = temporary failure */
+                        errno = EINTR;
+                    }
+                    goto done;
+                }
+            }
+        }
+
+        /* success? */
+        if (0 == status)
+        {
+            break;
+        }
+
+        /* resolve lookup failed, should we
+         * continue or fail? */
+        level = msglevel;
+        if (resolve_retries > 0)
+        {
+            level = D_RESOLVE_ERRORS;
+        }
+
+        msg(level,
+            fmt,
+            print_hostname,
+            print_servname,
+            gai_strerror(status));
+
+        if (--resolve_retries <= 0)
+        {
+            goto done;
+        }
+
+        management_sleep(fail_wait_interval);
+    }
+
+    ASSERT(res);
+
+    /* service resolve succeeded */
+
+done:
+    if (signal_received && *signal_received)
+    {
+        int level = 0;
+        if (flags & GETADDR_FATAL_ON_SIGNAL)
+        {
+            level = M_FATAL;
+        }
+        else if (flags & GETADDR_WARN_ON_SIGNAL)
+        {
+            level = M_WARN;
+        }
+        msg(level, "RESOLVE: signal received during DNS resolution attempt");
+    }
+
+    gc_free(&gc);
+    return status;
 }
 
 /*
@@ -557,8 +1306,9 @@ openvpn_getaddrinfo(unsigned int flags,
             /* try hostname lookup */
             hints.ai_flags &= ~AI_NUMERICHOST;
             dmsg(D_SOCKET_DEBUG,
-                 "GETADDRINFO flags=0x%04x ai_family=%d ai_socktype=%d",
-                 flags, hints.ai_family, hints.ai_socktype);
+                 "GETADDRINFO flags=0x%04x ai_family=%d ai_socktype=%d %s:%s",
+                 flags, hints.ai_family, hints.ai_socktype,
+                 print_hostname, print_servname);
             status = getaddrinfo(hostname, servname, &hints, res);
 
             if (signal_received)
@@ -1816,7 +2566,110 @@ done:
     gc_free(&gc);
 }
 
+void
+do_resolve_service(struct context *c)
+{
+    struct connection_entry *ce = &c->options.ce;
 
+    if (ce->remote_srv
+        && !c->c1.link_socket_addr.service_list)
+    {
+        if (ce->remote)
+        {
+            unsigned int flags = sf2gaf(GETADDR_RESOLVE|
+                                        GETADDR_UPDATE_MANAGEMENT_STATE|
+                                        GETADDR_SERVICE,
+                                        c->options.sockflags);
+            int retry = 0;
+            int status = -1;
+            struct servinfo *si;
+
+            if (proto_is_dgram(ce->proto) || ce->proto == PROTO_AUTO)
+            {
+                flags |= GETADDR_DATAGRAM;
+            }
+            if (proto_is_stream(ce->proto) || ce->proto == PROTO_AUTO)
+            {
+                flags |= GETADDR_STREAM;
+            }
+
+            if (c->options.sockflags & SF_HOST_RANDOMIZE)
+            {
+                flags |= GETADDR_RANDOMIZE;
+            }
+
+            if (c->options.resolve_retry_seconds == RESOLV_RETRY_INFINITE)
+            {
+                flags |= (GETADDR_TRY_ONCE | GETADDR_FATAL);
+                retry = 0;
+            }
+            else if (c->options.resolve_retry_seconds)
+            {
+                flags |= GETADDR_FATAL;
+                retry = c->options.resolve_retry_seconds;
+            }
+            else
+            {
+                flags |= (GETADDR_FATAL | GETADDR_MENTION_RESOLVE_RETRY);
+                retry = 0;
+            }
+
+            status = get_cached_srv_entry(c->c1.dns_cache,
+                                          ce->remote,
+                                          ce->remote_port,
+                                          ce->af,
+                                          flags, &si);
+            if (status)
+            {
+                status = openvpn_getservinfo(flags, ce->remote, ce->remote_port,
+                                             retry, &c->sig->signal_received,
+                                             ce->af, &si);
+            }
+
+            if (status == 0)
+            {
+                c->c1.link_socket_addr.service_list = si;
+                c->c1.link_socket_addr.current_service = NULL;
+
+                /* advance to the first appropriate service */
+                while (si)
+                {
+                    /* map in current service */
+                    if (!c->c1.link_socket_addr.current_service
+                        && options_mutate_ce_servinfo(&c->options, si))
+                    {
+                        c->c1.link_socket_addr.current_service = si;
+                    }
+
+                    /* log discovered service hosts */
+                    msg(D_RESOLVE,
+                        "Resolved remote service host: %s:%s,%s prio %u weight %u",
+                        np(si->hostname), np(si->servname),
+                        proto2ascii(si->proto, ce->af, false),
+                        si->prio, si->weight);
+
+                    si = si->next;
+                }
+                if (!c->c1.link_socket_addr.current_service)
+                {
+                    status = EAI_NODATA;
+                }
+
+                dmsg(D_SOCKET_DEBUG,
+                     "RESOLVE_SERVICE flags=0x%04x rrs=%d sig=%d status=%d",
+                     flags,
+                     retry,
+                     c->sig->signal_received,
+                     status);
+            }
+
+            if (!c->sig->signal_received && status != 0)
+            {
+                c->sig->signal_received = SIGUSR1;
+            }
+        }
+    }
+}
 
 struct link_socket *
 link_socket_new(void)
@@ -3077,16 +3930,19 @@ static const struct proto_names proto_names[] = {
     {"tcp-server",  "TCP_SERVER", AF_UNSPEC, PROTO_TCP_SERVER},
     {"tcp-client",  "TCP_CLIENT", AF_UNSPEC, PROTO_TCP_CLIENT},
     {"tcp",         "TCP", AF_UNSPEC, PROTO_TCP},
+    {"auto",        "AUTO", AF_UNSPEC, PROTO_AUTO},
     /* force IPv4 */
     {"udp4",        "UDPv4", AF_INET, PROTO_UDP},
     {"tcp4-server", "TCPv4_SERVER", AF_INET, PROTO_TCP_SERVER},
     {"tcp4-client", "TCPv4_CLIENT", AF_INET, PROTO_TCP_CLIENT},
     {"tcp4",        "TCPv4", AF_INET, PROTO_TCP},
+    {"auto4",       "AUTOv4", AF_INET, PROTO_AUTO},
     /* force IPv6 */
     {"udp6",        "UDPv6", AF_INET6, PROTO_UDP},
     {"tcp6-server", "TCPv6_SERVER", AF_INET6, PROTO_TCP_SERVER},
     {"tcp6-client", "TCPv6_CLIENT", AF_INET6, PROTO_TCP_CLIENT},
     {"tcp6",        "TCPv6", AF_INET6, PROTO_TCP},
+    {"auto6",       "AUTOv6", AF_INET6, PROTO_AUTO},
 };
 
 int
@@ -3147,6 +4003,11 @@ proto2ascii_all(struct gc_arena *gc)
 
     for (i = 0; i < SIZE(proto_names); ++i)
     {
+        if (proto_names[i].proto == PROTO_NONE
+            || proto_names[i].proto == PROTO_AUTO)
+        {
+            continue;
+        }
         if (i)
         {
             buf_printf(&out, " ");

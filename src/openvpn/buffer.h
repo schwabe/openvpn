@@ -196,14 +196,6 @@ bool buf_init_debug(struct buffer *buf, int offset, const char *file, int line);
 #define buf_init(buf, offset) buf_init_dowork(buf, offset)
 #endif
 
-
-/* inline functions */
-static inline void
-gc_freeaddrinfo_callback(void *addr)
-{
-    freeaddrinfo((struct addrinfo *) addr);
-}
-
 /** Return an empty struct buffer */
 static inline struct buffer
 clear_buf(void)

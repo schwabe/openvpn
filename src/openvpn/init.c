@@ -349,7 +349,12 @@ management_callback_remote_cmd(void *arg, const char **p)
         }
         else if (!strcmp(p[1], "MOD") && p[2] && p[3])
         {
-            if (strlen(p[2]) < RH_HOST_LEN && strlen(p[3]) < RH_PORT_LEN)
+            if (ce->remote_srv && ce->proto == PROTO_AUTO)
+            {
+                /* can't mutate --remote-srv into --remote without protocol */
+                ret = false;
+            }
+            else if (strlen(p[2]) < RH_HOST_LEN && strlen(p[3]) < RH_PORT_LEN)
             {
                 struct remote_host_store *rhs = c->options.rh_store;
                 if (!rhs)
@@ -362,6 +367,7 @@ management_callback_remote_cmd(void *arg, const char **p)
 
                 ce->remote = rhs->host;
                 ce->remote_port = rhs->port;
+                ce->remote_srv = false;
                 flags = CE_MAN_QUERY_REMOTE_MOD;
                 ret = true;
             }
@@ -462,6 +468,23 @@ clear_remote_addrlist(struct link_socket_addr *lsa, bool free)
 }
 
 /*
+ * Clear the remote service list
+ */
+static void
+clear_remote_servlist(struct link_socket_addr *lsa, bool free)
+{
+    if (lsa->service_list && free)
+    {
+        freeservinfo(lsa->service_list);
+    }
+    lsa->service_list = NULL;
+    lsa->current_service = NULL;
+
+    /* clear addrinfo objects as well */
+    clear_remote_addrlist(lsa, free);
+}
+
+/*
  * Increment to next connection entry
  */
 static void
@@ -490,6 +513,24 @@ next_connection_entry(struct context *c)
                 c->c1.link_socket_addr.current_remote =
                     c->c1.link_socket_addr.current_remote->ai_next;
             }
+            /* Check if there is another resolved service to try for
+             * the current connection unless persist-remote-ip was
+             * requested and current service already has an address */
+            else if (c->c1.link_socket_addr.current_service
+                     && c->c1.link_socket_addr.current_service->next
+                     && !(c->options.persist_remote_ip
+                          && c->c1.link_socket_addr.remote_list))
+            {
+                c->c1.link_socket_addr.current_service =
+                    c->c1.link_socket_addr.current_service->next;
+
+                /* Clear addrinfo object of the previous service */
+                if (c->c1.link_socket_addr.remote_list)
+                {
+                    clear_remote_addrlist(&c->c1.link_socket_addr,
+                                          !c->options.resolve_in_advance);
+                }
+            }
             else
             {
                 c->options.advance_next_remote = false;
@@ -499,20 +540,24 @@ next_connection_entry(struct context *c)
                  */
                 if (!c->options.persist_remote_ip)
                 {
-                    /* Connection entry addrinfo objects might have been
+                    /* Connection entry addr/servinfo objects might have been
                      * resolved earlier but the entry itself might have been
-                     * skipped by management on the previous loop.
-                     * If so, clear the addrinfo objects as close_instance does
+                     * skipped on the previous loop either by management or
+                     * due inappropriate service protocol.
+                     * Clear the addr/servinfo objects as close_instance does.
                      */
-                    if (c->c1.link_socket_addr.remote_list)
+                    if (c->c1.link_socket_addr.remote_list
+                        || c->c1.link_socket_addr.service_list)
                     {
-                        clear_remote_addrlist(&c->c1.link_socket_addr,
+                        clear_remote_servlist(&c->c1.link_socket_addr,
                                               !c->options.resolve_in_advance);
                     }
 
                     /* close_instance should have cleared the addrinfo objects */
                     ASSERT(c->c1.link_socket_addr.current_remote == NULL);
                     ASSERT(c->c1.link_socket_addr.remote_list == NULL);
+                    ASSERT(c->c1.link_socket_addr.current_service == NULL);
+                    ASSERT(c->c1.link_socket_addr.service_list == NULL);
                 }
                 else
                 {
@@ -548,6 +593,12 @@ next_connection_entry(struct context *c)
         }
 
         c->options.ce = *ce;
+        if (ce_defined && c->c1.link_socket_addr.current_service)
+        {
+            /* map in current service */
+            struct servinfo *si = c->c1.link_socket_addr.current_service;
+            ce_defined = options_mutate_ce_servinfo(&c->options, si);
+        }
 #ifdef ENABLE_MANAGEMENT
         if (ce_defined && management && management_query_remote_enabled(management))
         {
@@ -3633,10 +3684,13 @@ do_close_link_socket(struct context *c)
                ( c->sig->source != SIG_SOURCE_HARD
                  && ((c->c1.link_socket_addr.current_remote
                       && c->c1.link_socket_addr.current_remote->ai_next)
+                     || (c->c1.link_socket_addr.current_service
+                         && c->c1.link_socket_addr.current_service->next)
                      || c->options.no_advance))
                )))
     {
-        clear_remote_addrlist(&c->c1.link_socket_addr, !c->options.resolve_in_advance);
+        clear_remote_servlist(&c->c1.link_socket_addr,
+                              !c->options.resolve_in_advance);
     }
 
     /* Clear the remote actual address when persist_remote_ip is not in use */
@@ -4167,6 +4221,17 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
 
     /* map in current connection entry */
     next_connection_entry(c);
+
+    /* map in current remote service */
+    if (c->options.ce.remote_srv)
+    {
+        do_resolve_service(c);
+        if (IS_SIG(c))
+        {
+             goto sig;
+        }
+        update_options_ce_post(&c->options);
+    }
 
     /* link_socket_mode allows CM_CHILD_TCP
      * instances to inherit acceptable fds

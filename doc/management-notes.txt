@@ -807,6 +807,12 @@ the above notification, use this command:
 
   remote MOD vpn.otherexample.com 1234
 
+DNS SRV discovery domain and service name with protocol code:`auto`
+can't be overriden, but either accepted or skipped only.
+Example of such notification:
+
+  >REMOTE:example.com,openvpn,auto
+
 To accept the same host and port as the client would ordinarily
 have connected to, use this command:
 

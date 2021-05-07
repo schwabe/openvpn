@@ -458,10 +458,121 @@ configuration.
   specification (4/6 suffix), OpenVPN will try both IPv4 and IPv6
   addresses, in the order getaddrinfo() returns them.
 
+--remote-srv args
+  Remote DNS SRV domain, service name and protocol.
+
+  Valid syntaxes:
+  ::
+
+     remote-srv domain
+     remote-srv domain service
+     remote-srv domain service proto
+
+  The ``service`` and ``proto`` arguments are optional. Client will try
+  to resolve DNS SRV record ``_service._proto.domain`` and use returned
+  DNS SRV records as remote server list ordered by server selection
+  mechanism defined in `RFC 2782 <https://tools.ietf.org/html/rfc2782>`_:
+  ::
+
+    A client MUST attempt to contact the target host with the
+    lowest-numbered priority field value it can reach, target hosts
+    with the same priority SHOULD be tried in an order defined by the
+    weight field.
+    The weight field specifies a relative weight for entries with the
+    same priority. Larger weights SHOULD be given a proportionately
+    higher probability of being selected.
+    Domain administrators SHOULD use Weight 0 when there isn't any
+    server selection to do. In the presence of records containing
+    weights greater than 0, records with Weight 0 SHOULD have a very
+    small chance of being selected.
+
+  *Note:*
+    OpenVPN server selection mechanism implementation indeed will give
+    records with weight of zero a very small chance of being selected
+    first, but never skip them.
+
+  The ``service`` argument indicates the symbolic name of the desired
+  service. By default service is the registered service name
+  :code:`openvpn`.
+
+  The ``proto`` argument indicates the symbolic name of the desired
+  protocol and the protocol to use when connecting with the remote, and
+  may either be :code:`tcp`, :code:`udp` or special value :code:`auto`
+  used by default to try both. In this case all the discovered remote
+  hosts will be ordered by server selection mechanism regardless their
+  protocol. To enforce IPv4 or IPv6 connections add a :code:`4` or
+  :code:`6` suffix; like :code:`udp4` / :code:`udp6` / :code:`tcp4` /
+  :code:`tcp6` / :code:`auto4` / :code:`auto6`.
+
+  On the client, multiple ``--remote-srv`` options may be specified for
+  redundancy, each referring to a different DNS SRV record name, in the
+  order specified by the list of ``--remote-srv`` options. Specifying
+  multiple ``--remote-srv`` options for this purpose is a special case
+  of the more general connection-profile feature. See the
+  ``<connection>`` documentation below.
+
+  The client will move on to the next DNS SRV record in the ordered list,
+  in the event of connection failure. Note that at any given time, the
+  OpenVPN client will at most be connected to one server.
+
+  If particular DNS SRV record next resolves to multiple IP addresses,
+  OpenVPN will try them in the order that the system getaddrinfo()
+  presents them, so prioritization and DNS randomization is done by the
+  system library. Unless an IP version is forced by the protocol
+  specification (4/6 suffix), OpenVPN will try both IPv4 and IPv6
+  addresses, in the order getaddrinfo() returns them.
+
+  Examples:
+  ::
+
+     remote-srv example.net
+     remote-srv example.net openvpn
+     remote-srv example.net openvpn tcp
+
+  Example of DNS SRV records:
+  ::
+
+     name                 prio weight port target
+     $ORIGIN example.net.
+     _openvpn._udp IN SRV 10   60     1194 server1.example.net.
+     _openvpn._udp IN SRV 10   40     1194 server2.example.net.
+     _openvpn._udp IN SRV 10   0      1194 server3.example.net.
+     _openvpn._tcp IN SRV 20   0       443 server4.example.net.
+
+  For ``--remote-srv example.net`` following will happen in order:
+
+  1. The client will first try to resolve ``_openvpn._udp.example.net``
+     and ``_openvpn._tcp.example.net``.
+  2. Records ``server1.example.net:1194``, ``server2.example.net:1194``
+     and ``server3.example.net:1194`` will be selected before record
+     ``server4.example.net:443`` as their priority 10 is smaller than 20.
+  3. Records ``server1.example.net:1194``, ``server2.example.net:1194``
+     and ``server3.example.net:1194`` will be randomly selected with
+     weight probability: first will be either ``server1.example.net:1194``
+     with 60% probability or ``server2.example.net:1194`` with 40% or
+     ``server3.example.net:1194`` with almost zero probability.
+  4. If ``server1.example.net:1194`` was selected, the second record will
+     be either ``server2.example.net:1194`` with almost 100% probability
+     or ``server3.example.net:1194`` with almost 0%.
+  5. If ``server2.example.net:1194`` was selected, the third record will
+     be the only last record of priority 10 - ``server3.example.net:1194``.
+  6. Record ``server4.example.net:443`` will be the last one selected as
+     the only record with priority 20.
+  7. Each of the resulting ```target:port`` remote hosts will be resolved
+     and accessed if its protocol has no conflict with the rest of the
+     OpenVPN options.
+
+  If a DNS SRV name cannot be resolved or no valid records are returned,
+  the client will move on to the next connection entry.
+
+  For more information on DNS SRV see https://tools.ietf.org/html/rfc2782
+
 --remote-random
-  When multiple ``--remote`` address/ports are specified, or if connection
-  profiles are being used, initially randomize the order of the list as a
-  kind of basic load-balancing measure.
+  Randomises the order of ``--remote-srv``, ``remote-srv`` and connection
+  profiles on start. This randomisation of these entries is a kind of basic
+  load-balancing measure. Note that implementing DNS SRV entries (with a
+  short TTL if it should be dynamic) and using ``--remote-srv`` is a better
+  alternative for client-side load balancing.
 
 --remote-random-hostname
   Prepend a random string (6 bytes, 12 hex characters) to hostname to
@@ -469,8 +580,8 @@ configuration.
   "<random-chars>.foo.bar.gov".
 
 --resolv-retry n
-  If hostname resolve fails for ``--remote``, retry resolve for ``n``
-  seconds before failing.
+  If hostname resolve fails for ``--remote`` or ``--remote-srv``, retry
+  resolve for ``n`` seconds before failing.
 
   Set ``n`` to :code:`infinite` to retry indefinitely.
 

@@ -105,6 +105,7 @@ struct connection_entry
     const char *remote_port;
     const char *local;
     const char *remote;
+    bool remote_srv;
     bool remote_float;
     bool bind_defined;
     bool bind_ipv6_only;
@@ -173,6 +174,7 @@ struct remote_entry
     const char *remote_port;
     int proto;
     sa_family_t af;
+    bool remote_srv;
 };
 
 #define CONNECTION_LIST_SIZE 64
@@ -823,6 +825,10 @@ char *options_string_extract_option(const char *options_string,
 void options_postprocess(struct options *options, struct env_set *es);
 
 bool options_postprocess_pull(struct options *o, struct env_set *es);
+
+bool options_mutate_ce_servinfo(struct options *o, struct servinfo *si);
+
+void pre_connect_save(struct options *o);
 
 void pre_connect_restore(struct options *o, struct gc_arena *gc);
 
