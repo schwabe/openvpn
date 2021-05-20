@@ -2202,6 +2202,7 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
         }
 
         c->c2.do_up_ran = true;
+        c->c2.tls_multi->multi_state = CAS_CONNECT_DONE;
     }
     return true;
 }
