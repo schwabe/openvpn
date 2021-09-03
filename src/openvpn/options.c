@@ -3336,6 +3336,12 @@ options_postprocess_mutate(struct options *o)
      * when using --pull
      */
     pre_connect_save(o);
+
+    /* Give a general warning at the end of initialisation that defaults
+     * have changed */
+    msg(M_WARN, "Note that modernisation of defaults in OpenVPN 2.6 limits "
+                "compatibility with old versions. See Changes.rst and "
+                "--compat-mode in the manual for details.");
 }
 
 /*
