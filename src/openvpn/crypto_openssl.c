@@ -880,10 +880,26 @@ cipher_des_encrypt_ecb(const unsigned char key[DES_KEY_LENGTH],
                        unsigned char src[DES_KEY_LENGTH],
                        unsigned char dst[DES_KEY_LENGTH])
 {
-    DES_key_schedule sched;
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx)
+    {
+        crypto_msg(M_FATAL, "%s: EVP_CIPHER_CTX_new() failed", __func__);
+    }
+    if (!EVP_EncryptInit_ex(ctx, EVP_bf_ecb(), NULL, key, 0))
+    {
+        crypto_msg(M_FATAL, "%s: EVP_EncryptInit_ex() failed", __func__);
+    }
 
-    DES_set_key_unchecked((DES_cblock *)key, &sched);
-    DES_ecb_encrypt((DES_cblock *)src, (DES_cblock *)dst, &sched, DES_ENCRYPT);
+    int len;
+    if(!EVP_EncryptUpdate(ctx, dst, &len, src, DES_KEY_LENGTH))
+    {
+        crypto_msg(M_FATAL, "%s: EVP_EncryptUpdate() failed", __func__);
+    }
+
+    if (!EVP_EncryptFinal(ctx, dst + len, &len))
+    {
+        crypto_msg(M_FATAL, "%s: EVP_EncryptFinal() failed", __func__);
+    }
 }
 
 /*
