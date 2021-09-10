@@ -1001,7 +1001,7 @@ md_ctx_final(EVP_MD_CTX *ctx, uint8_t *dst)
  * Generic HMAC functions
  *
  */
-
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
 HMAC_CTX *
 hmac_ctx_new(void)
 {
@@ -1039,7 +1039,7 @@ hmac_ctx_cleanup(HMAC_CTX *ctx)
 }
 
 int
-hmac_ctx_size(const HMAC_CTX *ctx)
+hmac_ctx_size(HMAC_CTX *ctx)
 {
     return HMAC_size(ctx);
 }
@@ -1066,6 +1066,84 @@ hmac_ctx_final(HMAC_CTX *ctx, uint8_t *dst)
 
     HMAC_Final(ctx, dst, &in_hmac_len);
 }
+#else
+EVP_MAC_CTX *
+hmac_ctx_new(void)
+{
+    EVP_MAC *hmac = EVP_MAC_fetch(NULL, "HMAC", NULL);
+    EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(hmac);
+    check_malloc_return(ctx);
+    return ctx;
+}
+
+void
+hmac_ctx_free(EVP_MAC_CTX *ctx)
+{
+    EVP_MAC_CTX_free(ctx);
+}
+
+void
+hmac_ctx_init(EVP_MAC_CTX *ctx, const uint8_t *key, int key_len,
+              const EVP_MD *kt)
+{
+    ASSERT(NULL != kt && NULL != ctx);
+
+    /* Lookup/setting of parameters in OpenSSL 3.0 are string based */
+    OSSL_PARAM params[2];
+
+    /* The OSSL_PARAM_construct_utf8_string needs a non const str but this
+     * only used for lookup so we cast (as OpenSSL also does internally)
+     * the constness away here */
+    params[0] = OSSL_PARAM_construct_utf8_string("digest",
+                                                 (char*) EVP_MD_get0_name(kt), 0);
+    params[1] = OSSL_PARAM_construct_end();
+
+    if (!EVP_MAC_init(ctx, key, key_len, params))
+    {
+        crypto_msg(M_FATAL, "EVP_MAC_init failed");
+    }
+
+    /* make sure we used a big enough key */
+    ASSERT(EVP_MAC_CTX_get_mac_size(ctx) <= key_len);
+}
+
+void
+hmac_ctx_cleanup(EVP_MAC_CTX *ctx)
+{
+    EVP_MAC_init(ctx, NULL, 0, NULL);
+}
+
+int
+hmac_ctx_size(EVP_MAC_CTX *ctx)
+{
+    return (int)EVP_MAC_CTX_get_mac_size(ctx);
+}
+
+void
+hmac_ctx_reset(EVP_MAC_CTX *ctx)
+{
+    if (!EVP_MAC_init(ctx, NULL, 0, NULL))
+    {
+        crypto_msg(M_FATAL, "EVP_MAC_init failed");
+    }
+}
+
+void
+hmac_ctx_update(EVP_MAC_CTX *ctx, const uint8_t *src, int src_len)
+{
+    EVP_MAC_update(ctx, src, src_len);
+}
+
+void
+hmac_ctx_final(EVP_MAC_CTX *ctx, uint8_t *dst)
+{
+    /* The calling code always gives us a buffer that has the size of our
+     * algorithm */
+    size_t in_hmac_len = EVP_MAC_CTX_get_mac_size(ctx);
+
+    EVP_MAC_final(ctx, dst, &in_hmac_len, in_hmac_len);
+}
+#endif
 
 int
 memcmp_constant_time(const void *a, const void *b, size_t size)
