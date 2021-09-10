@@ -522,6 +522,11 @@ key_des_num_cblocks(const EVP_CIPHER *kt)
 bool
 key_des_check(uint8_t *key, int key_len, int ndc)
 {
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+    /* DES is deprecated and the method to even check the keys is deprecated
+     * in OpenSSL 3.0. Instead of checking for the 16 weak/semi-weak keys
+     * we just accept them in OpenSSL 3.0 since the risk of randomly getting
+     * these is pretty weak */
     int i;
     struct buffer b;
 
@@ -554,6 +559,9 @@ key_des_check(uint8_t *key, int key_len, int ndc)
 err:
     ERR_clear_error();
     return false;
+#else
+    return true;
+#endif
 }
 
 void
