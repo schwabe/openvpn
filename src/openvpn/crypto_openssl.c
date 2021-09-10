@@ -67,7 +67,7 @@
 #warning Some OpenSSL HMAC message digests now support key lengths greater than MAX_HMAC_KEY_LENGTH -- consider increasing MAX_HMAC_KEY_LENGTH
 #endif
 
-#if HAVE_OPENSSL_ENGINE
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
 #include <openssl/ui.h>
 #include <openssl/engine.h>
 
@@ -132,7 +132,7 @@ setup_engine(const char *engine)
 void
 crypto_init_lib_engine(const char *engine_name)
 {
-#if HAVE_OPENSSL_ENGINE
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
     if (!engine_initialized)
     {
         ASSERT(engine_name);
@@ -182,7 +182,7 @@ crypto_uninit_lib(void)
     fclose(fp);
 #endif
 
-#if HAVE_OPENSSL_ENGINE
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
     if (engine_initialized)
     {
         ENGINE_cleanup();
@@ -368,7 +368,8 @@ show_available_digests(void)
 void
 show_available_engines(void)
 {
-#if HAVE_OPENSSL_ENGINE /* Only defined for OpenSSL */
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
+    /* Only defined for OpenSSL */
     ENGINE *e;
 
     printf("OpenSSL Crypto Engines\n\n");
@@ -1151,7 +1152,7 @@ memcmp_constant_time(const void *a, const void *b, size_t size)
     return CRYPTO_memcmp(a, b, size);
 }
 
-#if HAVE_OPENSSL_ENGINE
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
 static int
 ui_reader(UI *ui, UI_STRING *uis)
 {
@@ -1175,7 +1176,7 @@ ui_reader(UI *ui, UI_STRING *uis)
 EVP_PKEY *
 engine_load_key(const char *file, SSL_CTX *ctx)
 {
-#if HAVE_OPENSSL_ENGINE
+#if HAVE_OPENSSL_ENGINE && OPENSSL_VERSION_NUMBER < 0x30000000L
     UI_METHOD *ui;
     EVP_PKEY *pkey;
 
