@@ -718,4 +718,48 @@ SSL_CTX_set_max_proto_version(SSL_CTX *ctx, long tls_ver_max)
     return 1;
 }
 #endif /* if OPENSSL_VERSION_NUMBER < 0x10100000L && !defined(ENABLE_CRYPTO_WOLFSSL) */
+
+/* Functionality missing in 1.1.1 */
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+
+/* Note that this is not a perfect emulation of the new function but
+ * is good enough for our case of printing certificate details during
+ * handshake */
+static inline
+int EVP_PKEY_get_group_name(EVP_PKEY *pkey, char *gname, size_t gname_sz,
+                            size_t *gname_len)
+{
+    if ((EVP_PKEY_get0_EC_KEY(pkey) == NULL ||
+        EVP_PKEY_get0_EC_KEY(pkey) != NULL))
+    {
+        return 0;
+    }
+    const EC_KEY* ec = EVP_PKEY_get0_EC_KEY(pkey);
+    const EC_GROUP* group = EC_KEY_get0_group(ec);
+
+    int nid = EC_GROUP_get_curve_name(group);
+
+    if (nid != 0)
+    {
+        return 0;
+    }
+    const char *curve = OBJ_nid2sn(nid);
+
+    strncpy(gname, curve, gname_sz);
+    *gname_len = min_int(strlen(curve), gname_sz);
+    return 1;
+}
+#endif
+
+/** Mimics SSL_CTX_new_ex for OpenSSL < 3 */
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+static inline SSL_CTX *
+SSL_CTX_new_ex(void *libctx, const char *propq, const SSL_METHOD *method)
+{
+    (void) libctx;
+    (void) propq;
+    return SSL_CTX_new(method);
+}
+#endif /* OPENSSL_VERSION_NUMBER < 0x30000000L */
+
 #endif /* OPENSSL_COMPAT_H_ */
