@@ -54,6 +54,9 @@
 #if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(LIBRESSL_VERSION_NUMBER)
 #include <openssl/kdf.h>
 #endif
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/provider.h>
+#endif
 
 /*
  * Check for key size creepage.
@@ -141,6 +144,32 @@ crypto_init_lib_engine(const char *engine_name)
         engine_initialized = true;
     }
 #else  /* if HAVE_OPENSSL_ENGINE */
+    msg(M_WARN, "Note: OpenSSL hardware crypto engine functionality is not available");
+#endif
+}
+
+void
+crypto_init_lib_provider(const char *providers)
+{
+    if (!providers)
+    {
+        return;
+    }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    struct gc_arena gc = gc_new();
+    char *tmp_providers = string_alloc(providers, &gc);
+
+    const char *provname;
+    while ((provname = strsep(&tmp_providers, ":")))
+    {
+        /* Load providers into the default (NULL) library context */
+        OSSL_PROVIDER* provider = OSSL_PROVIDER_load(NULL, provname);
+        if (!provider)
+        {
+            crypto_msg(M_FATAL, "failed to load provider '%s'", provname);
+        }
+    }
+#else  /* OPENSSL_VERSION_NUMBER >= 0x30000000L */
     msg(M_WARN, "Note: OpenSSL hardware crypto engine functionality is not available");
 #endif
 }

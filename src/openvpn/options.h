@@ -521,6 +521,7 @@ struct options
     const char *prng_hash;
     int prng_nonce_secret_len;
     const char *engine;
+    const char *providers;
     bool replay;
     bool mute_replay_warnings;
     int replay_window;
