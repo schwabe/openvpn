@@ -280,6 +280,16 @@ which mode OpenVPN is configured as.
   This option solves the problem by persisting keys across :code:`SIGUSR1`
   resets, so they don't need to be re-read.
 
+--provider providers
+  Load the : separated list of (OpenSSL) providers. This is mainly useful for
+  using an external provider for key management like tpm2-openssl or to load
+  the legacy provider with
+
+  ::
+
+      --provider "legacy:default"
+
+
 --remap-usr1 signal
   Control whether internally or externally generated :code:`SIGUSR1` signals
   are remapped to :code:`SIGHUP` (restart without persisting state) or

@@ -70,6 +70,11 @@ crypto_init_lib_engine(const char *engine_name)
         "available");
 }
 
+void crypto_init_lib_provider(const char *providers)
+{
+    msg(M_WARN, "Note: mbed TLS provider functionality is not available");
+}
+
 /*
  *
  * Functions related to the core crypto library

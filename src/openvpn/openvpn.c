@@ -112,6 +112,10 @@ void init_early(struct context *c)
     /* init verbosity and mute levels */
     init_verb_mute(c, IVM_LEVEL_1);
 
+    /* Initialise OpenVPN provider, this needs to be intialised this
+    * early since option post processing and also openssl info
+    * printing depends on it */
+    crypto_init_lib_provider((*c).options.providers);
 }
 
 static void uninit_early(struct context *c)

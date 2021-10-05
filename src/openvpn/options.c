@@ -8171,6 +8171,10 @@ add_option(struct options *options,
             options->engine = "auto";
         }
     }
+    else if (streq(p[0], "provider") && p[1] && !p[2])
+    {
+        options->providers = p[1];
+    }
 #endif /* ENABLE_CRYPTO_MBEDTLS */
 #ifdef ENABLE_PREDICTION_RESISTANCE
     else if (streq(p[0], "use-prediction-resistance") && !p[1])
