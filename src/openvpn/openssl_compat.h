@@ -760,6 +760,15 @@ SSL_CTX_new_ex(void *libctx, const char *propq, const SSL_METHOD *method)
     (void) propq;
     return SSL_CTX_new(method);
 }
+/* Mimics the function but only when the default context without
+ * options is chosen */
+static inline const EVP_CIPHER *
+EVP_CIPHER_fetch(void *ctx, const char *algorithm, const char *properties)
+{
+    ASSERT(!ctx);
+    ASSERT(!properties);
+    return EVP_get_cipherbyname(algorithm);
+}
 #endif /* OPENSSL_VERSION_NUMBER < 0x30000000L */
 
 #endif /* OPENSSL_COMPAT_H_ */
