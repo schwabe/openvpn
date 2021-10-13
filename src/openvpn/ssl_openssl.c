@@ -532,7 +532,11 @@ tls_ctx_set_cert_profile(struct tls_root_ctx *ctx, const char *profile)
      * callbacks that we could try to implement to achieve something similar.
      * For now, use OpenSSL's security levels to achieve similar (but not equal)
      * behaviour. */
-    if (!profile || 0 == strcmp(profile, "legacy"))
+    if (!profile || 0 == strcmp(profile, "insecure"))
+    {
+        SSL_CTX_set_security_level(ctx->ctx, 0);
+    }
+    else if (!profile || 0 == strcmp(profile, "legacy"))
     {
         SSL_CTX_set_security_level(ctx->ctx, 1);
     }
