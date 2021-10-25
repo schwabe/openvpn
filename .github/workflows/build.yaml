@@ -39,20 +39,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        osslver: [1.1.1j, 3.0.5]
+        target: [mingw64, mingw]
         include:
           - target: mingw64
             chost: x86_64-w64-mingw32
           - target: mingw
             chost: i686-w64-mingw32
-
-    name: "gcc-mingw - ${{matrix.target}}"
-
+    name: "gcc-mingw - ${{matrix.target}} - OSSL ${{ matrix.osslver }}"
     runs-on: ubuntu-20.04
     env:
       MAKEFLAGS: -j3
       LZO_VERSION: "2.10"
       PKCS11_HELPER_VERSION: "1.29.0"
-      OPENSSL_VERSION: "1.1.1n"
+      OPENSSL_VERSION: "${{ matrix.osslver }}"
       TAP_WINDOWS_VERSION: "9.23.3"
       CHOST: ${{ matrix.chost }}
       TARGET: ${{ matrix.target }}
@@ -90,8 +90,8 @@ jobs:
           wget -c -P download-cache/ "https://build.openvpn.net/downloads/releases/tap-windows-${TAP_WINDOWS_VERSION}.zip"
           wget -c -P download-cache/ "https://www.oberhumer.com/opensource/lzo/download/lzo-${LZO_VERSION}.tar.gz"
           wget -c -P download-cache/ "https://github.com/OpenSC/pkcs11-helper/releases/download/pkcs11-helper-${PKCS11_HELPER_VERSION}/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.bz2"
-          wget -c -P download-cache/ "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
           tar jxf "download-cache/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.bz2"
+          wget -c -P download-cache/ "https://www.openssl.org/source/old/1.1.1/openssl-${OPENSSL_VERSION}.tar.gz" || wget -c -P download-cache/ "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" 
           tar zxf "download-cache/openssl-${OPENSSL_VERSION}.tar.gz"
           tar zxf "download-cache/lzo-${LZO_VERSION}.tar.gz"
           unzip download-cache/tap-windows-${TAP_WINDOWS_VERSION}.zip
