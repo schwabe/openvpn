@@ -7,20 +7,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        osslver: [1.1.1j, 3.0.0]
+        target: [mingw64, mingw]
         include:
           - target: mingw64
             chost: x86_64-w64-mingw32
           - target: mingw
             chost: i686-w64-mingw32
-
-    name: "gcc-mingw - ${{matrix.target}}"
-
+    name: "gcc-mingw - ${{matrix.target}} - OSSL ${{ matrix.osslver }}"
     runs-on: ubuntu-20.04
     env:
       MAKEFLAGS: -j3
       LZO_VERSION: "2.10"
       PKCS11_HELPER_VERSION: "1.26"
-      OPENSSL_VERSION: "1.1.1j"
+      OPENSSL_VERSION: "${{ matrix.osslver }}"
       TAP_WINDOWS_VERSION: "9.23.3"
       CHOST: ${{ matrix.chost }}
       TARGET: ${{ matrix.target }}
@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '~/mingw/'
-          key: ${{ matrix.target }}-mingw-${{ env.LZO_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}-${{ env.TAP_WINDOWS_VERSION }}
+          key: ${{ matrix.target }}-mingw-${{ env.LZO_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}-${{ env.TAP_WINDOWS_VERSION }}-${{ matrix.osslver }}
 
       # Repeating  if: steps.cache.outputs.cache-hit != 'true'
       # on every step for building dependencies is ugly but
@@ -58,7 +58,7 @@ jobs:
           wget -c -P download-cache/ "https://build.openvpn.net/downloads/releases/tap-windows-${TAP_WINDOWS_VERSION}.zip"
           wget -c -P download-cache/ "https://www.oberhumer.com/opensource/lzo/download/lzo-${LZO_VERSION}.tar.gz"
           wget -c -P download-cache/ "https://github.com/OpenSC/pkcs11-helper/archive/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz"
-          wget -c -P download-cache/ "https://www.openssl.org/source/old/1.1.1/openssl-${OPENSSL_VERSION}.tar.gz"
+          wget -c -P download-cache/ "https://www.openssl.org/source/old/1.1.1/openssl-${OPENSSL_VERSION}.tar.gz" || wget -c -P download-cache/ "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" 
           tar zxf "download-cache/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz"
           tar zxf "download-cache/openssl-${OPENSSL_VERSION}.tar.gz"
           tar zxf "download-cache/lzo-${LZO_VERSION}.tar.gz"
@@ -67,17 +67,17 @@ jobs:
       - name: Configure OpenSSL
         if: steps.cache.outputs.cache-hit != 'true'
         run: ./Configure --cross-compile-prefix=${CHOST}- shared ${{ matrix.target }} no-capieng --prefix="${HOME}/mingw/opt" --openssldir="${HOME}/mingw/opt" -static-libgcc
-        working-directory: "./openssl-1.1.1j"
+        working-directory: "./openssl-${{ matrix.osslver }}"
 
       - name: Build OpenSSL
         if: steps.cache.outputs.cache-hit != 'true'
         run: make
-        working-directory: "./openssl-1.1.1j/"
+        working-directory: "./openssl-${{ matrix.osslver }}/"
 
       - name: Install OpenSSL
         if: steps.cache.outputs.cache-hit != 'true'
         run: make install
-        working-directory: "./openssl-1.1.1j/"
+        working-directory: "./openssl-${{ matrix.osslver }}/"
 
       - name: autoreconf pkcs11-helper
         if: steps.cache.outputs.cache-hit != 'true'
