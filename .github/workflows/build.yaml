@@ -19,14 +19,14 @@ jobs:
     env:
       MAKEFLAGS: -j3
       LZO_VERSION: "2.10"
-      PKCS11_HELPER_VERSION: "1.26"
+      PKCS11_HELPER_VERSION: "pkcs11-helper-1.27"
       OPENSSL_VERSION: "${{ matrix.osslver }}"
       TAP_WINDOWS_VERSION: "9.23.3"
       CHOST: ${{ matrix.chost }}
       TARGET: ${{ matrix.target }}
     steps:
       - name: Install dependencies
-        run: sudo apt update && sudo apt install -y mingw-w64 libtool automake autoconf man2html unzip
+        run: sudo apt update && sudo apt install -y mingw-w64 libtool automake autoconf man2html unzip autoconf
       - name: Checkout ovpn-dco-win
         uses: actions/checkout@v2
         with:
@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: '~/mingw/'
-          key: ${{ matrix.target }}-mingw-${{ env.LZO_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}-${{ env.TAP_WINDOWS_VERSION }}-${{ matrix.osslver }}
+          key: key-${{ matrix.target }}-mingw-${{ env.LZO_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}-${{ env.TAP_WINDOWS_VERSION }}-${{ matrix.osslver }}
 
       # Repeating  if: steps.cache.outputs.cache-hit != 'true'
       # on every step for building dependencies is ugly but
@@ -57,12 +57,17 @@ jobs:
         run: |
           wget -c -P download-cache/ "https://build.openvpn.net/downloads/releases/tap-windows-${TAP_WINDOWS_VERSION}.zip"
           wget -c -P download-cache/ "https://www.oberhumer.com/opensource/lzo/download/lzo-${LZO_VERSION}.tar.gz"
-          wget -c -P download-cache/ "https://github.com/OpenSC/pkcs11-helper/archive/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz"
           wget -c -P download-cache/ "https://www.openssl.org/source/old/1.1.1/openssl-${OPENSSL_VERSION}.tar.gz" || wget -c -P download-cache/ "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" 
-          tar zxf "download-cache/pkcs11-helper-${PKCS11_HELPER_VERSION}.tar.gz"
           tar zxf "download-cache/openssl-${OPENSSL_VERSION}.tar.gz"
           tar zxf "download-cache/lzo-${LZO_VERSION}.tar.gz"
           unzip download-cache/tap-windows-${TAP_WINDOWS_VERSION}.zip
+
+      - name: Checkout pkcs11-helper
+        uses: actions/checkout@v2
+        with:
+          repository: OpenSC/pkcs11-helper
+          path: pkcs11-helper
+          ref: pkcs11-helper-1.27
 
       - name: Configure OpenSSL
         if: steps.cache.outputs.cache-hit != 'true'
@@ -82,22 +87,22 @@ jobs:
       - name: autoreconf pkcs11-helper
         if: steps.cache.outputs.cache-hit != 'true'
         run: autoreconf -iv
-        working-directory: "./pkcs11-helper-pkcs11-helper-1.26"
+        working-directory: "./pkcs11-helper"
 
       - name: configure pkcs11-helper
         if: steps.cache.outputs.cache-hit != 'true'
         run: OPENSSL_LIBS="-L${HOME}/mingw/opt/lib -lssl -lcrypto" OPENSSL_CFLAGS=-I$HOME/mingw/opt/include PKG_CONFIG_PATH=${HOME}/mingw/opt/lib/pkgconfig ./configure --host=${CHOST} --program-prefix='' --libdir=${HOME}/mingw/opt/lib --prefix=${HOME}/mingw/opt --build=x86_64-pc-linux-gnu --disable-crypto-engine-gnutls --disable-crypto-engine-nss --disable-crypto-engine-polarssl --disable-crypto-engine-mbedtls
-        working-directory: "./pkcs11-helper-pkcs11-helper-1.26"
+        working-directory: "./pkcs11-helper"
 
       - name: build pkcs11-helper
         if: steps.cache.outputs.cache-hit != 'true'
         run: make all
-        working-directory: "./pkcs11-helper-pkcs11-helper-1.26"
+        working-directory: "./pkcs11-helper"
 
       - name: install pkcs11-helper
         if: steps.cache.outputs.cache-hit != 'true'
         run: make install
-        working-directory: "./pkcs11-helper-pkcs11-helper-1.26"
+        working-directory: "./pkcs11-helper"
 
       - name: Configure lzo
         if: steps.cache.outputs.cache-hit != 'true'
