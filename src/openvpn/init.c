@@ -3427,8 +3427,8 @@ static void
 do_init_fragment(struct context *c)
 {
     ASSERT(c->options.ce.fragment);
-    frame_set_mtu_dynamic(&c->c2.frame_fragment,
-                          c->options.ce.fragment, SET_MTU_UPPER_BOUND);
+    frame_calculate_dynamic(&c->c2.frame_fragment, &c->c1.ks.key_type,
+                            &c->options, get_link_socket_info(c));
     fragment_frame_init(c->c2.fragment, &c->c2.frame_fragment);
 }
 #endif
@@ -4296,9 +4296,9 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
     }
 #endif
 
-    /* initialize dynamic MTU variable */
-    frame_calculate_mssfix(&c->c2.frame, &c->c1.ks.key_type, &c->options,
-                           get_link_socket_info(c));
+    /* initialize dynamic MTU based options (fragment/mssfix) */
+    frame_calculate_dynamic(&c->c2.frame, &c->c1.ks.key_type, &c->options,
+                            get_link_socket_info(c));
 
     /* bind the TCP/UDP socket */
     if (c->mode == CM_P2P || c->mode == CM_TOP || c->mode == CM_CHILD_TCP)
@@ -4349,6 +4349,11 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
     {
         link_socket_init_phase2(c);
     }
+
+    /* Update dynamic frame calculation as exact transport socket information
+     * (IP vs IPv6) may be only available after socket phase2 has finished */
+    frame_calculate_dynamic(&c->c2.frame, &c->c1.ks.key_type, &c->options,
+                            get_link_socket_info(c));
 
     /*
      * Actually do UID/GID downgrade, and chroot, if requested.
