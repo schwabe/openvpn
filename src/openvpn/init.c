@@ -1799,7 +1799,7 @@ do_open_tun(struct context *c)
                                              c->options.dev_type,
                                              c->options.dev_node,
                                              &gc);
-        do_ifconfig(c->c1.tuntap, guess, TUN_MTU_SIZE(&c->c2.frame), c->c2.es,
+        do_ifconfig(c->c1.tuntap, guess, c->c2.frame.tun_mtu, c->c2.es,
                     &c->net_ctx);
     }
 
@@ -1830,7 +1830,7 @@ do_open_tun(struct context *c)
         && ifconfig_order() == IFCONFIG_AFTER_TUN_OPEN)
     {
         do_ifconfig(c->c1.tuntap, c->c1.tuntap->actual_name,
-                    TUN_MTU_SIZE(&c->c2.frame), c->c2.es, &c->net_ctx);
+                    c->c2.frame.tun_mtu, c->c2.es, &c->net_ctx);
     }
 
     /* run the up script */
@@ -1842,7 +1842,7 @@ do_open_tun(struct context *c)
                 c->c1.tuntap->adapter_index,
 #endif
                 dev_type_string(c->options.dev, c->options.dev_type),
-                TUN_MTU_SIZE(&c->c2.frame),
+                c->c2.frame.tun_mtu,
                 print_in_addr_t(c->c1.tuntap->local, IA_EMPTY_IF_UNDEF, &gc),
                 print_in_addr_t(c->c1.tuntap->remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                 "init",
@@ -1891,7 +1891,7 @@ else
                     c->c1.tuntap->adapter_index,
 #endif
                     dev_type_string(c->options.dev, c->options.dev_type),
-                    TUN_MTU_SIZE(&c->c2.frame),
+                    c->c2.frame.tun_mtu,
                     print_in_addr_t(c->c1.tuntap->local, IA_EMPTY_IF_UNDEF, &gc),
                     print_in_addr_t(c->c1.tuntap->remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                     "restart",
@@ -1970,7 +1970,7 @@ do_close_tun(struct context *c, bool force)
                             adapter_index,
 #endif
                             NULL,
-                            TUN_MTU_SIZE(&c->c2.frame),
+                            c->c2.frame.tun_mtu,
                             print_in_addr_t(local, IA_EMPTY_IF_UNDEF, &gc),
                             print_in_addr_t(remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                             "init",
@@ -2000,7 +2000,7 @@ do_close_tun(struct context *c, bool force)
                         adapter_index,
 #endif
                         NULL,
-                        TUN_MTU_SIZE(&c->c2.frame),
+                        c->c2.frame.tun_mtu,
                         print_in_addr_t(local, IA_EMPTY_IF_UNDEF, &gc),
                         print_in_addr_t(remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                         "init",
@@ -2038,7 +2038,7 @@ do_close_tun(struct context *c, bool force)
                             adapter_index,
 #endif
                             NULL,
-                            TUN_MTU_SIZE(&c->c2.frame),
+                            c->c2.frame.tun_mtu,
                             print_in_addr_t(local, IA_EMPTY_IF_UNDEF, &gc),
                             print_in_addr_t(remote_netmask, IA_EMPTY_IF_UNDEF, &gc),
                             "restart",
@@ -2218,7 +2218,7 @@ void adjust_mtu_peerid(struct context *c)
     {
         msg(M_WARN, "OPTIONS IMPORT: WARNING: peer-id set, but link-mtu"
                     " fixed by config - reducing tun-mtu to %d, expect"
-                    " MTU problems", TUN_MTU_SIZE(&c->c2.frame));
+                    " MTU problems", c->c2.frame.tun_mtu);
     }
 }
 
