@@ -65,7 +65,7 @@ int
 xkey_digest(const unsigned char *src, size_t srclen, unsigned char *buf,
             size_t *buflen, const char *mdname)
 {
-    dmsg(D_LOW, "In xkey_digest");
+    dmsg(D_XKEY, "In xkey_digest");
     EVP_MD *md = EVP_MD_fetch(NULL, mdname, NULL); /* from default context */
     if (!md)
     {
