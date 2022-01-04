@@ -422,6 +422,8 @@ set(SOURCE_FILES
         src/openvpn/auth_token.h
         src/openvpn/ssl_ncp.c
         src/openvpn/ssl_ncp.h
+        src/openvpn/ssl_pkt.c
+        src/openvpn/ssl_pkt.h
         src/openvpn/ssl_util.c
         src/openvpn/ssl_util.h
         src/openvpn/vlan.c
@@ -485,7 +487,7 @@ if (WIN32)
 endif()
 
 
-SET(unit_tests "test_packet_id" "test_crypto" "test_ncp" "test_auth_token" "test_misc" "test_buffer")
+SET(unit_tests "test_packet_id" "test_crypto" "test_ncp" "test_auth_token" "test_misc" "test_buffer" "test_pkt")
 
 # These tests
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
@@ -525,6 +527,18 @@ FOREACH (test_name ${unit_tests})
         target_sources(${test_name} PRIVATE
                 src/openvpn/buffer.c
                 )
+    endif()
+
+    if (${test_name} STREQUAL "test_pkt")
+        target_sources(${test_name} PRIVATE
+                src/openvpn/argv.c
+                src/openvpn/env_set.c
+                src/openvpn/reliable.c
+                src/openvpn/run_command.c
+                src/openvpn/session_id.c
+                src/openvpn/ssl_pkt.c
+                src/openvpn/tls_crypt.c
+            )
     endif()
 
     if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
