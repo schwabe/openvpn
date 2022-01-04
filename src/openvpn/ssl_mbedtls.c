@@ -117,11 +117,6 @@ tls_free_lib(void)
 }
 
 void
-tls_clear_error(void)
-{
-}
-
-void
 tls_ctx_server_new(struct tls_root_ctx *ctx)
 {
     ASSERT(NULL != ctx);
