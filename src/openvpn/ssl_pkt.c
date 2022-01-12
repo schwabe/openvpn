@@ -302,9 +302,10 @@ tls_pre_decrypt_lite(const struct tls_auth_standalone *tas,
     bool reset = op == P_CONTROL_HARD_RESET_CLIENT_V2
         || op == P_CONTROL_HARD_RESET_CLIENT_V3;
     bool control = op == P_CONTROL_V1;
+    bool ack = op == P_ACK_V1;
 
     /* Allow only the reset packet or the first packet of the actual handshake. */
-    if (!reset && !control)
+    if (!reset && !control && !ack)
     {
         /*
          * This can occur due to bogus data or DoS packets.
@@ -368,10 +369,112 @@ tls_pre_decrypt_lite(const struct tls_auth_standalone *tas,
      * of authentication solely up to TLS.
      */
     gc_free(&gc);
-    return reset ? VERDICT_VALID_RESET : VERDICT_VALID_CONTROL_V1;
+    if (reset)
+    {
+        return VERDICT_VALID_RESET;
+    }
+    else if (ack)
+    {
+        return VERDICT_VALID_ACK_V1;
+    }
+    else
+    {
+        return VERDICT_VALID_CONTROL_V1;
+    }
 
     error:
     tls_clear_error();
     gc_free(&gc);
     return VERDICT_INVALID;
+}
+
+hmac_ctx_t *session_id_hmac_init(void)
+{
+    /* We assume that SHA256 is always available */
+    ASSERT(md_valid("SHA256"));
+    hmac_ctx_t *hmac_ctx = hmac_ctx_new();
+
+    uint8_t key[SHA256_DIGEST_LENGTH];
+    ASSERT(rand_bytes(key, sizeof(key)));
+
+    hmac_ctx_init(hmac_ctx, key, "SHA256");
+    return hmac_ctx;
+}
+
+struct session_id
+calculate_session_id_hmac(struct session_id client_sid,
+                          const struct link_socket_actual *from,
+                          hmac_ctx_t *hmac,
+                          int handwindow, int offset)
+{
+    union {
+        uint8_t hmac_result[SHA256_DIGEST_LENGTH];
+        struct session_id sid;
+    } result;
+
+    /* Get the valid time quantisation for our hmac,
+    * we divide time by handwindow/2 and allow the current
+    * and the previous timestamp */
+    uint32_t session_id_time = now/((handwindow+1)/2) + offset;
+
+    hmac_ctx_reset(hmac);
+    /* We do not care about endian here since it does not need to be
+     * portable */
+    hmac_ctx_update(hmac, (const uint8_t *) &session_id_time,
+                    sizeof(session_id_time));
+
+    /* add client IP and port */
+    switch (af_addr_size(from->dest.addr.sa.sa_family))
+    {
+    case AF_INET:
+        hmac_ctx_update(hmac, (const uint8_t *) &from->dest.addr.in4, sizeof(struct sockaddr_in));
+        break;
+    case AF_INET6:
+        hmac_ctx_update(hmac, (const uint8_t *) &from->dest.addr.in6, sizeof(struct sockaddr_in6));
+        break;
+    }
+
+    /* add session id of client */
+    hmac_ctx_update(hmac, client_sid.id, SID_SIZE);
+
+    hmac_ctx_final(hmac, result.hmac_result);
+
+    return result.sid;
+}
+
+bool
+check_session_id_hmac(struct session_id client_sid,
+                      const struct buffer *decoded_buf,
+                      const struct link_socket_actual *from,
+                      hmac_ctx_t *hmac,
+                      int handwindow)
+{
+    if (!from)
+    {
+        return false;
+    }
+
+    struct buffer buf = *decoded_buf;
+    struct session_id server_id;
+    struct reliable_ack ack;
+
+
+
+    if (!reliable_ack_parse(&buf, &ack, &server_id))
+    {
+        return false;
+    }
+
+    for (int i=-1; i<=1; i++)
+    {
+
+        struct session_id expected_id =
+            calculate_session_id_hmac(client_sid, from, hmac, handwindow, i);
+
+        if (memcmp_constant_time(&expected_id, &server_id, SID_SIZE))
+        {
+            return true;
+        }
+    }
+    return false;
 }

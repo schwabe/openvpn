@@ -121,6 +121,10 @@ multi_get_create_instance_udp(struct multi_context *m, bool *floated)
         {
             if (do_pre_decrypt_check(m))
             {
+                /* This is an unknown session but with valid tls-auth/tls-crypt (or no auth at all),
+                 * if this is the initial packet of a session, we just send a reply with a HMAC session id and do not
+                 * generate a session slot */
+
                 if (frequency_limit_event_allowed(m->new_connection_limiter))
                 {
                     mi = multi_create_instance(m, &real);
@@ -380,4 +384,3 @@ tunnel_server_udp(struct context *top)
     multi_top_free(&multi);
     close_instance(top);
 }
-

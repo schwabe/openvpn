@@ -55,6 +55,7 @@
 #include "auth_token.h"
 #include "mss.h"
 #include "dco.h"
+#include "mudp.h"
 
 #include "memdbg.h"
 
@@ -68,6 +69,7 @@ static const char *saved_pid_file_name; /* GLOBAL */
 #define CF_LOAD_PERSISTED_PACKET_ID (1<<0)
 #define CF_INIT_TLS_MULTI           (1<<1)
 #define CF_INIT_TLS_AUTH_STANDALONE (1<<2)
+#define CF_INIT_SESIONID_HMAC       (1<<2)
 
 static void do_init_first_time(struct context *c);
 static bool do_deferred_p2p_ncp(struct context *c);
@@ -3106,6 +3108,12 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     {
         c->c2.tls_auth_standalone = tls_auth_standalone_init(&to, &c->c2.gc);
     }
+
+    if (flags & CF_INIT_SESIONID_HMAC)
+    {
+        c->c2.session_id_hmac = session_id_hmac_init();
+    }
+
 }
 
 static void
@@ -4225,7 +4233,7 @@ init_instance(struct context *c, const struct env_set *env, const unsigned int f
         unsigned int crypto_flags = 0;
         if (c->mode == CM_TOP)
         {
-            crypto_flags = CF_INIT_TLS_AUTH_STANDALONE;
+            crypto_flags = CF_INIT_TLS_AUTH_STANDALONE | CF_INIT_SESIONID_HMAC;
         }
         else if (c->mode == CM_P2P)
         {
