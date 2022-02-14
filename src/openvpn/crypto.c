@@ -370,7 +370,7 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
 
     ASSERT(ad_start >= buf->data && ad_start <= BPTR(buf));
 
-    ASSERT(buf_init(&work, FRAME_HEADROOM(frame)));
+    ASSERT(buf_init(&work, frame->buf.headroom));
 
     /* IV and Packet ID required for this mode */
     ASSERT(packet_id_initialized(&opt->packet_id));
@@ -533,7 +533,7 @@ openvpn_decrypt_v1(struct buffer *buf, struct buffer work,
             int outlen;
 
             /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
-            ASSERT(buf_init(&work, FRAME_HEADROOM(frame)));
+            ASSERT(buf_init(&work, frame->buf.headroom));
 
             /* read the IV from the packet */
             if (buf->len < iv_size)
@@ -1035,7 +1035,7 @@ test_crypto(struct crypto_options *co, struct frame *frame)
     void *buf_p;
 
     /* init work */
-    ASSERT(buf_init(&work, FRAME_HEADROOM(frame)));
+    ASSERT(buf_init(&work, frame->buf.headroom));
 
     /* init implicit IV */
     {
@@ -1079,7 +1079,7 @@ test_crypto(struct crypto_options *co, struct frame *frame)
         memcpy(buf_p, BPTR(&src), BLEN(&src));
 
         /* initialize work buffer with FRAME_HEADROOM bytes of prepend capacity */
-        ASSERT(buf_init(&encrypt_workspace, FRAME_HEADROOM(frame)));
+        ASSERT(buf_init(&encrypt_workspace, frame->buf.headroom));
 
         /* encrypt */
         openvpn_encrypt(&buf, encrypt_workspace, co);
