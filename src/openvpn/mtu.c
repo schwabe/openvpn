@@ -363,6 +363,17 @@ format_extended_socket_error(int fd, int *mtu, struct gc_arena *gc)
                     buf_printf(&out, "CMSG=%d|", cmsg->cmsg_type);
                 }
             }
+            else if (cmsg->cmsg_level == IPPROTO_IPV6)
+            {
+                if (cmsg->cmsg_type == IPV6_RECVERR)
+                {
+                    e = (struct sock_extended_err *) CMSG_DATA(cmsg);
+                }
+                else
+                {
+                    buf_printf(&out,"CMSG=%d|", cmsg->cmsg_type);
+                }
+            }
         }
         if (e == NULL)
         {
