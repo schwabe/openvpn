@@ -79,6 +79,12 @@ Cookie based handshake for UDP server
     shake. The tls-crypt-v2 option allows controlling if older clients are
     accepted.
 
+Improved control channel packet size control (``--tls-mtu``)
+    The size of control channel is no longer tied to
+    ``--link-mtu``/``--tun-mtu`` and can be set using ``--tls-mtu``. Setting
+    the size to small sizes no longer breaks the OpenVPN protocol in certain
+    situation.
+
 Deprecated features
 -------------------
 ``inetd`` has been removed
@@ -141,6 +147,8 @@ User-visible Changes
 - Option ``--nobind`` is default when ``--client`` or ``--pull`` is used in the configuration
 - :code:`link_mtu` parameter is removed from environment or replaced with 0 when scripts are
   called with parameters. This parameter is unreliable and no longer internally calculated.
+- control channel packet maximum size is no longer influenced by ``--link-mtu``/``--tun-mtu``
+  and must be set by ``--tls-mtu`` now.
 
 Overview of changes in 2.5
 ==========================
