@@ -323,15 +323,59 @@ tls_init_control_channel_frame_parameters(const struct frame *data_channel_frame
     /* Previous OpenVPN version calculated the maximum size and buffer of a
      * control frame depending on the overhead of the data channel frame
      * overhead and limited its maximum size to 1250. We always allocate the
-     * 1250 buffer size since a lot of code blindly assumes a large buffer
-     * (e.g. PUSH_BUNDLE_SIZE) and set frame->mtu_mtu as suggestion for the
+     * TLS_CHANNEL_BUF_SIZE buffer size since a lot of code blindly assumes
+     * a large buffer (e.g. PUSH_BUNDLE_SIZE) and also our peer might have
+     * a higher size configure and we still want to be able to receive the
+     * packets. frame->mtu_mtu is set as suggestion for the maximum packet
      * size */
-    frame->buf.payload_size = 1250 + overhead;
+    frame->buf.payload_size = TLS_CHANNEL_BUF_SIZE + overhead;
 
     frame->buf.headroom = overhead;
     frame->buf.tailroom = overhead;
 
     frame->tun_mtu = min_int(data_channel_frame->tun_mtu, 1250);
+}
+
+/**
+ * calculate the maximum overhead that control channel frames have
+ * This includes header, op code and everything apart from the
+ * payload itself. This method is a bit pessmistic and might give higher
+ * overhead that we actually have */
+static int
+calc_control_channel_frame_overhead(const struct tls_session *session)
+{
+    const struct key_state *ks = &session->key[KS_PRIMARY];
+    int overhead = 0;
+
+    /* TCP length field and opcode */
+    overhead+= 3;
+
+    /* our own session id */
+    overhead += SID_SIZE;
+
+    /* ACK array and remote SESSION ID (part of the ACK array) */
+    overhead += ACK_SIZE(min_int(reliable_ack_outstanding(ks->rec_ack), CONTROL_SEND_ACK_MAX));
+
+    /* Message packet id */
+    overhead += sizeof(packet_id_type);
+
+    if (session->tls_wrap.mode == TLS_WRAP_CRYPT)
+    {
+        overhead += tls_crypt_buf_overhead();
+        overhead += packet_id_size(true);
+    }
+    else if (session->tls_wrap.mode == TLS_WRAP_AUTH)
+    {
+        overhead += hmac_ctx_size(session->tls_wrap.opt.key_ctx_bi.encrypt.hmac);
+        overhead += packet_id_size(true);
+    }
+
+    /* Add the typical UDP overhead for an IPv6 UDP packet. TCP+IPv6 has a
+     * larger overhead but the risk of a TCP connection getting dropped because
+     * we try to send a too large packet is basically zero */
+    overhead += datagram_overhead(AF_INET6, PROTO_UDP);
+
+    return overhead;
 }
 
 void
@@ -2627,7 +2671,7 @@ read_incoming_tls_plaintext(struct key_state *ks, struct buffer *buf,
 {
     ASSERT(buf_init(buf, 0));
 
-    int status = key_state_read_plaintext(&ks->ks_ssl, buf, TLS_CHANNEL_BUF_SIZE);
+    int status = key_state_read_plaintext(&ks->ks_ssl, buf);
 
     update_time();
     if (status == -1)
@@ -2643,6 +2687,91 @@ read_incoming_tls_plaintext(struct key_state *ks, struct buffer *buf,
         /* More data may be available, wake up again asap to check. */
         *wakeup = 0;
     }
+    return true;
+}
+
+static bool
+write_outgoing_tls_ciphertext(struct tls_session *session, bool *state_change)
+{
+    struct key_state *ks = &session->key[KS_PRIMARY];
+
+    int rel_avail = reliable_get_num_output_sequenced_available(ks->send_reliable);
+    if (rel_avail == 0)
+    {
+        return true;
+    }
+
+    /* We need to determine how much space is actually available in the control
+     * channel frame */
+
+    int max_pkt_len = min_int(TLS_CHANNEL_BUF_SIZE, session->opt->frame.tun_mtu);
+
+
+    /* Subtract overhead */
+    max_pkt_len -= calc_control_channel_frame_overhead(session);
+
+    /* calculate total available length for outgoing tls ciphertext */
+    int maxlen = max_pkt_len * rel_avail;
+
+    /* Is first packet one that will have a WKC appended? */
+    if (control_packet_needs_wkc(ks))
+    {
+        maxlen -= buf_len(session->tls_wrap.tls_crypt_v2_wkc);
+    }
+
+    /* Not enough space available to send a full control channel packet */
+    if (maxlen < TLS_CHANNEL_BUF_SIZE)
+    {
+        if (rel_avail == TLS_RELIABLE_N_SEND_BUFFERS)
+        {
+            msg(D_TLS_ERRORS, "--tls-mtu setting to low. Unable to send TLS packets");
+        }
+        msg(D_REL_LOW, "Reliable: Send queue full, postponing TLS send");
+        return true;
+    }
+
+    /* This seems a bit wasteful to allocate every time */
+    struct gc_arena gc = gc_new();
+    struct buffer tmp = alloc_buf_gc(TLS_CHANNEL_BUF_SIZE, &gc);
+
+    int status = key_state_read_ciphertext(&ks->ks_ssl, &tmp);
+
+    if (status == -1)
+    {
+        msg(D_TLS_ERRORS,
+            "TLS Error: Ciphertext -> reliable TCP/UDP transport read error");
+        gc_free(&gc);
+        return false;
+    }
+    if (status == 1)
+    {
+        /* Split the TLS ciphertext (TLS record) into multiple small packets
+         * that respect tls_mtu */
+        while (tmp.len)
+        {
+            int len = max_pkt_len;
+            int opcode = P_CONTROL_V1;
+            if (control_packet_needs_wkc(ks))
+            {
+                opcode = P_CONTROL_WKC_V1;
+                len = max_int(0, len - buf_len(session->tls_wrap.tls_crypt_v2_wkc));
+            }
+            /* do not send more than available */
+            len = min_int(len, tmp.len);
+
+            struct buffer *buf = reliable_get_buf_output_sequenced(ks->send_reliable);
+            /* we assert here since we checked for its availibility before */
+            ASSERT(buf);
+            buf_copy_n(buf, &tmp, len);
+
+            reliable_mark_active_outgoing(ks->send_reliable, buf, opcode);
+            INCR_GENERATED;
+            *state_change = true;
+        }
+        dmsg(D_TLS_DEBUG, "Outgoing Ciphertext -> Reliable");
+    }
+
+    gc_free(&gc);
     return true;
 }
 
@@ -2800,25 +2929,9 @@ tls_process_state(struct tls_multi *multi,
         buf = reliable_get_buf_output_sequenced(ks->send_reliable);
         if (buf)
         {
-            int status = key_state_read_ciphertext(&ks->ks_ssl, buf, multi->opt.frame.tun_mtu);
-
-            if (status == -1)
+            if (!write_outgoing_tls_ciphertext(session, &state_change))
             {
-                msg(D_TLS_ERRORS,
-                    "TLS Error: Ciphertext -> reliable TCP/UDP transport read error");
                 goto error;
-            }
-            if (status == 1)
-            {
-                int opcode = P_CONTROL_V1;
-                if (control_packet_needs_wkc(ks))
-                {
-                    opcode = P_CONTROL_WKC_V1;
-                }
-                reliable_mark_active_outgoing(ks->send_reliable, buf, opcode);
-                INCR_GENERATED;
-                state_change = true;
-                dmsg(D_TLS_DEBUG, "Outgoing Ciphertext -> Reliable");
             }
         }
     }
