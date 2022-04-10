@@ -99,6 +99,11 @@ Inline auth username and password
     missing OpenVPN will prompt for input via stdin. This applies to inline'd
     http-proxy-user-pass too.
 
+Improved control channel packet size control (``--tls-mtu``)
+    The size of control channel is no longer tied to
+    ``--link-mtu``/``--tun-mtu`` and can be set using ``--tls-mtu``. Setting
+    the size to small sizes no longer breaks the OpenVPN protocol in certain
+    situation.
 
 Deprecated features
 -------------------
@@ -162,6 +167,8 @@ User-visible Changes
 - Option ``--nobind`` is default when ``--client`` or ``--pull`` is used in the configuration
 - :code:`link_mtu` parameter is removed from environment or replaced with 0 when scripts are
   called with parameters. This parameter is unreliable and no longer internally calculated.
+- control channel packet maximum size is no longer influenced by ``--link-mtu``/``--tun-mtu``
+  and must be set by ``--tls-mtu`` now.
 
 - In point-to-point OpenVPN setups (no ``--server``), using
   ``--explict-exit-notiy`` on one end would terminate the other side at

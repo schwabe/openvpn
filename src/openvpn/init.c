@@ -2640,6 +2640,10 @@ frame_finalize_options(struct context *c, const struct options *o)
      * space */
     size_t payload_size = max_int(1500, frame->tun_mtu);
 
+    /* we need to be also large enough to hold larger control channel packets
+     * if configured */
+    payload_size = max_int(payload_size, o->ce.tls_mtu);
+
     /* The extra tun needs to be added to the payload size */
     if (o->ce.tun_mtu_defined)
     {
@@ -3187,7 +3191,7 @@ do_init_frame_tls(struct context *c)
 {
     if (c->c2.tls_multi)
     {
-        tls_multi_init_finalize(c->c2.tls_multi, &c->c2.frame);
+        tls_multi_init_finalize(c->c2.tls_multi, c->options.ce.tls_mtu);
         ASSERT(c->c2.tls_multi->opt.frame.buf.payload_size <=
                c->c2.frame.buf.payload_size);
         frame_print(&c->c2.tls_multi->opt.frame, D_MTU_INFO,
@@ -3195,7 +3199,7 @@ do_init_frame_tls(struct context *c)
     }
     if (c->c2.tls_auth_standalone)
     {
-        tls_init_control_channel_frame_parameters(&c->c2.frame, &c->c2.tls_auth_standalone->frame);
+        tls_init_control_channel_frame_parameters(&c->c2.tls_auth_standalone->frame, c->options.ce.tls_mtu);
         frame_print(&c->c2.tls_auth_standalone->frame, D_MTU_INFO,
                     "TLS-Auth MTU parms");
         c->c2.tls_auth_standalone->tls_wrap.work = alloc_buf_gc(BUF_SIZE(&c->c2.frame), &c->c2.gc);
