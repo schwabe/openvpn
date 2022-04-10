@@ -454,3 +454,10 @@ the local and the remote host.
      if mode server:
          socket-flags TCP_NODELAY
          push "socket-flags TCP_NODELAY"
+
+--tls-mtu size
+  This option sets the maximum size for control channel packets. OpenVPN will
+  try to keep its control channel messages below this size but due to some
+  constraints in the protocol this is not always possible. If the option is
+  not set, it default to 1250. Valid sizes are between 512 and 2048.
+  The maximum packet size includes encapsulation overhead like UDP and IP.

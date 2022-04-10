@@ -68,6 +68,16 @@ typedef unsigned long ptr_type;
  */
 #define TLS_CHANNEL_BUF_SIZE 2048
 
+/* TLS control buffer minimum size, this size is not actually inherent to
+ * the protocol but. Our current sending window is 6 and the receive window
+ * is 8 or 12 depending on the OpenVPN version. We need to be able to send
+ * a TLS record of size TLS_CHANNEL_BUF_SIZE. Splitting this into more than
+ * 6 packets (with overhead) would complicate our sending logic a lot more, so
+ * we settle here for a "round" number that allow with overhead of ~100 bytes
+ * to be larger than TLS_CHANNEL_BUF_SIZE. E.g. 6x ~400 > 2048.
+ * */
+#define TLS_CHANNEL_MTU_MIN 512
+
 /*
  * This parameter controls the maximum size of a bundle
  * of pushed options.

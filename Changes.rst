@@ -94,6 +94,12 @@ Tun MTU can be pushed
     ``--tun-mtu-max`` has been introduced to specify the maximum pushable
     MTU size.
 
+Improved control channel packet size control (``--tls-mtu``)
+    The size of control channel is no longer tied to
+    ``--link-mtu``/``--tun-mtu`` and can be set using ``--tls-mtu``. Setting
+    the size to small sizes no longer breaks the OpenVPN protocol in certain
+    situations.
+
 Deprecated features
 -------------------
 ``inetd`` has been removed
@@ -161,6 +167,9 @@ User-visible Changes
   (newer clients allow pushable mtu) but the most common server platforms
   (Linux and FreeBSD) allow receiving 1500 byte packets even when tun-mtu is
   set to 1420, still allowing larger packets from clients with 1500 byte MTU.
+- control channel packet maximum size is no longer influenced by ``--link-mtu``/``--tun-mtu``
+  and must be set by ``--tls-mtu`` now.
+
 
 Overview of changes in 2.5
 ==========================

@@ -84,6 +84,11 @@
 #define MTU_ENCAP_DEFAULT   1492
 
 /*
+ * Default maximum size of control channel packets
+ */
+#define TLS_MTU_DEFAULT    1250
+
+/*
  * Alignment of payload data such as IP packet or
  * ethernet frame.
  */
