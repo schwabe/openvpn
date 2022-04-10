@@ -815,6 +815,7 @@ init_options(struct options *o, const bool init_gc)
     o->ce.bind_local = true;
     o->ce.tun_mtu = TUN_MTU_DEFAULT;
     o->ce.link_mtu = LINK_MTU_DEFAULT;
+    o->ce.tls_mtu = TLS_MTU_DEFAULT;
     o->ce.mtu_discover_type = -1;
     o->ce.mssfix = 0;
     o->ce.mssfix_default = true;
@@ -1582,6 +1583,7 @@ show_connection_entry(const struct connection_entry *o)
     SHOW_BOOL(link_mtu_defined);
     SHOW_INT(tun_mtu_extra);
     SHOW_BOOL(tun_mtu_extra_defined);
+    SHOW_INT(tls_mtu);
 
     SHOW_INT(mtu_discover_type);
 
@@ -6280,6 +6282,18 @@ add_option(struct options *options,
         VERIFY_PERMISSION(OPT_P_MTU|OPT_P_CONNECTION);
         options->ce.tun_mtu_extra = positive_atoi(p[1]);
         options->ce.tun_mtu_extra_defined = true;
+    }
+    else if (streq(p[0], "tls-mtu") && p[1] && !p[2])
+    {
+        VERIFY_PERMISSION(OPT_P_MTU|OPT_P_CONNECTION);
+        int tls_mtu = atoi(p[1]);
+        if (tls_mtu < 512 || tls_mtu > TLS_CHANNEL_BUF_SIZE)
+        {
+            msg(msglevel, "Bad tls-mtu value, must be between %d and %d",
+                512, TLS_CHANNEL_BUF_SIZE);
+            goto err;
+        }
+        options->ce.tls_mtu = positive_atoi(p[1]);
     }
 #ifdef ENABLE_FRAGMENT
     else if (streq(p[0], "mtu-dynamic"))
