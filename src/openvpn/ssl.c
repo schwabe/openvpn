@@ -349,13 +349,14 @@ calc_control_channel_frame_overhead(const struct tls_session *session)
     int overhead = 0;
 
     /* TCP length field and opcode */
-    overhead+= 3;
+    overhead += 3;
 
     /* our own session id */
     overhead += SID_SIZE;
 
     /* ACK array and remote SESSION ID (part of the ACK array) */
-    overhead += ACK_SIZE(min_int(reliable_ack_outstanding(ks->rec_ack), CONTROL_SEND_ACK_MAX));
+    int ackstosend = reliable_ack_outstanding(ks->rec_ack) + ks->lru_acks->len;
+    overhead += ACK_SIZE(min_int(ackstosend, CONTROL_SEND_ACK_MAX));
 
     /* Message packet id */
     overhead += sizeof(packet_id_type);
@@ -982,6 +983,7 @@ key_state_init(struct tls_session *session, struct key_state *ks)
     ALLOC_OBJ_CLEAR(ks->send_reliable, struct reliable);
     ALLOC_OBJ_CLEAR(ks->rec_reliable, struct reliable);
     ALLOC_OBJ_CLEAR(ks->rec_ack, struct reliable_ack);
+    ALLOC_OBJ_CLEAR(ks->lru_acks, struct reliable_ack);
 
     /* allocate buffers */
     ks->plaintext_read_buf = alloc_buf(TLS_CHANNEL_BUF_SIZE);
@@ -1052,6 +1054,7 @@ key_state_free(struct key_state *ks, bool clear)
     reliable_free(ks->rec_reliable);
 
     free(ks->rec_ack);
+    free(ks->lru_acks);
     free(ks->key_src);
 
     packet_id_free(&ks->crypto_options.packet_id);
