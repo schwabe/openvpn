@@ -210,6 +210,39 @@ test_get_num_output_sequenced_available(void **state)
     reliable_free(rel);
 }
 
+
+static void
+test_copy_acks_to_lru(void **state)
+{
+    struct reliable_ack ack = { .len = 4, .packet_id = {2, 1, 3, 2} };
+
+    struct reliable_ack lru_ack = { 0 };
+
+    /* Test copying to empty ack structure */
+    copy_acks_to_lru(&ack, &lru_ack, 4);
+    assert_int_equal(lru_ack.len, 3);
+    assert_int_equal(lru_ack.packet_id[0], 2);
+    assert_int_equal(lru_ack.packet_id[1], 1);
+    assert_int_equal(lru_ack.packet_id[2], 3);
+
+    /* Copying again should not change the result */
+    copy_acks_to_lru(&ack, &lru_ack, 4);
+    assert_int_equal(lru_ack.len, 3);
+    assert_int_equal(lru_ack.packet_id[0], 2);
+    assert_int_equal(lru_ack.packet_id[1], 1);
+    assert_int_equal(lru_ack.packet_id[2], 3);
+
+    struct reliable_ack ack2 = { .len = 7, .packet_id = {5, 6, 7, 8, 9,10,11} };
+
+    /* Adding multiple acks tests if the a full array is handled correctly */
+    copy_acks_to_lru(&ack2, &lru_ack, 7);
+
+    struct reliable_ack expected_ack = { .len = 8, .packet_id = {5, 6, 7, 8, 9, 10, 11,2}};
+    assert_int_equal(lru_ack.len, expected_ack.len);
+
+    assert_memory_equal(lru_ack.packet_id, expected_ack.packet_id, sizeof(expected_ack.packet_id));
+}
+
 int
 main(void)
 {
@@ -232,7 +265,9 @@ main(void)
         cmocka_unit_test_setup_teardown(test_packet_id_write_long_wrap,
                                         test_packet_id_write_setup,
                                         test_packet_id_write_teardown),
-        cmocka_unit_test(test_get_num_output_sequenced_available)
+        cmocka_unit_test(test_get_num_output_sequenced_available),
+        cmocka_unit_test(test_copy_acks_to_lru)
+
     };
 
     return cmocka_run_group_tests_name("packet_id tests", tests, NULL, NULL);
