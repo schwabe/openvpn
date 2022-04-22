@@ -206,10 +206,56 @@ reliable_ack_parse(struct buffer *buf, struct reliable_ack *ack,
     return true;
 }
 
+/**
+ * Copies the first n acks from \c ack to \c ack_lru
+ */
+void
+copy_acks_to_lru(struct reliable_ack *ack, struct reliable_ack *ack_lru, int n)
+{
+    ASSERT(ack->len >= n);
+    /* This loops is backward to ensure the same order as in ack */
+    for (int i = n-1; i >= 0; i--)
+    {
+        packet_id_type id = ack->packet_id[i];
+
+        /* Handle special case of ack_lru empty */
+        if (ack_lru->len == 0)
+        {
+            ack_lru->len = 1;
+            ack_lru->packet_id[0] = id;
+        }
+
+        bool idfound = false;
+
+        /* Move all existing entry one to the right */
+        packet_id_type move = id;
+
+        for (int j = 0; j < ack_lru->len; j++)
+        {
+            packet_id_type tmp = ack_lru->packet_id[j];
+            ack_lru->packet_id[j] = move;
+            move = tmp;
+
+            if (move == id)
+            {
+                idfound = true;
+                break;
+            }
+        }
+
+        if (!idfound && ack_lru->len < RELIABLE_ACK_SIZE)
+        {
+            ack_lru->packet_id[ack_lru->len] = move;
+            ack_lru->len++;
+        }
+    }
+}
+
 /* write a packet ID acknowledgement record to buf, */
 /* removing all acknowledged entries from ack */
 bool
 reliable_ack_write(struct reliable_ack *ack,
+                   struct reliable_ack *ack_lru,
                    struct buffer *buf,
                    const struct session_id *sid, int max, bool prepend)
 {
@@ -222,23 +268,36 @@ reliable_ack_write(struct reliable_ack *ack,
     {
         n = max;
     }
-    sub = buf_sub(buf, ACK_SIZE(n), prepend);
+
+    copy_acks_to_lru(ack, ack_lru, n);
+
+    /* Number of acks we can resend that still fit into the packet */
+    uint8_t total_acks = min_int(max, ack_lru->len);
+
+    sub = buf_sub(buf, ACK_SIZE(total_acks), prepend);
     if (!BDEF(&sub))
     {
         goto error;
     }
-    ASSERT(buf_write(&sub, &n, sizeof(n)));
-    for (i = 0; i < n; ++i)
+    ASSERT(buf_write_u8(&sub, total_acks));
+
+    /* Write the actual acks to the packets. Since we copied the acks that
+     * are going out now already to the front of ack_lru we can fetch all
+     * acks from ack_lru */
+    for (i = 0; i < total_acks; ++i)
     {
-        packet_id_type pid = ack->packet_id[i];
+        packet_id_type pid = ack_lru->packet_id[i];
         packet_id_type net_pid = htonpid(pid);
         ASSERT(buf_write(&sub, &net_pid, sizeof(net_pid)));
         dmsg(D_REL_DEBUG, "ACK write ID " packet_id_format " (ack->len=%d, n=%d)", (packet_id_print_type)pid, ack->len, n);
     }
-    if (n)
+    if (total_acks)
     {
         ASSERT(session_id_defined(sid));
         ASSERT(session_id_write(sid, &sub));
+    }
+    if (n)
+    {
         for (i = 0, j = n; j < ack->len; )
         {
             ack->packet_id[i++] = ack->packet_id[j++];
