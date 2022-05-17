@@ -1803,6 +1803,11 @@ multi_client_set_protocol_options(struct context *c)
     }
 #endif
 
+    if (proto & IV_PROTO_CC_EXIT_NOTIFY)
+    {
+        o->data_channel_crypto_flags |= CO_USE_CC_EXIT_NOTIFY;
+    }
+
     /* Select cipher if client supports Negotiable Crypto Parameters */
 
     /* if we have already created our key, we cannot *change* our own

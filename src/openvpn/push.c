@@ -180,6 +180,21 @@ server_pushed_signal(struct context *c, const struct buffer *buffer, const bool 
 }
 
 void
+receive_exit_message(struct context *c)
+{
+    dmsg(D_STREAM_ERRORS, "Exit message received by peer");
+    c->sig->signal_received = SIGTERM;
+    c->sig->signal_text = "remote-exit";
+#ifdef ENABLE_MANAGEMENT
+    if (management)
+    {
+        management_notify(management, "info", c->sig->signal_text, "EXIT");
+    }
+#endif
+}
+
+
+void
 server_pushed_info(struct context *c, const struct buffer *buffer,
                    const int adv)
 {
@@ -621,6 +636,10 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
                 "to client configuration.", client_max_mtu,
                 o->ce.tun_mtu, o->ce.tun_mtu);
         }
+    }
+    if (o->data_channel_crypto_flags & CO_USE_CC_EXIT_NOTIFY)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "protocol-flags cc-exit");
     }
 
     return true;
