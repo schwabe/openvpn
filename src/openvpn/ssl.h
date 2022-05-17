@@ -96,6 +96,9 @@
 /** Supports the --dns option introduced in version 2.6 */
 #define IV_PROTO_DNS_OPTION      (1<<6)
 
+/** Support for explicit exit notify via control channel */
+#define IV_PROTO_CC_EXIT_NOTIFY  (1<<7)
+
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 
