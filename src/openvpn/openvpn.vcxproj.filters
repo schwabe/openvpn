@@ -416,6 +416,9 @@
     <ClInclude Include="options.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="options_util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="otime.h">
       <Filter>Header Files</Filter>
     </ClInclude>
