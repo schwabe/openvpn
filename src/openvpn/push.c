@@ -180,6 +180,21 @@ server_pushed_signal(struct context *c, const struct buffer *buffer, const bool 
 }
 
 void
+receive_exit_message(struct context *c)
+{
+    dmsg(D_STREAM_ERRORS, "Exit message received by peer");
+    c->sig->signal_received = SIGTERM;
+    c->sig->signal_text = "remote-exit";
+#ifdef ENABLE_MANAGEMENT
+    if (management)
+    {
+        management_notify(management, "info", c->sig->signal_text, "EXIT");
+    }
+#endif
+}
+
+
+void
 server_pushed_info(struct context *c, const struct buffer *buffer,
                    const int adv)
 {
@@ -606,6 +621,27 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
     {
         push_option_fmt(gc, push_list, M_USAGE, "key-derivation tls-ekm");
     }
+
+    /* Push our mtu to the peer if it supports pushable MTUs */
+    int client_max_mtu = 0;
+    const char *iv_mtu = extract_var_peer_info(tls_multi->peer_info, "IV_MTU=", gc);
+
+    if (iv_mtu && sscanf(iv_mtu, "%d", &client_max_mtu) == 1)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "tun-mtu %d", o->ce.tun_mtu);
+        if (client_max_mtu < o->ce.tun_mtu)
+        {
+            msg(M_WARN, "Warning: reported maximum MTU from client (%d) is lower "
+                "than MTU used on the server (%d). Add tun-max-mtu %d "
+                "to client configuration.", client_max_mtu,
+                o->ce.tun_mtu, o->ce.tun_mtu);
+        }
+    }
+    if (o->data_channel_crypto_flags & CO_USE_CC_EXIT_NOTIFY)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "protocol-flags cc-exit");
+    }
+
     return true;
 }
 

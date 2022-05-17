@@ -8467,6 +8467,8 @@ add_option(struct options *options,
     }
     else if (streq(p[0], "key-derivation") && p[1])
     {
+        /* NCP only option that is pushed by the server to enable EKM,
+         * should not be used by normal users in config files*/
         VERIFY_PERMISSION(OPT_P_NCP)
 #ifdef HAVE_EXPORT_KEYING_MATERIAL
         if (streq(p[1], "tls-ekm"))
@@ -8477,6 +8479,24 @@ add_option(struct options *options,
 #endif
         {
             msg(msglevel, "Unknown key-derivation method %s", p[1]);
+        }
+    }
+    else if (streq(p[0], "protocol-flags") && p[1])
+    {
+        /* NCP only option that is pushed by the server to enable protocol
+         * features that are negotiated, should not be used by normal users
+         * in config files */
+        VERIFY_PERMISSION(OPT_P_NCP)
+        for (size_t j = 1; j < MAX_PARMS && p[j] != NULL; j++)
+        {
+            if (streq(p[j], "cc-exit"))
+            {
+                options->data_channel_crypto_flags |= CO_USE_CC_EXIT_NOTIFY;
+            }
+            else
+            {
+                msg(msglevel, "Unknown protocol-flags flag: %s", p[j]);
+            }
         }
     }
     else if (streq(p[0], "prng") && p[1] && !p[3])
