@@ -99,6 +99,9 @@
 /** Support for explicit exit notify via control channel */
 #define IV_PROTO_CC_EXIT_NOTIFY  (1<<7)
 
+/** Support for AUTH_FAIL,TEMP messages */
+#define IV_PROTO_AUTH_FAIL_TEMP  (1<<8)
+
 /* Default field in X509 to be username */
 #define X509_USERNAME_FIELD_DEFAULT "CN"
 

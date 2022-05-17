@@ -1972,17 +1972,22 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
         /* support for exit notify via control channel */
         iv_proto |= IV_PROTO_CC_EXIT_NOTIFY;
 
-        /* support for receiving push_reply before sending
-         * push request, also signal that the client wants
-         * to get push-reply messages without without requiring a round
-         * trip for a push request message*/
         if (session->opt->pull)
         {
+            /* support for receiving push_reply before sending
+             * push request, also signal that the client wants
+             * to get push-reply messages without requiring a round
+             * trip for a push request message*/
             iv_proto |= IV_PROTO_REQUEST_PUSH;
+
+            /* Support keywords in the AUTH_PENDING control message */
             iv_proto |= IV_PROTO_AUTH_PENDING_KW;
 
             /* support for tun-mtu as part of the push message */
             buf_printf(&out, "IV_MTU=%d\n", session->opt->frame.tun_max_mtu);
+
+            /* support for AUTH_FAIL,TEMP control message */
+            iv_proto |= IV_PROTO_AUTH_FAIL_TEMP;
         }
 
         /* support for Negotiable Crypto Parameters */
