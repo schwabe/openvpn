@@ -49,6 +49,13 @@
 #define SELECT_PREFERRED_OVER_POLL
 #endif
 
+/* All of the BSD variants (including macOS) support Kqueue */
+#if defined(TARGET_FREEBSD) || defined(TARGET_DRAGONFLY)  \
+    || defined(TARGET_NETBSD) || defined(TARGET_OPENBSD) \
+    || defined(TARGET_DARWIN)
+#define KQUEUE 1
+#include <sys/event.h>
+#endif
 /*
  * All non-windows OSes are assumed to have select()
  */
@@ -689,6 +696,164 @@ ep_init(int *maxevents, unsigned int flags)
 }
 #endif /* EPOLL */
 
+#if KQUEUE
+
+struct kqueue_set
+{
+    struct event_set_functions func;
+    struct kevent *evlist;
+    int fd;
+
+};
+
+static void
+kqueue_free(struct event_set *es)
+{
+    struct kqueue_set *kes = (struct kqueue_set *) es;
+    close(kes->fd);
+}
+
+static void
+kqueue_reset(struct event_set *es)
+{
+    /* TODO: WHAT?! */
+    /*struct kqueue_set *kes = (struct kqueue_set *) es; */
+}
+
+static void
+kqueue_del(struct event_set *es, event_t event)
+{
+    struct kqueue_set *kes = (struct kqueue_set *) es;
+
+    dmsg(D_EVENT_WAIT, "KQUEUE_DEL ev=%d", (int)event);
+
+    struct kevent ev = { 0 };
+    EV_SET(&ev, event, EVFILT_READ | EVFILT_WRITE, EV_DELETE, 0, 0, 0);
+
+    if (kevent(kes->fd, &ev, 1, NULL, 0, NULL))
+    {
+        msg(M_WARN|M_ERRNO, "EVENT: kqueue_del failed, sd=%d", (int)event);
+    }
+}
+
+static void
+kqueue_ctl(struct event_set *es, event_t event, unsigned int rwflags, void *arg)
+{
+    /* ensure that casing the void * pointer to uint64_tt user data is safe */
+    static_assert(sizeof(uint64_t) >= sizeof(void *), "Pointer type is larger than 64 bits");
+
+    struct kqueue_set *kes = (struct kqueue_set *) es;
+    struct kevent kev[2] = { 0 };
+
+    /*int ev_set = EV_ONESHOT; */
+
+    int nchanges = 0;
+
+    if (rwflags & EVENT_READ)
+    {
+        EV_SET(&kev[nchanges++], event, EVFILT_READ, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, arg);
+    }
+    if (rwflags & EVENT_WRITE)
+    {
+        EV_SET(&kev[nchanges++], event, EVFILT_WRITE, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, arg);
+    }
+
+
+    dmsg(D_EVENT_WAIT, "KQUEUE_CTL fd=%d rwflags=0x%04x arg=" ptr_format,
+         (int)event,
+         rwflags,
+         (ptr_type)arg);
+
+    if (kevent(kes->fd, kev, nchanges, NULL, 0, NULL) < 0)
+    {
+        msg(M_ERR, "EVENT: kqeue_ctl failed, sd=%d", (int)event);
+    }
+}
+
+static int
+kqueue_wait(struct event_set *es, const struct timeval *tv, struct event_set_return *out, int outlen)
+{
+    struct kqueue_set *kes = (struct kqueue_set *) es;
+    int stat = 0;
+
+    if (outlen > 32)
+    {
+        outlen = 32;
+    }
+
+    struct kevent eventlist[32] = { 0 };
+
+    struct timespec ts = { .tv_sec = tv->tv_sec, .tv_nsec = tv->tv_usec };
+
+    stat = kevent(kes->fd, NULL, 0,  eventlist,  outlen, &ts);
+    ASSERT(stat <= 32);
+
+    if (stat > 0)
+    {
+        int i;
+        struct event_set_return *esr = out;
+        for (i = 0; i < stat; ++i)
+        {
+            esr->rwflags = 0;
+            struct kevent *kev = &eventlist[i];
+
+            if (kev->flags & EV_ERROR)
+            {
+                /* TODO, handle error properly */
+                msg(M_INFO, "error: for event");
+            }
+
+            if (kev->filter == EVFILT_READ)
+            {
+                esr->rwflags |= EVENT_READ;
+            }
+            if (kev->filter == EVFILT_WRITE)
+            {
+                esr->rwflags |= EVENT_WRITE;
+            }
+            esr->arg = kev->udata;
+            dmsg(D_EVENT_WAIT, "KQUEUE_WAIT[%d] rwflags=0x%04x ev=0x%08x arg=" ptr_format,
+                 i, esr->rwflags, kev->flags, (ptr_type)kev->udata);
+            ++esr;
+        }
+    }
+    return stat;
+}
+
+static struct event_set *
+kqueue_init(int *maxevents, unsigned int flags)
+{
+    struct kqueue_set *ks;
+    int fd;
+
+    dmsg(D_EVENT_WAIT, "KQUEUE_INIT maxevents=%d flags=0x%08x", *maxevents, flags);
+
+    /* open epoll file descriptor */
+    fd = kqueue();
+    if (fd < 0)
+    {
+        return NULL;
+    }
+
+    set_cloexec(fd);
+
+    ALLOC_OBJ_CLEAR(ks, struct kqueue_set);
+
+    /* set dispatch functions */
+    ks->func.free = kqueue_free;
+    ks->func.reset = kqueue_reset;
+    ks->func.del = kqueue_del;
+    ks->func.ctl = kqueue_ctl;
+    ks->func.wait = kqueue_wait;
+
+
+    /* set epoll control fd */
+    ks->fd = fd;
+
+    return (struct event_set *) ks;
+}
+#endif /* KQUEUE */
+
 #if POLL
 
 struct po_set
@@ -1134,6 +1299,12 @@ event_set_init_simple(int *maxevents, unsigned int flags)
     if (flags & EVENT_METHOD_US_TIMEOUT)
     {
         ret = se_init(maxevents, flags);
+    }
+#endif
+#if KQUEUE
+    if (!ret)
+    {
+        ret = kqueue_init(maxevents, flags);
     }
 #endif
 #ifdef SELECT_PREFERRED_OVER_POLL
