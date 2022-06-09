@@ -3528,6 +3528,13 @@ options_postprocess_mutate(struct options *o, struct env_set *es)
         o->verify_hash_no_ca = true;
     }
 
+    if (dco_enabled(o) && o->dev_node)
+    {
+        msg(M_WARN, "Note: ignoring --dev-node as it has no effect when using "
+            "data channel offload");
+        o->dev_node = NULL;
+    }
+
     /*
      * Save certain parms before modifying options during connect, especially
      * when using --pull
