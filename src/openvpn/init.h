@@ -97,6 +97,8 @@ void reset_coarse_timers(struct context *c);
 
 bool do_deferred_options(struct context *c, const unsigned int found);
 
+bool finish_options(struct context *c);
+
 void inherit_context_child(struct context *dest,
                            const struct context *src);
 

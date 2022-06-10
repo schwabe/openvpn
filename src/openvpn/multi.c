@@ -2405,6 +2405,13 @@ multi_client_connect_late_setup(struct multi_context *m,
     {
         mi->context.c2.tls_multi->multi_state = CAS_FAILED;
     }
+    /* Continue processing options only if authentication hasn't failed.
+     * Otherwise it does not make sense and we may operate on a non-configured
+     * client instance */
+    else
+    {
+        finish_options(&mi->context);
+    }
 
     /* send push reply if ready */
     if (mi->context.c2.push_request_received)

@@ -2099,14 +2099,6 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
                 return false;
             }
         }
-        else if (c->mode == MODE_POINT_TO_POINT)
-        {
-            if (!do_deferred_p2p_ncp(c))
-            {
-                msg(D_TLS_ERRORS, "ERROR: Failed to apply P2P negotiated protocol options");
-                return false;
-            }
-        }
 
         /* if --up-delay specified, open tun, do ifconfig, and run up script now */
         if (c->options.up_delay || PULL_DEFINED(&c->options))
@@ -2132,6 +2124,22 @@ do_up(struct context *c, bool pulled_options, unsigned int option_types_found)
                 update_time();
             }
         }
+
+        if (!pulled_options && c->mode == MODE_POINT_TO_POINT)
+        {
+            if (!do_deferred_p2p_ncp(c))
+            {
+                msg(D_TLS_ERRORS, "ERROR: Failed to apply P2P negotiated protocol options");
+                return false;
+            }
+        }
+
+        if (!finish_options(c))
+        {
+            msg(D_TLS_ERRORS, "ERROR: Failed to finish option processing");
+            return false;
+        }
+
 
         if (c->c2.did_open_tun)
         {
@@ -2338,23 +2346,30 @@ do_deferred_options(struct context *c, const unsigned int found)
         {
             return false;
         }
-        struct frame *frame_fragment = NULL;
+    }
+
+    return true;
+}
+
+bool
+finish_options(struct context *c)
+{
+    struct frame *frame_fragment = NULL;
 #ifdef ENABLE_FRAGMENT
-        if (c->options.ce.fragment)
-        {
-            frame_fragment = &c->c2.frame_fragment;
-        }
+    if (c->options.ce.fragment)
+    {
+        frame_fragment = &c->c2.frame_fragment;
+    }
 #endif
 
-        struct tls_session *session = &c->c2.tls_multi->session[TM_ACTIVE];
-        if (!tls_session_update_crypto_params(c->c2.tls_multi, session,
-                                              &c->options, &c->c2.frame,
-                                              frame_fragment,
-                                              get_link_socket_info(c)))
-        {
-            msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to import crypto options");
-            return false;
-        }
+    struct tls_session *session = &c->c2.tls_multi->session[TM_ACTIVE];
+    if (!tls_session_update_crypto_params(c->c2.tls_multi, session,
+                                          &c->options, &c->c2.frame,
+                                          frame_fragment,
+                                          get_link_socket_info(c)))
+    {
+        msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to import crypto options");
+        return false;
     }
 
     return true;
