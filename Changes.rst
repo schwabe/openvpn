@@ -105,6 +105,14 @@ Improved control channel packet size control (``--tls-mtu``)
     the size to small sizes no longer breaks the OpenVPN protocol in certain
     situation.
 
+Tun MTU can be pushed
+    As part of changing the ``--tun-mtu`` default to 1420 (see below), the
+    client can now also dynamically configure its MTU and the server will
+    try to push the client MTU when the client supports it. The directive
+    ``--tun-mtu-max`` has been introduced to specify the maximum pushable
+    MTU size.
+
+
 Deprecated features
 -------------------
 ``inetd`` has been removed
