@@ -3116,6 +3116,16 @@ options_postprocess_mutate_ce(struct options *o, struct connection_entry *ce)
         if (!ce->tun_mtu_defined && !ce->link_mtu_defined)
         {
             ce->tun_mtu_defined = true;
+            if (o->mode == MODE_SERVER && dev != DEV_TYPE_TAP)
+            {
+                /* If we are running in P2MP mode we default to a MTU
+                 * that is low enough by default to fit into a 1492
+                 * MTU UDP IPv6 packet:
+                 *
+                 */
+                ce->tun_mtu = frame_calculate_default_mtu(o);
+                ce->occ_mtu = TUN_MTU_DEFAULT;
+            }
         }
         if ((dev == DEV_TYPE_TAP) && !ce->tun_mtu_extra_defined)
         {

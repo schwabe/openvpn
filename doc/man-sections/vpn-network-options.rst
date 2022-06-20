@@ -525,11 +525,18 @@ routing.
   OpenVPN requires that packets on the control and data channels be sent
   unfragmented.
 
-  MTU problems often manifest themselves as connections which hang during
-  periods of active usage.
+  A VPN protocol like OpenVPN adds encapsulation overhead in each packet. If a
+  VPN packet with the encapsulation becomes larger than the transport network
+  MTU (typically 1500 or 1492) the packet will become fragmented or completely
+  dropped. These problems can manifest themselves as connections which hang
+  during periods of active usage or slower performance. To avoid these problems
+  it is generally advisable to set the tun MTU small enough to avoid these
+  problems. The default of 1420 is chosen to be safe with default parameters
+  and a (transport) network MTU of 1492.
 
-  It's best to use the ``--fragment`` and/or ``--mssfix`` options to deal
-  with MTU sizing issues.
+  If lowering the tun MTU to avoid MTU related problems (e.g. when tap is used
+  and an MTU of 1500 is required), the ``--fragment`` and/or ``--mssfix``
+  options can be also used to deal with MTU sizing issues.
 
   Note: Depending on the platform, the operating system allows to receive
   packets larger than ``tun-mtu`` (e.g. Linux and FreeBSD) but other platforms
