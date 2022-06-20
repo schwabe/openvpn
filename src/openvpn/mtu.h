@@ -79,6 +79,10 @@
  */
 #define MSSFIX_DEFAULT     1492
 
+/* The default size we aim to reach to with our VPN packets by setting
+ * the MTU accordingly */
+#define MTU_ENCAP_DEFAULT   1492
+
 /*
  * Alignment of payload data such as IP packet or
  * ethernet frame.
@@ -262,6 +266,16 @@ calc_packet_id_size_dc(const struct options *options,
 void alloc_buf_sock_tun(struct buffer *buf,
                         const struct frame *frame,
                         const bool tuntap_buffer);
+
+
+/**
+ * Function to calculate the default MTU for Layer 3 VPNs. The function
+ * assumes that UDP packets should be a maximum of \c MTU_ENCAP_DEFAULT (1492)
+ * with a AEAD cipher. This default comes out to be 1420.
+ */
+int
+frame_calculate_default_mtu(struct options *o);
+
 
 /*
  * EXTENDED_SOCKET_ERROR_CAPABILITY functions -- print extra error info

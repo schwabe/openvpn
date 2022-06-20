@@ -477,6 +477,22 @@ test_mssfix_mtu_calculation(void **state)
     gc_free(&gc);
 }
 
+
+static void
+test_mtu_default_calculation(void **state)
+{
+    struct options o = {0};
+
+    /* common defaults */
+    o.ce.tun_mtu = 1400;
+    o.ce.mssfix = 1000;
+    o.replay = true;
+    o.ce.proto = PROTO_UDP;
+
+    size_t mtu = frame_calculate_default_mtu(&o);
+    assert_int_equal(1420, mtu);
+}
+
 int
 main(void)
 {
@@ -487,7 +503,8 @@ main(void)
         cmocka_unit_test(crypto_test_hmac),
         cmocka_unit_test(test_des_encrypt),
         cmocka_unit_test(test_occ_mtu_calculation),
-        cmocka_unit_test(test_mssfix_mtu_calculation)
+        cmocka_unit_test(test_mssfix_mtu_calculation),
+        cmocka_unit_test(test_mtu_default_calculation)
     };
 
 #if defined(ENABLE_CRYPTO_OPENSSL)

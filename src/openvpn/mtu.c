@@ -205,6 +205,28 @@ calc_options_string_link_mtu(const struct options *o, const struct frame *frame)
     return payload + overhead;
 }
 
+int
+frame_calculate_default_mtu(struct options *o)
+{
+    struct options options = *o;
+
+    /* assume we have peer_id enabled */
+    options.use_peer_id = true;
+
+    /* We use IPv6+UDP here to have a consistent size for tun MTU no matter
+     * the combination of udp/tcp and IPv4/IPv6 */
+    int encap_overhead = datagram_overhead(AF_INET6, PROTO_UDP);
+
+    struct key_type kt;
+    init_key_type(&kt, "AES-256-GCM", "none", true, false);
+
+    size_t payload_overhead = frame_calculate_payload_overhead(0, &options, &kt);
+    size_t protocol_overhead = frame_calculate_protocol_header_size(&kt, &options, false);
+
+    return MTU_ENCAP_DEFAULT - encap_overhead - payload_overhead - protocol_overhead;
+
+}
+
 void
 frame_print(const struct frame *frame,
             int level,
