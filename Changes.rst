@@ -87,6 +87,12 @@ Data channel offloading with ovpn-dco
     this implies that peers must be running 2.6.0+ in order to have P2P-NCP
     which brings DATA_V2 packet support.
 
+Tun MTU can be pushed
+    As part of changing the ``--tun-mtu`` default to 1420 (see below), the
+    client can now also dynamically configure its MTU and the server will
+    try to push the client MTU when the client supports it. The directive
+    ``--tun-mtu-max`` has been introduced to specify the maximum pushable
+    MTU size.
 
 Deprecated features
 -------------------
