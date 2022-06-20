@@ -156,6 +156,11 @@ User-visible Changes
 - Option ``--nobind`` is default when ``--client`` or ``--pull`` is used in the configuration
 - :code:`link_mtu` parameter is removed from environment or replaced with 0 when scripts are
   called with parameters. This parameter is unreliable and no longer internally calculated.
+- the default of ``--tun-mtu`` has been changed to ``--tun-mtu 1420 1500`` when
+  running in server mode. This will create an MTU mismatch with older clients
+  (newer clients allow pushable mtu) but the most common server platforms
+  (Linux and FreeBSD) allow receiving 1500 byte packets even when tun-mtu is
+  set to 1420, still allowing larger packets from clients with 1500 byte MTU.
 
 Overview of changes in 2.5
 ==========================
