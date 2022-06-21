@@ -2250,6 +2250,19 @@ do_deferred_p2p_ncp(struct context *c)
     return true;
 }
 
+
+static bool
+check_dco_pull_options(struct options *o)
+{
+    if (!o->use_peer_id)
+    {
+        msg(D_TLS_ERRORS, "OPTIONS IMPORT: Server did not request DATA_V2 packet "
+            "format required for data channel offload");
+        return false;
+    }
+    return true;
+}
+
 /*
  * Handle non-tun-related pulled options.
  */
@@ -2369,6 +2382,16 @@ finish_options(struct context *c)
                                           get_link_socket_info(c)))
     {
         msg(D_TLS_ERRORS, "OPTIONS ERROR: failed to import crypto options");
+        return false;
+    }
+
+    /* Check if the pushed options are compatible with DCO if we have
+     * DCO enabled */
+    if (dco_enabled(&c->options) && !check_dco_pull_options(&c->options))
+    {
+        msg(D_TLS_ERRORS, "OPTIONS ERROR: pushed options are incompatible with "
+            "data channel offload. Use --disable-dco to connect"
+            "to this server");
         return false;
     }
 
