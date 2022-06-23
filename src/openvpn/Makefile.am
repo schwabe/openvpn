@@ -55,6 +55,7 @@ openvpn_SOURCES = \
 	crypto_mbedtls.c crypto_mbedtls.h \
 	dco.c dco.h dco_internal.h \
 	dco_linux.c dco_linux.h \
+	dco_win.c dco_win.h \
 	dhcp.c dhcp.h \
 	dns.c dns.h \
 	env_set.c env_set.h \
@@ -77,6 +78,7 @@ openvpn_SOURCES = \
 	mbuf.c mbuf.h \
 	memdbg.h \
 	misc.c misc.h \
+	ovpn-dco-win.h \
 	ovpn_dco_linux.h \
 	platform.c platform.h \
 	console.c console.h console_builtin.c console_systemd.c \
@@ -151,5 +153,5 @@ openvpn_LDADD = \
 	$(OPTIONAL_INOTIFY_LIBS)
 if WIN32
 openvpn_SOURCES += openvpn_win32_resources.rc block_dns.c block_dns.h ring_buffer.h
-openvpn_LDADD += -lgdi32 -lws2_32 -lwininet -lcrypt32 -liphlpapi -lwinmm -lfwpuclnt -lrpcrt4 -lncrypt -lsetupapi
+openvpn_LDADD += -lgdi32 -lws2_32 -lwininet -lcrypt32 -liphlpapi -lwinmm -lfwpuclnt -lrpcrt4 -lncrypt -lsetupapi -lbcrypt
 endif

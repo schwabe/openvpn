@@ -278,6 +278,7 @@
     <ClCompile Include="cryptoapi.c" />
     <ClCompile Include="dco.c" />
     <ClCompile Include="dco_linux.c" />
+    <ClCompile Include="dco_win.c" />
     <ClCompile Include="dhcp.c" />
     <ClCompile Include="dns.c" />
     <ClCompile Include="env_set.c" />
@@ -367,6 +368,7 @@
     <ClInclude Include="dco.h" />
     <ClInclude Include="dco_internal.h" />
     <ClInclude Include="dco_linux.h" />
+    <ClInclude Include="dco_win.h" />
     <ClInclude Include="dhcp.h" />
     <ClInclude Include="dns.h" />
     <ClInclude Include="env_set.h" />
@@ -401,6 +403,7 @@
     <ClInclude Include="openvpn.h" />
     <ClInclude Include="options.h" />
     <ClInclude Include="otime.h" />
+    <ClInclude Include="ovpn-dco-win.h" />
     <ClInclude Include="ovpn_dco_linux.h" />
     <ClInclude Include="packet_id.h" />
     <ClInclude Include="perf.h" />
