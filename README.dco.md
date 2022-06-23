@@ -58,6 +58,13 @@ see a message like
 in your log.
 
 
+Getting started (Windows)
+-------------------------
+Getting started under windows is currently for brave people having experience
+with windows development. You need to compile openvpn yourself and also need
+to get the test driver installed on your system.
+
+
 DCO and P2P mode
 ----------------
 DCO is also available when running OpenVPN in P2P mode without --pull/--client option.
@@ -109,6 +116,8 @@ Limitations by design
 - topology subnet is the only supported `--topology` for servers
 - iroute directives install routes on the host operating system, see also
   Routing with ovpn-dco
+- (ovpn-dco-win) client and p2p mode only
+- (ovpn-dco-win) Chacha20-Poly1305 support available starting with Windows 11
 
 
 Current implementation limitations
