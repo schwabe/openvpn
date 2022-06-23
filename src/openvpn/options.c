@@ -2450,6 +2450,11 @@ options_postprocess_verify_ce(const struct options *options,
     {
         msg(M_USAGE, "--windows-driver wintun requires --dev tun");
     }
+
+    if (options->windows_driver == WINDOWS_DRIVER_WINDCO)
+    {
+        dco_check_option_conflict(M_USAGE, options);
+    }
 #endif /* ifdef _WIN32 */
 
     /*

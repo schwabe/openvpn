@@ -191,6 +191,26 @@ dco_update_keys(dco_context_t *dco, struct tls_multi *multi)
 }
 
 static bool
+dco_check_option_conflict_platform(int msglevel, const struct options *o)
+{
+#if defined(_WIN32)
+    if (o->mode == MODE_SERVER)
+    {
+        msg(msglevel, "Only client and p2p data channel offload is supported "
+            "with ovpn-dco-win.");
+        return false;
+    }
+
+    if (o->persist_tun)
+    {
+        msg(msglevel, "--persist-tun is not supported with ovpn-dco-win.");
+        return false;
+    }
+#endif
+    return true;
+}
+
+static bool
 dco_check_option_conflict_ce(const struct connection_entry *ce, int msglevel)
 {
     if (ce->fragment)
@@ -224,6 +244,11 @@ dco_check_option_conflict(int msglevel, const struct options *o)
     }
 
     if (!dco_available(msglevel))
+    {
+        return false;
+    }
+
+    if (!dco_check_option_conflict_platform(msglevel, o))
     {
         return false;
     }
