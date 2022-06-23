@@ -1698,7 +1698,8 @@ do_init_tun(struct context *c)
                             c->c1.link_socket_addr.remote_list,
                             !c->options.ifconfig_nowarn,
                             c->c2.es,
-                            &c->net_ctx);
+                            &c->net_ctx,
+                            c->c1.tuntap);
 
 #ifdef _WIN32
     c->c1.tuntap->windows_driver = c->options.windows_driver;
@@ -1811,9 +1812,12 @@ do_open_tun(struct context *c)
             ovpn_dco_init(c->mode, &c->c1.tuntap->dco);
         }
 
-        /* open the tun device */
-        open_tun(c->options.dev, c->options.dev_type, c->options.dev_node,
-                 c->c1.tuntap, &c->net_ctx);
+        /* open the tun device (ovpn-dco-win already opened the device for the socket) */
+        if (!is_dco_win(c->c1.tuntap))
+        {
+            open_tun(c->options.dev, c->options.dev_type, c->options.dev_node,
+                     c->c1.tuntap, &c->net_ctx);
+        }
 
         /* DCO may have been disabled. propagate change */
         c->options.tuntap_options = c->c1.tuntap->options;
@@ -3571,6 +3575,23 @@ do_close_free_key_schedule(struct context *c, bool free_ssl_ctx)
 static void
 do_close_link_socket(struct context *c)
 {
+#if defined(_WIN32)
+    if (is_dco_win(c->c1.tuntap) && c->c2.link_socket
+        && c->c2.link_socket->info.dco_installed)
+    {
+        ASSERT(c->c2.link_socket_owned);
+
+        /* We rely on the tun_close to close the handle if also setup
+         * routes etc, since they cannot be delete when the interface
+         * handle has been closed */
+        if (!c->c1.tuntap->dco.real_tun_init)
+        {
+            do_close_tun_simple(c);
+        }
+        c->c2.link_socket->sd = SOCKET_UNDEFINED;
+    }
+#endif
+
     if (c->c2.link_socket && c->c2.link_socket_owned)
     {
         link_socket_close(c->c2.link_socket);

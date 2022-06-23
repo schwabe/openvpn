@@ -860,6 +860,13 @@ read_incoming_link(struct context *c)
     /* check recvfrom status */
     check_status(status, "read", c->c2.link_socket, NULL);
 
+#ifdef _WIN32
+    if (dco_enabled(&c->options) && (status < 0) && (openvpn_errno() == ERROR_NETNAME_DELETED))
+    {
+        trigger_ping_timeout_signal(c);
+    }
+#endif
+
     /* Remove socks header if applicable */
     socks_postprocess_incoming_link(c);
 
