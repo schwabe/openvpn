@@ -355,14 +355,14 @@ dco_available(int msglevel)
 int
 dco_do_read(dco_context_t *dco)
 {
-    /* no-op on windows */
+    ASSERT(false);
     return 0;
 }
 
 int
 dco_do_write(dco_context_t *dco, int peer_id, struct buffer *buf)
 {
-    /* no-op on windows */
+    ASSERT(false);
     return 0;
 }
 

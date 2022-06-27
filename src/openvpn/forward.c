@@ -1593,6 +1593,27 @@ process_ip_header(struct context *c, unsigned int flags, struct buffer *buf)
     }
 }
 
+/* Depending on the platform, we may have to not use the DCO socket, even if DCO
+ * is being used for a specific link.
+ *
+ * This happens with Windows, where the standard link_socket API have to be used
+ * also with DCO.
+ *
+ * For this reason we must make the right decision and not always look at
+ * dco_installed. Note that on Windows the dco_installed field is still supposed
+ * to be true, because it is used in the lower level code to use the proper API
+ * (socket vs handle). This is why we need this function with some ifdef sauce
+ */
+static bool
+should_use_dco_socket(struct link_socket *sock)
+{
+#if defined(TARGET_LINUX)
+    return sock->info.dco_installed;
+#else
+    return false;
+#endif
+}
+
 /*
  * Input: c->c2.to_link
  */
@@ -1666,7 +1687,7 @@ process_outgoing_link(struct context *c)
                 socks_preprocess_outgoing_link(c, &to_addr, &size_delta);
 
                 /* Send packet */
-                if (c->c2.link_socket->info.dco_installed)
+                if (should_use_dco_socket(c->c2.link_socket))
                 {
                     size = dco_do_write(&c->c1.tuntap->dco,
                                         c->c2.tls_multi->peer_id,
