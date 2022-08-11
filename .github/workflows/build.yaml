@@ -35,6 +35,77 @@ jobs:
         run: test ! -s uncrustify-changes.patch
         working-directory: openvpn
 
+  mbedtls-git:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        ssllib: [mbedtls]
+        build: [normal, asan]
+        mbedver: [v3.5.0, v2.28.5]
+        include:
+        - build: asan
+          cflags: "-fsanitize=address,undefined -fno-sanitize-recover=all  -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+          ldflags: -fsanitize=address,undefined -fno-sanitize-recover=all
+          cc: clang
+          cmakebuild: ASan
+        - build: normal
+          cflags: "-O2 -g"
+          ldflags: ""
+          configureflags: ""
+          cc: gcc
+          cmakebuild: Release
+
+    name: "${{matrix.cc}} ${{matrix.build}} - ${{matrix.os}} - mbed TLS  ${{matrix.mbdver}}"
+    runs-on: ${{matrix.os}}
+    env:
+      CFLAGS: ${{ matrix.cflags }}
+      LDFLAGS: ${{ matrix.ldflags }}
+      CC: ${{matrix.cc}}
+      UBSAN_OPTIONS: print_stacktrace=1
+      MBEDTLS_CFLAGS: -I/opt/mbedtls/include
+      MBEDTLS_LIBS: -L/opt/mbedtls/lib -lmbedtls -lmbedx509 -lmbedcrypto
+
+    steps:
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y build-essential liblzo2-dev libpam0g-dev liblz4-dev linux-libc-dev man2html clang libcmocka-dev python3-docutils libtool automake autoconf pkg-config libcap-ng-dev libnl-genl-3-dev cmake
+
+      - name: Cache dependencies
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: '/opt/mbedtls'
+          key: ${{ matrix.build }}-mbedtls-${{matrix.mbedver}}-${{matrix.cmakebuild}}
+      - name: "mbed TLS: checkout ${{matrix.mbedver}}"
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          path: mbedtls
+          repository: mbed-TLS/mbedtls
+          ref: ${{matrix.mbedver}}
+      - name: "mbed TLS: cmake"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake -DCMAKE_BUILD_TYPE=${{matrix.cmakebuild}} -DUSE_SHARED_MBEDTLS_LIBRARY=On -DCMAKE_INSTALL_PREFIX=/opt/mbedtls -B mbedbuild -S mbedtls
+      - name: "mbed TLS: build"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake --build mbedbuild
+      - name: "mbed TLS: install"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cmake --install mbedbuild
+      - name: "ldconfig"
+        run: sudo ldconfig
+
+      - name: Checkout OpenVPN
+        uses: actions/checkout@v3
+      - name: autoconf
+        run: autoreconf -fvi
+      - name: configure ${{matrix.configureflag}}
+        run: PKG_CONFIG_PATH=/opt/mbedtls/lib/pkgconfig ./configure --with-crypto-library=${{matrix.ssllib}} --enable-werror
+      - name: make all
+        run: make -j3
+      - name: make check
+        run: make check
+
   mingw:
     strategy:
       fail-fast: false
