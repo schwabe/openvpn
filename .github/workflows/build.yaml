@@ -34,6 +34,75 @@ jobs:
       - name: Set job status
         run: test ! -s uncrustify-changes.patch
         working-directory: openvpn
+  wolfssl:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        ssllib: [wolfssl]
+        build: [normal, asan ]
+        include:
+        - build: asan
+          cflags: "-fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+          ldflags: -fsanitize=address
+          cc: clang
+        - build: normal
+          cflags: "-O2 -g"
+          ldflags: ""
+          configureflags: ""
+          cc: gcc
+
+    name: "${{matrix.cc}} ${{matrix.build}} - ${{matrix.os}} - ${{matrix.ssllib}}"
+    runs-on: ${{matrix.os}}
+    env:
+      CFLAGS: ${{ matrix.cflags }}
+      LDFLAGS: ${{ matrix.ldflags }}
+      CC: ${{matrix.cc}}
+
+    steps:
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y build-essential liblzo2-dev libpam0g-dev liblz4-dev linux-libc-dev man2html clang libcmocka-dev python3-docutils libtool automake autoconf libmbedtls-dev pkg-config libcap-ng-dev
+
+      - name: Cache dependencies
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: '/opt/wolfssl'
+          key: ${{ matrix.build }}-wolfSSL
+      - name: "wolfSSL: checkout"
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          path: wolfssl
+          repository: wolfSSL/wolfssl
+      - name: "wolfSSL: autoconf"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: autoreconf -fvi
+        working-directory: wolfssl
+      - name: "wolfSSL: configure"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./configure --enable-openvpn --prefix=/opt/wolfssl
+        working-directory: wolfssl
+      - name: "wolfSSL: make all"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: make -j3
+        working-directory: wolfssl
+      - name: "wolfSSL: make install"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo make install
+        working-directory: wolfssl
+      - name: "ldconfig"
+        run: sudo ldconfig
+      - name: Checkout OpenVPN
+        uses: actions/checkout@v3
+      - name: autoconf
+        run: autoreconf -fvi
+      - name: configure ${{matrix.configureflag}}
+        run: PKG_CONFIG_PATH=/opt/wolfssl/lib/pkgconfig ./configure --with-crypto-library=${{matrix.ssllib}} --enable-werror
+      - name: make all
+        run: make -j3
+      - name: make check
+        run: make check
 
   mingw:
     strategy:
