@@ -34,6 +34,65 @@ jobs:
       - name: Set job status
         run: test ! -s uncrustify-changes.patch
         working-directory: openvpn
+  wolfssl:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+        ssllib: [wolfssl]
+        build: [ normal, asan ]
+        include:
+        - build: asan
+          cflags: "-fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+          ldflags: -fsanitize=address
+          cc: clang
+          # Our build system ignores LDFLAGS for plugins
+          configureflags: --disable-plugin-auth-pam  --disable-plugin-down-root
+        - build: normal
+          cflags: "-O2 -g"
+          ldflags: ""
+          configureflags: ""
+          cc: gcc
+
+    name: "${{matrix.cc}} ${{matrix.build}} - ${{matrix.os}} - ${{matrix.ssllib}}"
+    runs-on: ${{matrix.os}}
+    env:
+      CFLAGS: ${{ matrix.cflags }}
+      LDFLAGS: ${{ matrix.ldflags }}
+      CC: ${{matrix.cc}}
+
+    steps:
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y liblzo2-dev libpam0g-dev liblz4-dev linux-libc-dev man2html clang libcmocka-dev python3-docutils libtool automake autoconf libmbedtls-dev pkg-config libcap-ng-dev
+      - name: "wolfSSL: checkout"
+        uses: actions/checkout@v3
+        with:
+          path: wolfssl
+          repository: wolfSSL/wolfssl
+      - name: "wolfSSL: autoconf"
+        run: autoreconf -fvi
+        working-directory: wolfssl
+      - name: "wolfSSL: configure"
+        run: ./configure --enable-openvpn
+        working-directory: wolfssl
+      - name: "wolfSSL: make all"
+        run: make -j3
+        working-directory: wolfssl
+      - name: "wolfSSL: make install"
+        run: sudo make install
+        working-directory: wolfssl
+      - name: "ldconfig"
+        run: sudo ldconfig
+      - name: Checkout OpenVPN
+        uses: actions/checkout@v3
+      - name: autoconf
+        run: autoreconf -fvi
+      - name: configure ${{matrix.configureflag}}
+        run: ./configure --with-crypto-library=${{matrix.ssllib}}
+      - name: make all
+        run: make -j3
+      - name: make check
+        run: make check
 
   mingw:
     strategy:
