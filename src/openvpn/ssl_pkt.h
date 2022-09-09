@@ -273,6 +273,27 @@ packet_opcode_name(int op)
     }
 }
 
+/**
+ * Determines if the current session should use the renegotiation tls wrap
+ * struct instead the normal one and returns it
+ *
+ * @param session
+ * @param key_id    key_id of the received/or to be send packet
+ * @return
+ */
+static inline struct tls_wrap_ctx *
+tls_session_get_tls_wrap(struct tls_session *session, int key_id)
+{
+    if (key_id > 0 && session->tls_wrap_reneg.mode == TLS_WRAP_CRYPT)
+    {
+        return &session->tls_wrap_reneg;
+    }
+    else
+    {
+        return &session->tls_wrap;
+    }
+}
+
 /* initial packet id (instead of 0) that indicates that the peer supports
  * early protocol negotiation. This will make the packet id turn a bit faster
  * but the network time part of the packet id takes care of that. And

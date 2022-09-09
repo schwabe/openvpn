@@ -391,6 +391,7 @@ void backend_tls_ctx_reload_crl(struct tls_root_ctx *ssl_ctx,
 
 #define EXPORT_KEY_DATA_LABEL       "EXPORTER-OpenVPN-datakeys"
 #define EXPORT_P2P_PEERID_LABEL     "EXPORTER-OpenVPN-p2p-peerid"
+#define EXPORT_SECURE_RENEG_LABEL   "EXPORTER-OpenVPN-secure-renegotiation"
 /**
  * Keying Material Exporters [RFC 5705] allows additional keying material to be
  * derived from existing TLS channel. This exported keying material can then be
