@@ -64,10 +64,6 @@
 
 #define IOW_READ            (IOW_READ_TUN|IOW_READ_LINK)
 
-extern counter_type link_read_bytes_global;
-
-extern counter_type link_write_bytes_global;
-
 void io_wait_dowork(struct context *c, const unsigned int flags);
 
 void pre_select(struct context *c);

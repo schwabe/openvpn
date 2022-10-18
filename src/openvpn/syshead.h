@@ -530,11 +530,4 @@ socket_defined(const socket_descriptor_t sd)
 #define USE_COMP
 #endif
 
-/*
- * Enable --memstats option
- */
-#ifdef TARGET_LINUX
-#define ENABLE_MEMSTATS
-#endif
-
 #endif /* ifndef SYSHEAD_H */
