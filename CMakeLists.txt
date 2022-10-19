@@ -334,6 +334,8 @@ set(SOURCE_FILES
         src/openvpn/mroute.h
         src/openvpn/mss.c
         src/openvpn/mss.h
+        src/openvpn/mstats.c
+        src/openvpn/mstats.h
         src/openvpn/mtcp.c
         src/openvpn/mtcp.h
         src/openvpn/mtu.c

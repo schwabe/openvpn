@@ -84,6 +84,7 @@ openvpn_SOURCES = \
 	console.c console.h console_builtin.c console_systemd.c \
 	mroute.c mroute.h \
 	mss.c mss.h \
+	mstats.c mstats.h \
 	mtcp.c mtcp.h \
 	mtu.c mtu.h \
 	mudp.c mudp.h \

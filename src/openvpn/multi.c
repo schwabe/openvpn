@@ -40,6 +40,7 @@
 #include "run_command.h"
 #include "otime.h"
 #include "gremlin.h"
+#include "mstats.h"
 #include "ssl_verify.h"
 #include "ssl_ncp.h"
 #include "vlan.h"
@@ -77,6 +78,17 @@ set_cc_config(struct multi_instance *mi, struct buffer_list *cc_config)
     mi->cc_config = cc_config;
 }
 #endif
+
+static inline void
+update_mstat_n_clients(const int n_clients)
+{
+#ifdef ENABLE_MEMSTATS
+    if (mmap_stats)
+    {
+        mmap_stats->n_clients = n_clients;
+    }
+#endif
+}
 
 static bool
 learn_address_script(const struct multi_context *m,
@@ -596,6 +608,7 @@ multi_close_instance(struct multi_context *m,
 
     /* adjust current client connection count */
     m->n_clients += mi->n_clients_delta;
+    update_mstat_n_clients(m->n_clients);
     mi->n_clients_delta = 0;
 
     /* prevent dangling pointers */
@@ -2761,6 +2774,7 @@ multi_connection_established(struct multi_context *m, struct multi_instance *mi)
 
     /* increment number of current authenticated clients */
     ++m->n_clients;
+    update_mstat_n_clients(m->n_clients);
     --mi->n_clients_delta;
 
 #ifdef ENABLE_MANAGEMENT

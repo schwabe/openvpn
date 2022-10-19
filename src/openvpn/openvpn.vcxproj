@@ -299,6 +299,7 @@
     <ClCompile Include="misc.c" />
     <ClCompile Include="mroute.c" />
     <ClCompile Include="mss.c" />
+    <ClCompile Include="mstats.c" />
     <ClCompile Include="mtcp.c" />
     <ClCompile Include="mtu.c" />
     <ClCompile Include="mudp.c" />
@@ -391,6 +392,7 @@
     <ClInclude Include="misc.h" />
     <ClInclude Include="mroute.h" />
     <ClInclude Include="mss.h" />
+    <ClInclude Include="mstats.h" />
     <ClInclude Include="mtcp.h" />
     <ClInclude Include="mtu.h" />
     <ClInclude Include="mudp.h" />

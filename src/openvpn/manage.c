@@ -1206,6 +1206,23 @@ man_certificate(struct management *man)
     }
 }
 
+static void
+man_load_stats(struct management *man)
+{
+    extern counter_type link_read_bytes_global;
+    extern counter_type link_write_bytes_global;
+    int nclients = 0;
+
+    if (man->persist.callback.n_clients)
+    {
+        nclients = (*man->persist.callback.n_clients)(man->persist.callback.arg);
+    }
+    msg(M_CLIENT, "SUCCESS: nclients=%d,bytesin=" counter_format ",bytesout=" counter_format,
+        nclients,
+        link_read_bytes_global,
+        link_write_bytes_global);
+}
+
 #define MN_AT_LEAST (1<<0)
 /**
  * Checks if the correct number of arguments to a management command are present
@@ -1371,6 +1388,10 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
         man_network_change(man, samenetwork);
     }
 #endif
+    else if (streq(p[0], "load-stats"))
+    {
+        man_load_stats(man);
+    }
     else if (streq(p[0], "status"))
     {
         int version = 0;

@@ -320,6 +320,10 @@ struct options
 
     bool mtu_test;
 
+#ifdef ENABLE_MEMSTATS
+    char *memstats_fn;
+#endif
+
     bool mlock;
 
     int keepalive_ping;         /* a proxy for ping/ping-restart */
