@@ -1857,8 +1857,6 @@ process_outgoing_link(struct context *c)
 void
 process_outgoing_tun(struct context *c)
 {
-    struct gc_arena gc = gc_new();
-
     /*
      * Set up for write() call to TUN/TAP
      * device.
@@ -1944,7 +1942,6 @@ process_outgoing_tun(struct context *c)
     buf_reset(&c->c2.to_tun);
 
     perf_pop();
-    gc_free(&gc);
 }
 
 void
