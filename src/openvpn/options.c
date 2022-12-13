@@ -619,7 +619,7 @@ static const char usage_message[] =
     "--tran-window n : Transition window -- old key can live this many seconds\n"
     "                  after new key renegotiation begins (default=%d).\n"
     "--single-session: Allow only one session (reset state on restart).\n"
-    "--tls-exit      : Exit on TLS negotiation failure.\n"
+    "--tls-exit      : (DEPRECATED) Exit on TLS negotiation failure.\n"
     "--tls-auth f [d]: Add an additional layer of authentication on top of the TLS\n"
     "                  control channel to protect against attacks on the TLS stack\n"
     "                  and DoS attacks.\n"
@@ -8930,6 +8930,7 @@ add_option(struct options *options,
     }
     else if (streq(p[0], "tls-exit") && !p[1])
     {
+        msg(M_WARN, "DEPRECATED OPTION: The option --tls-exit is deprecated.");
         VERIFY_PERMISSION(OPT_P_GENERAL);
         options->tls_exit = true;
     }

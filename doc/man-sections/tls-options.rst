@@ -537,7 +537,7 @@ certificates and keys: https://github.com/OpenVPN/easy-rsa
   code.
 
 --tls-exit
-  Exit on TLS negotiation failure.
+  **DEPRECATED** Exit on TLS negotiation failure.
 
 --tls-export-cert directory
   Store the certificates the clients use upon connection to this
