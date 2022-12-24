@@ -3226,6 +3226,13 @@ link_socket_read_tcp(struct link_socket *sock,
 {
     int len = 0;
 
+    if (sock->sd == SOCKET_UNDEFINED)           /* DCO mishap */
+    {
+        msg(M_INFO, "BUG: link_socket_read_tcp(): sock->sd==-1, reset client instance" );
+        sock->stream_reset = true;              /* reset client instance */
+        return buf->len = 0;                    /* nothing to read */
+    }
+
     if (!sock->stream_buf.residual_fully_formed)
     {
 #ifdef _WIN32
@@ -3284,6 +3291,8 @@ link_socket_read_udp_posix_recvmsg(struct link_socket *sock,
     uint8_t pktinfo_buf[PKTINFO_BUF_SIZE];
     struct msghdr mesg;
     socklen_t fromlen = sizeof(from->dest.addr);
+
+    ASSERT(sock->sd >= 0);                      /* can't happen */
 
     iov.iov_base = BPTR(buf);
     iov.iov_len = buf_forward_capacity_total(buf);
@@ -3351,6 +3360,9 @@ link_socket_read_udp_posix(struct link_socket *sock,
     socklen_t fromlen = sizeof(from->dest.addr);
     socklen_t expectedlen = af_addr_size(sock->info.af);
     addr_zero_host(&from->dest);
+
+    ASSERT(sock->sd >= 0);                      /* can't happen */
+
 #if ENABLE_IP_PKTINFO
     /* Both PROTO_UDPv4 and PROTO_UDPv6 */
     if (sock->info.proto == PROTO_UDP && sock->sockflags & SF_USE_IP_PKTINFO)
