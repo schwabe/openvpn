@@ -3226,15 +3226,14 @@ link_socket_read_tcp(struct link_socket *sock,
 {
     int len = 0;
 
-    if (sock->sd == SOCKET_UNDEFINED)           /* DCO mishap */
-    {
-        msg(M_INFO, "BUG: link_socket_read_tcp(): sock->sd==-1, reset client instance" );
-        sock->stream_reset = true;              /* reset client instance */
-        return buf->len = 0;                    /* nothing to read */
-    }
-
     if (!sock->stream_buf.residual_fully_formed)
     {
+        if (sock->sd == SOCKET_UNDEFINED)           /* DCO mishap */
+        {
+            msg(M_INFO, "BUG: link_socket_read_tcp(): sock->sd==-1, reset client instance" );
+            sock->stream_reset = true;              /* reset client instance */
+            return buf->len = 0;                    /* nothing to read */
+        }
 #ifdef _WIN32
         sockethandle_t sh = { .s = sock->sd };
         len = sockethandle_finalize(sh, &sock->reads, buf, NULL);
