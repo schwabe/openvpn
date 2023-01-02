@@ -747,7 +747,10 @@ if (BUILD_TESTING)
         tests/unit_tests/openvpn/mock_get_random.c
         src/openvpn/options_util.c
         src/openvpn/ssl_util.c
+        src/openvpn/list.c
         )
+
+    target_compile_definitions(test_misc PRIVATE "-DSOURCEDIR=\"${CMAKE_SOURCE_DIR}\"")
 
     target_sources(test_ncp PRIVATE
         src/openvpn/crypto_mbedtls.c
