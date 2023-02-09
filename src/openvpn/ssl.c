@@ -1849,6 +1849,20 @@ read_string_alloc(struct buffer *buf)
     return str;
 }
 
+static void
+print_client_peer_info(struct buffer *out, struct gc_arena *gc)
+{
+    struct buffer buf = alloc_buf_gc(buf_len(out), gc);
+    buf_copy(&buf, out);
+
+    char line[256];
+
+    while (buf_parse(&buf, '\n', line, sizeof(line)))
+    {
+        chomp(line);
+        msg(D_PUSH_DEBUG, "sending peer info: %s", line);
+    }
+}
 /**
  * Prepares the IV_ and UV_ variables that are part of the
  * exchange to signal the peer's capabilities. The amount
@@ -2003,6 +2017,11 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
                     }
                 }
             }
+        }
+
+        if (check_debug_level(D_PUSH_DEBUG))
+        {
+            print_client_peer_info(&out, &gc);
         }
 
         if (!write_string(buf, BSTR(&out), -1))
