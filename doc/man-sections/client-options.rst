@@ -14,7 +14,7 @@ configuration.
 
 --app-custom-control protocollist
   Announce app custom control support to the server. The protocollist is
-  a : seperated list of protocol identifiers.
+  a : separated list of protocol identifiers.
 
   See management-notes.txt in the OpenVPN distribution  and the OpenVPN RFC
   draft for a description of app custom control protocol support.

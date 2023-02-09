@@ -1892,6 +1892,28 @@ push_peer_info_peerid(struct buffer *out, struct tls_multi *multi, struct tls_se
 }
 
 /**
+ * Prints out the peer-info that the client sends to the server to
+ * the log.
+ */
+static void
+print_client_peer_info(struct buffer *out)
+{
+    struct gc_arena gc = gc_new();
+    struct buffer buf = alloc_buf_gc(buf_len(out), &gc);
+    buf_copy(&buf, out);
+
+    char line[256];
+
+    while (buf_parse(&buf, '\n', line, sizeof(line)))
+    {
+        chomp(line);
+        msg(D_PUSH_DEBUG, "sending peer info: %s", line);
+    }
+    gc_free(&gc);
+}
+
+
+/**
  * Prepares the IV_ and UV_ variables that are part of the
  * exchange to signal the peer's capabilities. The amount
  * of variables is determined by session->opt->push_peer_info_detail
@@ -2069,6 +2091,11 @@ push_peer_info(struct buffer *buf, struct tls_multi *multi, struct tls_session *
     /* write peer info string if there is anything in it, empty string otherwise */
     if (BLEN(&out) > 0)
     {
+        if (check_debug_level(D_PUSH_DEBUG))
+        {
+            print_client_peer_info(&out);
+        }
+
         if (!write_string(buf, BSTR(&out), -1))
         {
             goto error;
