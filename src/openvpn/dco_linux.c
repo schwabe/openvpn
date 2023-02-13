@@ -79,10 +79,14 @@ typedef int (*ovpn_nl_cb)(struct nl_msg *msg, void *arg);
 static int
 resolve_ovpn_netlink_id(int msglevel)
 {
-    int ret;
     struct nl_sock *nl_sock = nl_socket_alloc();
 
-    ret = genl_connect(nl_sock);
+    if (!nl_sock)
+    {
+        msg(msglevel, "Allocating net link socket failed");
+    }
+
+    int ret = genl_connect(nl_sock);
     if (ret)
     {
         msg(msglevel, "Cannot connect to generic netlink: %s",
