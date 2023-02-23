@@ -159,6 +159,7 @@ reflect_testdriver_SOURCES = test_reflect.c mock_msg.c mock_msg.h \
 	$(top_srcdir)/src/openvpn/packet_id.c \
 	$(top_srcdir)/src/openvpn/platform.c \
 	$(top_srcdir)/src/openvpn/siphash_reference.c \
+	$(top_srcdir)/src/openvpn/siphash_openssl.c \
 	$(top_srcdir)/src/openvpn/win32-util.c
 
 if !WIN32

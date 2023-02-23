@@ -75,6 +75,9 @@ struct bloom_filter {
     /** keys for the siphash functions */
     struct siphash_key *siphash_keys;
 
+    /** (opaque) context for the siphash implementation */
+    void *siphash_ctx;
+
     /** the actual buckets that hold the data */
     bloom_counter_t buckets[];
 };
@@ -82,6 +85,9 @@ struct bloom_filter {
 
 struct bloom_filter *
 bloom_create(size_t size, size_t num_hashes, struct gc_arena *gc);
+
+void
+bloom_free(struct bloom_filter *bf);
 
 bloom_counter_t
 bloom_test(struct bloom_filter *bf, const uint8_t *item, size_t len);
