@@ -41,7 +41,42 @@
 
 #include <stdio.h>
 
+static void
+test_siphash(void **state)
+{
+    const char *message = "Look behind you, a Three-Headed Monkey!";
 
+    uint8_t out[SIPHASH_HASH_SIZE];
+    const uint8_t key[SIPHASH_KEY_SIZE] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66 };
+
+    siphash_reference(message, strlen(message), key, out, SIPHASH_HASH_SIZE);
+
+    const uint8_t expected_out[SIPHASH_HASH_SIZE] =
+    { 0x3e, 0xea, 0x95, 0xb2, 0x6d, 0x5c, 0x4e, 0xfa,
+      0x20, 0x47, 0x65, 0x7e, 0xdd, 0xcd, 0x62, 0x51};
+    assert_memory_equal(out, expected_out, SIPHASH_HASH_SIZE);
+
+    struct gc_arena gc = gc_new();
+    void *sipctx =  siphash_cryptolib_init();
+
+
+    uint8_t out2[SIPHASH_HASH_SIZE];
+
+    if (siphash_cryptolib_available(sipctx))
+    {
+        siphash_cryptolib(sipctx, message, strlen(message), key, out2,
+                          SIPHASH_HASH_SIZE);
+        assert_memory_equal(out, out2, SIPHASH_HASH_SIZE);
+
+        /* check that calling the function twice is safe */
+        siphash_cryptolib(sipctx, message, strlen(message), key, out2,
+                          SIPHASH_HASH_SIZE);
+        assert_memory_equal(out, out2, SIPHASH_HASH_SIZE);
+    }
+
+    siphash_cryptolib_uninit(sipctx);
+    gc_free(&gc);
+}
 
 static void
 test_bloom(void **state)
@@ -311,6 +346,7 @@ main(void)
 {
     openvpn_unit_test_setup();
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_siphash),
         cmocka_unit_test(test_bloom_access_functions),
         cmocka_unit_test(test_bloom),
         cmocka_unit_test(test_bloom_minimal),

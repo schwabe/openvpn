@@ -448,6 +448,7 @@ initial_rate_limit_init(int max_per_period, int period_length,
 void
 initial_rate_limit_free(struct initial_packet_rate_limit *irl)
 {
+    bloom_free(irl->bf);
     gc_free(&irl->gc);
     free(irl);
     irl = NULL;
