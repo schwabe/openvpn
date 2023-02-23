@@ -170,9 +170,18 @@ bloom_create(size_t size, size_t num_hashes, struct gc_arena *gc)
 
     ALLOC_ARRAY_GC(bf->siphash_keys, struct siphash_key, bf->num_siphash, gc);
 
+    bf->siphash_ctx = siphash_cryptolib_init();
+
     bloom_clear(bf);
     return bf;
 }
+
+void
+bloom_free(struct bloom_filter *bf)
+{
+    siphash_cryptolib_uninit(bf->siphash_ctx);
+}
+
 
 /**
  * Clear the bloom filter, making it empty again as if it were freshly created
@@ -209,7 +218,8 @@ bloom_add_test(struct bloom_filter *bf, const uint8_t *item, size_t len, bloom_c
             if (idx == 0)
             {
                 /* We have no longer unused bytes in result, generate the next hash */
-                siphash(item, len, bf->siphash_keys[j++].key, result, SIPHASH_HASH_SIZE);
+                siphash(bf->siphash_ctx, item, len, bf->siphash_keys[j++].key,
+                        result, SIPHASH_HASH_SIZE);
             }
 
             bucket = bucket << 8;

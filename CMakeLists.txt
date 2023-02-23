@@ -513,6 +513,7 @@ set(SOURCE_FILES
     src/openvpn/sig.c
     src/openvpn/sig.h
     src/openvpn/siphash.h
+    src/openvpn/siphash_openssl.c
     src/openvpn/siphash_reference.c
     src/openvpn/socket.c
     src/openvpn/socket.h
@@ -779,6 +780,7 @@ if (BUILD_TESTING)
         src/openvpn/reflect_filter.h
         src/openvpn/siphash.h
         src/openvpn/siphash_reference.c
+        src/openvpn/siphash_openssl.c
         src/openvpn/otime.c
         src/openvpn/crypto_mbedtls.c
         src/openvpn/crypto_openssl.c
