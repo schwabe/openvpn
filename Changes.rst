@@ -472,6 +472,14 @@ User-visible Changes
   compatibility with older versions. See the manual page on the
   ``--compat-mode`` for details.
 
+- (OpenVPN 2.6.1) ``--allow-compression no`` has been changed to not allow
+  compression or compression framing at all now and is the new default.
+  Use ``--allow-compression stub-only`` for the old ``no`` behaviour of OpenVPN
+  2.5 and OpenVPN 2.6.0.
+
+- The ``client-pending-auth`` management command now requires also the
+  key id. The management version has been changed to 5 to indicate this change.
+
 Common errors with OpenSSL 3.0 and OpenVPN 2.6
 ----------------------------------------------
 Both OpenVPN 2.6 and OpenSSL 3.0 tighten the security considerable, so some
