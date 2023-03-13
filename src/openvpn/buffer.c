@@ -346,6 +346,30 @@ cleanup:
 /*
  * Garbage collection
  */
+#define DEBUG_TOO_MANY_GC_ALLOACTIONS
+#ifdef DEBUG_TOO_MANY_GC_ALLOACTIONS
+static inline size_t
+get_gc_list_size(struct gc_arena *gc)
+{
+    struct gc_entry *entry = gc->list;
+    size_t num = 0;
+
+    while (entry)
+    {
+        entry = entry->next;
+        num++;
+    }
+    struct gc_entry_special *gcs = gc->list_special;
+
+    while (gcs)
+    {
+        gcs = gcs->next;
+        num++;
+    }
+
+    return num;
+}
+#endif /* ifdef DEBUG_TOO_MANY_GC_ALLOACTIONS */
 
 void *
 #ifdef DMALLOC
@@ -367,6 +391,12 @@ gc_malloc(size_t size, bool clear, struct gc_arena *a)
         ret = (char *) e + sizeof(struct gc_entry);
         e->next = a->list;
         a->list = e;
+#ifdef DEBUG_TOO_MANY_GC_ALLOACTIONS
+        if (get_gc_list_size(a) > 1000)
+        {
+            msg(M_INFO, "Over 1000 allocations. mem leak?!");
+        }
+#endif
     }
     else
     {
