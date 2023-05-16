@@ -1274,7 +1274,7 @@ tls_authenticate_key(struct tls_multi *multi, const unsigned int mda_key_id, con
         for (i = 0; i < KEY_SCAN_SIZE; ++i)
         {
             struct key_state *ks = get_key_scan(multi, i);
-            if (ks->mda_key_id == mda_key_id)
+            if (ks->mda_key_id == mda_key_id && ks->state > S_UNDEF)
             {
                 ks->mda_status = auth ? ACF_SUCCEEDED : ACF_FAILED;
                 ret = true;
