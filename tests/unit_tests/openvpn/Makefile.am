@@ -11,7 +11,7 @@ test_binaries += argv_testdriver buffer_testdriver
 endif
 
 test_binaries += crypto_testdriver packet_id_testdriver auth_token_testdriver ncp_testdriver misc_testdriver \
-	pkt_testdriver ssl_testdriver user_pass_testdriver
+	pkt_testdriver ssl_testdriver user_pass_testdriver reflect_testdriver
 
 if HAVE_LD_WRAP_SUPPORT
 if !WIN32
@@ -144,6 +144,22 @@ pkt_testdriver_SOURCES = test_pkt.c mock_msg.c mock_msg.h mock_win32_execve.c \
 	$(top_srcdir)/src/openvpn/ssl_pkt.c \
 	$(top_srcdir)/src/openvpn/win32-util.c \
 	$(top_srcdir)/src/openvpn/tls_crypt.c
+
+reflect_testdriver_CFLAGS  = @TEST_CFLAGS@ \
+	-I$(top_srcdir)/include -I$(top_srcdir)/src/compat -I$(top_srcdir)/src/openvpn
+reflect_testdriver_LDFLAGS = @TEST_LDFLAGS@
+reflect_testdriver_SOURCES = test_reflect.c mock_msg.c mock_msg.h \
+	$(top_srcdir)/src/openvpn/reflect_filter.c \
+	$(top_srcdir)/src/openvpn/bloom.c \
+	$(top_srcdir)/src/openvpn/buffer.c \
+	$(top_srcdir)/src/openvpn/crypto.c \
+	$(top_srcdir)/src/openvpn/crypto_mbedtls.c \
+	$(top_srcdir)/src/openvpn/crypto_openssl.c \
+	$(top_srcdir)/src/openvpn/otime.c \
+	$(top_srcdir)/src/openvpn/packet_id.c \
+	$(top_srcdir)/src/openvpn/platform.c \
+	$(top_srcdir)/src/openvpn/siphash_reference.c \
+	$(top_srcdir)/src/openvpn/win32-util.c
 
 if !WIN32
 tls_crypt_testdriver_CFLAGS  = \

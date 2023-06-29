@@ -368,7 +368,8 @@ multi_init(struct multi_context *m, struct context *t, bool tcp_mode)
     m->new_connection_limiter = frequency_limit_init(t->options.cf_max,
                                                      t->options.cf_per);
     m->initial_rate_limiter = initial_rate_limit_init(t->options.cf_initial_max,
-                                                      t->options.cf_initial_per);
+                                                      t->options.cf_initial_per,
+                                                      &t->options.initial_cf_bloom_config);
 
     /*
      * Allocate broadcast/multicast buffer list
