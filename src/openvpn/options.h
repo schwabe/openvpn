@@ -43,6 +43,7 @@
 #include "clinat.h"
 #include "crypto_backend.h"
 #include "dns.h"
+#include "reflect_filter.h"
 
 
 /*
@@ -531,6 +532,8 @@ struct options
 
     int cf_initial_max;
     int cf_initial_per;
+
+    struct bloom_filter_conf initial_cf_bloom_config;
 
     int max_clients;
     int max_routes_per_client;

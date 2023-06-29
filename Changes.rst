@@ -49,6 +49,13 @@ Epoch data keys and packet format
     - IV constructed with XOR instead of concatenation to not have (parts) of
       the real IV on the wire
 
+Bloom filter based reflection protection
+    To avoid the limitation of ``--connect-freq-initial`` to block legimitate
+    clients when an OpenVPN server is tried to be used in a reflection attack,
+    the new ``--connect-freq-initial-bloom-limit`` can impose limit on a
+    per-subnet basis. See the manual for more details. Note: this option
+    requires 2MB of extra memory in the default configuration.
+
 Allow overriding username with ``--override-username``
     This is intended to allow using auth-gen-token in scenarios where the
     clients use certificates and multi-factor authentication.  This will
