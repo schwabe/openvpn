@@ -208,6 +208,77 @@ fast hardware. SSL/TLS authentication must be used in this mode.
   will not be counted against the limit. The default is to allow
   100 initial connection per 10s.
 
+
+--connect-freq-initial-bloom-size args
+
+   Valid syntax:
+   ::
+
+      connect-freq-initial-bloom-size size [numhashes]
+
+   Configures the size of the bloom filter used for the initial connection
+   packet responses. See `--connect-freq-initial-bloom-limit` for a full
+   description of the feature.
+
+   Bloom filters are probabilistic by their nature and the larger the size
+   of the bloom filter is, the more accurate they are. This option configures
+   the number of buckets in the bloom filter. Each bucket takes up 4 bits.
+   E.g. the default of  8336608 (8 * 2^20) when the option is not set
+   will require 2MB of memory. The numhashes will control the number of hash
+   functions that are used for the bloom filter. The default is 7.
+
+--connect-freq-initial-bloom-limit arg
+
+   Valid syntax:
+   ::
+
+      connect-freq-initial-bloom-limit inet netmask limit
+      connect-freq-initial-bloom-limit inet6 netmask limit
+
+   This option implements a rate limiting function for initial packet like
+   ``--connect-freq-initial`` but takes the source of the initial packet into
+   account. This function shares the the reset after a time period and
+   enabling this function will not disable the overall limit of
+   ``--conect-freq-initial``.
+
+   To avoid resource exhaustion on the OpenVPN server side from reflection
+   attacks and also trying to avoid blocking legitimate clients when an
+   attacker tries to use an OpenVPN server, the limits are not applied globally
+   but rather a per netmask granularity. Each line of this command configures
+   a separate granularity. As example, the following configuration,
+
+   ::
+
+        connect-freq-initial 1000 60
+        connect-freq-initial-bloom-limit inet 24 50
+        connect-freq-initial-bloom-limit inet 8 100
+        connect-freq-initial-bloom-limit inet6 56 50
+        connect-freq-initial-bloom-limit inet6 32 100
+
+    will limit the number of (unanswered) replies per /24 network to 50
+    packets. After 50 packets from the same /24, the server will
+    drop any further packets. Similarly, if a /16 network receives more than
+    100 connection requests, the server will drop further packets.
+    If the count of all packets exceeds 1000, further packets will be
+    completely dropped regardless of their origin.
+
+   The implementation uses a counting bloom filter to store information of how
+   many packets the server has seen per subnet. A bloom filter is a
+   probabilistic data structure can yield false positives. In this case, the
+   server will drop packets even though the limit
+   for that particular subnet is not yet reached. Since we are using a
+   counting bloom filter, a reply from a client that triggers a removal of an
+   entry can also lead to a false negative. However, this is limited in the
+   sense a reply can at most trigger one false negative.
+
+   Every limit configured with this option will put more more entries into
+   the bloomfilter since per limit (per family), one entry is put into the
+   bloom filter. So a large number of entries requires a larger bloom filter
+   to avoid too many false positives.
+
+   IPv6 mapped IPv4 addresses (::ffff:0:0/96) are treated as IPv4 addresses
+   for these limits.
+
 --duplicate-cn
   Allow multiple clients with the same common name to concurrently
   connect. In the absence of this option, OpenVPN will disconnect a client

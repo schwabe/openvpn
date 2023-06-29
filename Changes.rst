@@ -9,6 +9,14 @@ TLS alerts
     the user experience as the client shows an error instead of running into
     a timeout when the server just stops responding completely.
 
+Bloom filter based reflection protection
+    To avoid the limitation of ``--connect-freq-initial`` to block legimitate
+    clients when an OpenVPN server is tried to be used in a reflection attack,
+    the new ``--connect-freq-initial-bloom-limit`` can impose limit on a
+    per-subnet basis. See the manual for more details. Note: this option
+    requires 2MB of extra memory in the default configuration.
+
+
 Deprecated features
 -------------------
 ``secret`` support has been removed by default.

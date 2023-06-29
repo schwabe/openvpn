@@ -276,6 +276,9 @@ jobs:
         env:
           srcdir: "${{ github.workspace }}/tests/unit_tests/openvpn"
 
+      - name: Run reflect unit test
+        run: ./unittests/test_reflect.exe
+
   ubuntu:
     strategy:
       fail-fast: false

@@ -42,6 +42,7 @@ openvpn_SOURCES = \
 	auth_token.c auth_token.h \
 	base64.c base64.h \
 	basic.h \
+    bloom.c bloom.h \
 	buffer.c buffer.h \
 	circ_list.h \
 	clinat.c clinat.h \
@@ -122,6 +123,7 @@ openvpn_SOURCES = \
 	session_id.c session_id.h \
 	shaper.c shaper.h \
 	sig.c sig.h \
+	siphash_reference.c siphash.h \
 	socket.c socket.h \
 	socks.c socks.h \
 	ssl.c ssl.h  ssl_backend.h \

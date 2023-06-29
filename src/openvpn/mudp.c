@@ -84,7 +84,7 @@ do_pre_decrypt_check(struct multi_context *m,
     {
         /* Check if we are still below our limit for sending out
          * responses */
-        if (!reflect_filter_rate_limit_check(m->initial_rate_limiter))
+        if (!reflect_filter_check(m->initial_rate_limiter, from))
         {
             return false;
         }
@@ -254,7 +254,8 @@ multi_get_create_instance_udp(struct multi_context *m, bool *floated)
                 {
                     /* a successful three-way handshake only counts against
                      * connect-freq but not against connect-freq-initial */
-                    reflect_filter_rate_limit_decrease(m->initial_rate_limiter);
+                    reflect_filter_rate_limit_decrease(m->initial_rate_limiter,
+                                                       &m->top.c2.from.dest);
 
                     mi = multi_create_instance(m, &real);
                     if (mi)

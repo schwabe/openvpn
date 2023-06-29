@@ -3459,6 +3459,22 @@ options_postprocess_mutate_invariant(struct options *options)
 }
 
 static void
+check_filter_tier_under_global_limit(struct filter_tier *ft, size_t limit,
+                                     const char *family)
+{
+    while (ft)
+    {
+        if (ft->limit < limit)
+        {
+            msg(M_WARN, "Note: --connect-freq-initial-bloom-limit %s %d %d "
+                "has a larger limit than connect-freq-limit-initial "
+                "limit (%zu).", family, ft->netmask, ft->limit, limit);
+        }
+        ft = ft->next;
+    }
+}
+
+static void
 options_postprocess_verify(const struct options *o)
 {
     if (o->connection_list)
@@ -3482,6 +3498,18 @@ options_postprocess_verify(const struct options *o)
             "channel offload: packets are always sent to the VPN "
             "interface and then routed based on the system routing table");
     }
+
+    if ((bool)(o->initial_cf_bloom_config.inet_tiers)
+        +(bool)(o->initial_cf_bloom_config.inet6_tiers) == 1)
+    {
+        msg(M_FATAL, "connect-freq-initial-bloom-limit must be provided for "
+            "both inet and inet6");
+    }
+    check_filter_tier_under_global_limit(o->initial_cf_bloom_config.inet_tiers,
+                                         o->cf_initial_max, "inet");
+    check_filter_tier_under_global_limit(o->initial_cf_bloom_config.inet6_tiers,
+                                         o->cf_initial_max, "inet6");
+
 }
 
 
@@ -7543,6 +7571,71 @@ add_option(struct options *options,
         }
         options->cf_initial_max = cf_max;
         options->cf_initial_per = cf_per;
+    }
+    else if (streq(p[0], "connect-freq-initial-bloom-size") && p[1] && !p[3])
+    {
+        VERIFY_PERMISSION(OPT_P_GENERAL);
+
+        int cf_bloom_size = atoi(p[1]);
+
+        if (cf_bloom_size <= 0)
+        {
+            msg(msglevel, "--connect-freq-initial-bloom-size size must be > 0");
+            goto err;
+        }
+        options->initial_cf_bloom_config.size = cf_bloom_size;
+        if (p[2])
+        {
+            int num_hash = atoi(p[1]);
+            if (num_hash <= 0)
+            {
+                msg(msglevel, "--connect-freq-initial-bloom-size number of hash "
+                    "functions must be > 0");
+                goto err;
+            }
+            options->initial_cf_bloom_config.num_hashes = num_hash;
+        }
+    }
+    else if (streq(p[0], "connect-freq-initial-bloom-limit") && p[1] && p[2]
+             && p[3] && !p[4])
+    {
+        int netmask = atoi(p[2]);
+        int limit = atoi(p[3]);
+
+        if (limit <= 0)
+        {
+            msg(msglevel, "Limit parameter to %s must be > 0", p[0]);
+            goto err;
+        }
+
+        if (streq(p[1], "inet"))
+        {
+            if (netmask < 0 || netmask > 32)
+            {
+                msg(msglevel, "Netmask parameter (%s) for IPv4 for %s must be "
+                    "between 0 and 32", p[2], p[0]);
+                goto err;
+            }
+            reflect_add_filter_tier(&options->initial_cf_bloom_config,
+                                    &options->gc, false, netmask, limit);
+        }
+        else if (streq(p[1], "inet6"))
+        {
+            if (netmask < 0 || netmask > 128)
+            {
+                msg(msglevel, "Netmask parameter (%s) for IPv6 for %s must be "
+                    "between 0 and 128", p[2], p[0]);
+                goto err;
+            }
+            reflect_add_filter_tier(&options->initial_cf_bloom_config,
+                                    &options->gc, true, netmask, limit);
+        }
+        else
+        {
+            msg(msglevel, "Unknown parameter %s for %s. Must be inet or inet6",
+                p[1], p[0]);
+            goto err;
+        }
     }
     else if (streq(p[0], "max-clients") && p[1] && !p[2])
     {
