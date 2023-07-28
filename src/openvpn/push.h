@@ -102,4 +102,18 @@ void send_push_reply_auth_token(struct tls_multi *multi);
 void
 receive_auth_pending(struct context *c, const struct buffer *buffer);
 
+/**
+ * Parses an ACC message and forwards it to the management interface
+ * @param c            The context struct
+ * @param buffer       Buffer containing the control message with ACC
+ */
+void
+receive_acc_message(struct context *c, const struct buffer *buffer);
+
+bool
+send_acc_message(struct tls_multi *tls_multi,
+                 struct tls_session *session,
+                 const char *protocol, bool fragment,
+                 const char *msg, bool base64);
+
 #endif /* ifndef PUSH_H */

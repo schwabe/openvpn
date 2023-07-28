@@ -1000,6 +1000,21 @@ in_extra_dispatch(struct management *man)
             }
             break;
 
+        case IEC_ACC_MSG:
+            if (man->persist.callback.acc_msg)
+            {
+                bool status = (*man->persist.callback.acc_msg)
+                                  (man->persist.callback.arg,
+                                  man->connection.in_extra_cid,
+                                  man->connection.in_extra_kid,
+                                  man->connection.in_extra
+                                  );
+                man->connection.in_extra = NULL;
+                report_command_status(status, "acc-msg");
+                return;
+            }
+            break;
+
         case IEC_PK_SIGN:
             man->connection.ext_key_state = EKS_READY;
             buffer_list_free(man->connection.ext_key_input);
@@ -1085,6 +1100,21 @@ man_client_pending_auth(struct management *man, const char *cid_str,
         {
             man_command_unsupported("client-pending-auth");
         }
+    }
+}
+
+static void
+man_client_acc_msg(struct management *man, const char *cid_str,
+                   const char *kid_str)
+{
+    struct man_connection *mc = &man->connection;
+    mc->in_extra_cid = 0;
+    mc->in_extra_kid = 0;
+    if (parse_cid(cid_str, &mc->in_extra_cid)
+        && parse_uint(kid_str, "KID", &mc->in_extra_kid))
+    {
+        mc->in_extra_cmd = IEC_ACC_MSG;
+        in_extra_reset(mc, IER_NEW);
     }
 }
 
@@ -1595,6 +1625,13 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
         if (man_need(man, p, 4, 0))
         {
             man_client_pending_auth(man, p[1], p[2], p[3], p[4]);
+        }
+    }
+    else if (streq(p[0], "acc-msg"))
+    {
+        if (man_need(man, p, 2, 0))
+        {
+            man_client_acc_msg(man, p[1], p[2]);
         }
     }
     else if (streq(p[0], "rsa-sig"))
@@ -2969,6 +3006,7 @@ management_notify_client_cr_response(unsigned mda_key_id,
         gc_free(&gc);
     }
 }
+
 
 void
 management_connection_established(struct management *management,
