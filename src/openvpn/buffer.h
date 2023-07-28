@@ -2240,4 +2240,21 @@ struct buffer buffer_read_from_file(const char *filename, struct gc_arena *gc);
 /**@}*/
 /* End of Buffer Lists */
 
+/**
+ * will read a decimal integer from a buffer until the next non-decimal
+ * character. If successful the method will return true and the integer
+ * in \c result. The buffer will be advanced to the next character after
+ * the integer.  This function also ensures to not advance beyond the end
+ * of the buffer.
+ */
+bool
+buffer_read_int(struct buffer *buf, int *result);
+
+/**
+ * Extract a field from buf that end with the \c sep character. The
+ * returned string is allocated in the gc_arena. If the seperator character
+ * is not found, the function returns the nullptr.
+ */
+char *
+extract_field(struct buffer *buf, char sep, struct gc_arena *gc);
 #endif /* BUFFER_H */

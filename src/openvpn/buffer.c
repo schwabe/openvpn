@@ -1352,3 +1352,50 @@ cleanup:
     fclose(fp);
     return ret;
 }
+
+bool
+buffer_read_int(struct buffer *buf, int *result)
+{
+    *result = 0;
+    bool ret = false;
+
+    while (buf_len(buf))
+    {
+        uint8_t c = *BPTR(buf);
+        if (c >= '0' && c <= '9')
+        {
+            *result = *result * 10;
+            /* lower nibble of ascii digits is their value */
+            *result += (c & 0x0f);
+            buf_advance(buf, 1);
+            ret = true;
+        }
+        else
+        {
+            return ret;
+        }
+    }
+    return ret;
+}
+
+/**
+ * Extract a field from buf that end with the \c sep character. The
+ * returned string is allocated in the gc_arena. If the sep character
+ * is not found, the function returns the nullptr.
+ */
+char *
+extract_field(struct buffer *buf, char sep, struct gc_arena *gc)
+{
+    const uint8_t *seppos = memchr(BPTR(buf), sep, buf_len(buf));
+    if (!seppos)
+    {
+        return NULL;
+    }
+    size_t field_len = seppos - BPTR(buf);
+
+    char *field = gc_malloc(field_len + 1, false, gc);
+    strncpy(field, BSTR(buf), field_len);
+
+    buf_advance(buf, (int)field_len + 1);
+    return field;
+}
