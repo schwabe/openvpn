@@ -1232,4 +1232,14 @@ struct buffer_list *buffer_list_file(const char *fn, int max_line_len);
  */
 struct buffer buffer_read_from_file(const char *filename, struct gc_arena *gc);
 
+/**
+ * will read a decimal integer from a buffer until the next non-decimal
+ * character. If successful the method will return true and the integer
+ * in \c result. The buffer will be advanced to the next character after
+ * the integer
+ *
+ */
+bool
+buffer_read_int(struct buffer *buf, int *result);
+
 #endif /* BUFFER_H */

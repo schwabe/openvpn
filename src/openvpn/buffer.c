@@ -1404,3 +1404,28 @@ cleanup:
     fclose(fp);
     return ret;
 }
+
+bool
+buffer_read_int(struct buffer *buf, int *result)
+{
+    *result = 0;
+    bool ret = false;
+
+    while (buf_len(buf))
+    {
+        uint8_t c = *BPTR(buf);
+        if (c >= '0' && c <= '9')
+        {
+            *result = *result * 10;
+            /* lower nibble of ascii digits is their value */
+            *result += (c & 0x0f);
+            buf_advance(buf, 1);
+            ret = true;
+        }
+        else
+        {
+            return ret;
+        }
+    }
+    return ret;
+}
