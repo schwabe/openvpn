@@ -29,7 +29,10 @@
 
 #include "syshead.h"
 
+#include <stdlib.h>
 #include "manage.h"
+
+#include "mock_management.h"
 
 #ifdef ENABLE_MANAGEMENT
 
@@ -60,4 +63,16 @@ management_set_state(struct management *man, const int state, const char *detail
 void
 management_sleep(const int n)
 {
+}
+
+void
+init_mock_management(void)
+{
+    ALLOC_OBJ_CLEAR(management, struct management);
+}
+
+void
+uninit_mock_management(void)
+{
+    free(management);
 }

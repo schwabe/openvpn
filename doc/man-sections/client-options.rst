@@ -12,6 +12,13 @@ configuration.
   When this option is set, OpenVPN will not drop incoming tun packets with
   same destination as host.
 
+--app-custom-control protocollist
+  Announce app custom control support to the server. The protocollist is
+  a : seperated list of protocol identifiers.
+
+  See management-notes.txt in the OpenVPN distribution  and the OpenVPN RFC
+  draft for a description of app custom control protocol support.
+
 --auth-token token
   This is not an option to be used directly in any configuration files,
   but rather push this option from a ``--client-connect`` script or a

@@ -35,6 +35,7 @@
 
 #include "syshead.h"
 
+#include "acc.h"
 #include "buffer.h"
 #include "error.h"
 #include "common.h"
@@ -8521,6 +8522,28 @@ add_option(struct options *options, char *p[], bool is_inline, const char *file,
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);
         options->force_key_material_export = true;
+    }
+    else if (streq(p[0], "app-custom-control") && p[1] && !p[2])
+    {
+        VERIFY_PERMISSION(OPT_P_GENERAL);
+        options->acc_protocols = p[1];
+    }
+    else if (streq(p[0], "custom-control") && p[1] && p[2] && p[3] && !p[4])
+    {
+        VERIFY_PERMISSION(OPT_P_PUSH);
+
+        if (!streq(p[2], "A:6") || !streq(p[2], "6:A"))
+        {
+            msg(msglevel, "App custom control encoding must be base64 and ascii");
+            goto err;
+        }
+
+        if (!atoi_constrained(p[1], &options->app_custom_protocol_len,
+                              "app custom message message length", 64, ACC_MAX_MSG_LEN, msglevel))
+        {
+            goto err;
+        }
+        options->acc_negotiated_protocols = p[3];
     }
     else if (streq(p[0], "prng") && p[1] && !p[3])
     {

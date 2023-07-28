@@ -27,6 +27,9 @@
 #include "syshead.h"
 
 #include "push.h"
+
+#include "acc.h"
+#include "push_util.h"
 #include "options.h"
 #include "crypto.h"
 #include "ssl.h"
@@ -220,9 +223,66 @@ receive_exit_message(struct context *c)
 #endif
 }
 
+/**
+ * Parses an info message from the server that contains app custom control info
+ * information prior to the PUSH_REPLY to be able to use app custom control
+ * protocols before sending
+ * @param c
+ * @param message
+ */
+static void
+parse_server_pushed_acc_info(struct context *c, const char *message)
+{
+    /* example string to parse: ACC:1400 A:6 flower:happy */
+    /* Skip over the ACC: prefix */
+    message += 4;
+
+    char *tmp_message = string_alloc(message, NULL);
+    char *tmp_message_orig = tmp_message;
+    char *lasts = NULL;
+
+    const char *token = strtok_r(tmp_message, " ", &lasts);
+
+    int p = 0;
+    int acclen = 0;
+    const char *protocols = NULL;
+
+    while (token)
+    {
+        if (p == 0 && !atoi_constrained(token, &acclen, "app custom message message length", 64, ACC_MAX_MSG_LEN, D_PUSH_ERRORS))
+        {
+            goto done;
+        }
+
+        if (p == 1 && strcmp(token, "A:6") != 0 && strcmp(token, "6:A") != 0)
+        {
+            msg(D_PUSH_ERRORS, "App custom control encoding must be base64 and ascii");
+            goto done;
+        }
+
+        if (p == 2)
+        {
+            protocols = token;
+        }
+
+        if (p == 3)
+        {
+            msg(D_PUSH_ERRORS, "Too many parameters for INFO ACC message.");
+            goto done;
+        }
+
+        token = strtok_r(NULL, " ", &lasts);
+        p++;
+    }
+
+    c->options.app_custom_protocol_len = acclen;
+    c->options.acc_negotiated_protocols = string_alloc(protocols, &c->options.gc);
+done:
+    free(tmp_message_orig);
+}
 
 void
-server_pushed_info(const struct buffer *buffer, const int adv)
+server_pushed_info(struct context *c, const struct buffer *buffer, const int adv)
 {
     const char *m = "";
     struct buffer buf = *buffer;
@@ -230,6 +290,11 @@ server_pushed_info(const struct buffer *buffer, const int adv)
     if (buf_advance(&buf, adv) && buf_read_u8(&buf) == ',' && BLEN(&buf))
     {
         m = BSTR(&buf);
+    }
+
+    if (strncmp(m, "ACC:", 4) == 0)
+    {
+        parse_server_pushed_acc_info(c, m);
     }
 
 #ifdef ENABLE_MANAGEMENT
@@ -283,6 +348,7 @@ receive_cr_response(struct context *c, const struct buffer *buffer)
     verify_crresponse_script(c->c2.tls_multi, m);
     msg(D_PUSH, "CR response was sent by client ('%s')", m);
 }
+
 
 /**
  * Parse the keyword for the AUTH_PENDING request

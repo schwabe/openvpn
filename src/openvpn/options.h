@@ -709,6 +709,12 @@ struct options
     /* force using TLS key material export for data channel key generation */
     bool force_key_material_export;
 
+    /** The app custom control protocols we should announce as supported */
+    const char *acc_protocols;
+
+    const char *acc_negotiated_protocols;
+    int app_custom_protocol_len;
+
     bool vlan_tagging;
     enum vlan_acceptable_frames vlan_accept;
     uint16_t vlan_pvid;

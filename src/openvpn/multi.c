@@ -53,6 +53,7 @@
 #include "ssl_cert_hash.h"
 #include "dco.h"
 #include "reflect_filter.h"
+#include "acc.h"
 
 /*#define MULTI_DEBUG_EVENT_LOOP*/
 
@@ -4092,6 +4093,32 @@ management_client_auth(void *arg, const unsigned long cid, const unsigned int md
     return ret;
 }
 
+
+static bool
+management_client_acc_msg(void *arg,
+                          const unsigned long cid,
+                          const unsigned int mda_key_id,
+                          struct buffer_list *input) /* ownership transferred */
+{
+    struct multi_context *m = (struct multi_context *)arg;
+    struct multi_instance *mi = lookup_by_cid(m, cid);
+
+    bool ret = true;
+    if (mi && buffer_list_defined(input))
+    {
+        struct tls_multi *multi = mi->context.c2.tls_multi;
+        struct tls_session *session = lookup_session_by_mda_key_id(multi, mda_key_id);
+        struct options *opt = &mi->context.options;
+
+        ret = management_send_acc_message(multi, session, opt->acc_negotiated_protocols, input);
+        multi_schedule_context_wakeup(m, mi);
+    }
+
+    buffer_list_free(input);
+    return ret;
+}
+
+
 static char *
 management_get_peer_info(void *arg, const unsigned long cid)
 {
@@ -4128,6 +4155,7 @@ init_management_callback_multi(struct multi_context *m)
         cb.n_clients = management_callback_n_clients;
         cb.kill_by_cid = management_kill_by_cid;
         cb.client_auth = management_client_auth;
+        cb.client_acc_msg = management_client_acc_msg;
         cb.client_pending_auth = management_client_pending_auth;
         cb.get_peer_info = management_get_peer_info;
         cb.push_update_broadcast = management_callback_send_push_update_broadcast;

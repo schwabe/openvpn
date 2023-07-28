@@ -52,6 +52,8 @@
 #include "ssl_verify.h"
 #include "openvpn.h"
 
+#include "test_acc.h"
+
 /* Mock function to be allowed to include win32.c which is required for
  * getting the temp directory */
 #ifdef _WIN32
@@ -973,8 +975,8 @@ main(void)
         cmocka_unit_test(test_data_channel_known_vectors_epoch),
         cmocka_unit_test(test_data_channel_known_vectors_shortpktid),
         cmocka_unit_test(crypto_test_print_cert_details),
-        cmocka_unit_test(ssl_test_extract_peer_info)
-
+        cmocka_unit_test(ssl_test_extract_peer_info),
+        cmocka_unit_test(test_acc_parse_client_messages)
     };
 
 #if defined(ENABLE_CRYPTO_OPENSSL)

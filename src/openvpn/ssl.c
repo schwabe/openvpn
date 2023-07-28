@@ -55,6 +55,7 @@
 
 #include "crypto_epoch.h"
 #include "ssl.h"
+#include "acc.h"
 #include "ssl_verify.h"
 #include "ssl_backend.h"
 #include "ssl_cert_hash.h"
@@ -2056,6 +2057,11 @@ push_peer_info(struct buffer *buf, struct tls_multi *multi, struct tls_session *
                         buf_printf(&out, "%s\n", e->string);
                     }
                 }
+            }
+
+            if (session->opt->acc_protocols)
+            {
+                buf_printf(&out, "IV_ACC=%d,6:A,%s\n", ACC_MAX_MSG_LEN, session->opt->acc_protocols);
             }
         }
     }
