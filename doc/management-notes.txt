@@ -1171,6 +1171,17 @@ CLIENT notification types:
    response. Mechanisms that need multiple rounds or more complex answers
    should implement a different response type than CR_RESPONSE.
 
+(6) App custom control message
+
+    This message is an application specific payload message that is transported
+    over the OpenVPN control channel.
+
+    >CLIENT:ACC,{CID},{KID},{protocol},{fragment},{msg_base64}
+
+    The protocol is a short ascii string identifying the app specific custom
+    protocol and identifies the protocol. If fragment is set to 1, the message
+    is not complete and the next message should be concatenated to this message
+    to form a complete message.
 
 Variables:
 

@@ -279,6 +279,10 @@ check_incoming_control_channel(struct context *c)
         {
             receive_cr_response(c, &buf);
         }
+        else if (buf_string_match_head_str(&buf, "ACC"))
+        {
+            receive_acc_message(c, &buf);
+        }
         else if (buf_string_match_head_str(&buf, "AUTH_PENDING"))
         {
             receive_auth_pending(c, &buf);
