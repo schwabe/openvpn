@@ -4025,6 +4025,24 @@ management_kill_by_cid(void *arg, const unsigned long cid, const char *kill_msg)
     }
 }
 
+static struct tls_session *
+lookup_session_by_mda_key_id(struct tls_multi *multi,
+                             const unsigned int mda_key_id)
+{
+    if (multi->session[TM_INITIAL].key[KS_PRIMARY].mda_key_id == mda_key_id)
+    {
+        return &multi->session[TM_INITIAL];
+    }
+    else if (multi->session[TM_ACTIVE].key[KS_PRIMARY].mda_key_id == mda_key_id)
+    {
+        return &multi->session[TM_ACTIVE];
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
 static bool
 management_client_pending_auth(void *arg,
                                const unsigned long cid,
@@ -4038,20 +4056,7 @@ management_client_pending_auth(void *arg,
     if (mi)
     {
         struct tls_multi *multi = mi->context.c2.tls_multi;
-        struct tls_session *session;
-
-        if (multi->session[TM_INITIAL].key[KS_PRIMARY].mda_key_id == mda_key_id)
-        {
-            session = &multi->session[TM_INITIAL];
-        }
-        else if (multi->session[TM_ACTIVE].key[KS_PRIMARY].mda_key_id == mda_key_id)
-        {
-            session = &multi->session[TM_ACTIVE];
-        }
-        else
-        {
-            return false;
-        }
+        struct tls_session *session = lookup_session_by_mda_key_id(multi, mda_key_id);
 
         /* sends INFO_PRE and AUTH_PENDING messages to client */
         bool ret = send_auth_pending_messages(multi, session, extra,
