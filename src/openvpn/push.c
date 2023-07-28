@@ -27,6 +27,8 @@
 #include "syshead.h"
 
 #include "push.h"
+
+#include "acc.h"
 #include "options.h"
 #include "crypto.h"
 #include "ssl.h"
@@ -220,9 +222,8 @@ receive_exit_message(struct context *c)
 #endif
 }
 
-
 void
-server_pushed_info(const struct buffer *buffer, const int adv)
+server_pushed_info(struct context *c, const struct buffer *buffer, const int adv)
 {
     const char *m = "";
     struct buffer buf = *buffer;
@@ -230,6 +231,27 @@ server_pushed_info(const struct buffer *buffer, const int adv)
     if (buf_advance(&buf, adv) && buf_read_u8(&buf) == ',' && BLEN(&buf))
     {
         m = BSTR(&buf);
+    }
+
+    if (strncmp(m, "ACC:", 4) == 0)
+    {
+        int max_acc_len = 0;
+
+
+        /* example string to parse: ACC:1400 A:6 flower:happy */
+        /* Skip over the ACC: prefix */
+        m += 4;
+
+        char *protocols = parse_acc_parameters(m, " ", &max_acc_len, false, &c->options.gc);
+        if (protocols)
+        {
+            c->options.acc_negotiated_protocols = protocols;
+            c->options.acc_max_message_length = max_acc_len;
+        }
+        else
+        {
+            msg(D_PUSH_ERRORS, "WARNING: Received ACC info command with invalid parameters");
+        }
     }
 
 #ifdef ENABLE_MANAGEMENT
@@ -283,6 +305,7 @@ receive_cr_response(struct context *c, const struct buffer *buffer)
     verify_crresponse_script(c->c2.tls_multi, m);
     msg(D_PUSH, "CR response was sent by client ('%s')", m);
 }
+
 
 /**
  * Parse the keyword for the AUTH_PENDING request
@@ -439,7 +462,6 @@ send_auth_pending_messages(struct tls_multi *tls_multi, struct tls_session *sess
 
     const char *const peer_info = tls_multi->peer_info;
     unsigned int proto = extract_iv_proto(peer_info);
-
 
     /* Calculate the maximum timeout and subtract the time we already waited */
     unsigned int max_timeout =
@@ -730,6 +752,11 @@ prepare_push_reply(struct context *c, struct gc_arena *gc, struct push_list *pus
                 "to client configuration.",
                 client_max_mtu, o->ce.tun_mtu, o->ce.tun_mtu);
         }
+    }
+
+    if (c->options.acc_negotiated_protocols)
+    {
+        push_option_fmt(gc, push_list, M_USAGE, "custom-control %d A:6 %s", c->options.acc_max_message_length, c->options.acc_negotiated_protocols);
     }
 }
 

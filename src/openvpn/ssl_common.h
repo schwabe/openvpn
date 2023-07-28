@@ -452,6 +452,9 @@ struct tls_options
     size_t ekm_size;
 
     bool dco_enabled; /**< Whether keys have to be installed in DCO or not */
+
+    /** The app custom control protocols we should announce as supported */
+    const char *acc_protocols;
 };
 
 /** @addtogroup control_processor
