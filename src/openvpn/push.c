@@ -287,6 +287,164 @@ receive_cr_response(struct context *c, const struct buffer *buffer)
     msg(D_PUSH, "CR response was sent by client ('%s')", m);
 }
 
+
+/**
+ * Extract a field from buf that end with the \c sep character. The
+ * returned string is allocated in the gc_arena. If the seperater character
+ * is not found, the function returns the nullptr.
+ */
+char *
+extract_field(struct buffer *buf, char sep, struct gc_arena *gc)
+{
+    const uint8_t *seppos = memchr(BPTR(buf), sep, buf_len(buf));
+    if (!seppos)
+    {
+        return NULL;
+    }
+    size_t field_len = seppos - BPTR(buf);
+
+
+    char *field = gc_malloc(field_len + 1, false, gc);
+    strncpy(field, BSTR(buf), field_len);
+
+    buf_advance(buf, (int)field_len + 1);
+    return field;
+}
+
+/**
+ * This method parses an app custom control message and delivers it to the
+ * management interface. We leave reassembly of fragmented messages to the
+ * management interface.
+ */
+void
+receive_acc_message(struct context *c, const struct buffer *buffer)
+{
+    struct gc_arena gc = gc_new();
+    const char *err_reason = "";
+
+    /* Example message: ACC,muppets,15,A,I am Miss Piggy */
+    struct buffer buf = *buffer;
+
+    if (!buf_advance(&buf, strlen("ACC"))  || buf_read_u8(&buf) != ',' || !BLEN(&buf))
+    {
+        err_reason = "missing , after ACC";
+        goto err;
+    }
+
+    /* extract protocol, payload length, flags substrings */
+    char *protocol = extract_field(&buf, ',', &gc);
+    if (!protocol)
+    {
+        err_reason = "could not extract protocol field";
+        goto err;
+    }
+    int payload_len = 0;
+    if (!buffer_read_int(&buf, &payload_len))
+    {
+        err_reason = "could not extract payload length field";
+        goto err;
+    }
+
+    /* comma after the length */
+    if (buf_read_u8(&buf) != ',')
+    {
+        err_reason = "missing , after payload len";
+        goto err;
+    }
+
+    char *flags = extract_field(&buf, ',', &gc);
+
+    if (!flags)
+    {
+        err_reason = "could not extract flags field";
+        goto err;
+    }
+
+    /* We have a final NUL byte in the control message buffer */
+    if (buf_len(&buf)  != payload_len + 1)
+    {
+        char *tmp  = gc_malloc(512, 1, &gc);
+        snprintf(tmp, 512, "field length %d, payload length %d mismatch",
+                 payload_len, buf_len(&buf) - 1);
+        err_reason = tmp;
+        goto err;
+    }
+
+    bool base64enc = false;
+    bool asciienc = false;
+    bool fragment = false;
+
+    char *token = NULL;
+    while ((token = strsep(&flags, ":")))
+    {
+        if (streq(token, "A"))
+        {
+            asciienc = true;
+        }
+        else if (streq(token, "6"))
+        {
+            base64enc = false;
+        }
+        else if (streq(token, "F"))
+        {
+            fragment = true;
+        }
+        else
+        {
+            goto err;
+        }
+    }
+
+    /* The message should be encoded with exactly one encoding */
+    if (base64enc + asciienc != 1)
+    {
+        goto err;
+    }
+
+#ifdef ENABLE_MANAGEMENT
+    const char *payload_msg = NULL;
+
+    /* For simplicity, we always encode payload to be base64 encoded
+     * if not already in base64 format */
+    if (asciienc)
+    {
+        char *b64out = NULL;
+        ASSERT(openvpn_base64_encode(BPTR(&buf), payload_len, &b64out) >= 0);
+        gc_addspecial(b64out, free, &gc);
+        payload_msg = b64out;
+    }
+    else
+    {
+        payload_msg = BSTR(&buf);
+    }
+
+    if (management)
+    {
+        struct tls_session *session = &c->c2.tls_multi->session[TM_ACTIVE];
+        struct man_def_auth_context *mda = session->opt->mda_context;
+        unsigned int mda_key_id = get_primary_key(c->c2.tls_multi)->mda_key_id;
+
+
+        msg(M_CLIENT, ">CLIENT:ACC,%lu,%u,%s,%d,%s",
+            mda->cid, mda_key_id, protocol, fragment, payload_msg);
+    }
+#endif /* ifdef ENABLE_MANAGEMENT */
+    msg(D_PUSH, "custom app control message (protocol '%s', fragment %d)",
+        protocol, fragment);
+
+    gc_free(&gc);
+    return;
+
+err:
+    dmsg(D_PUSH, "BUF CONTENT: %s",
+         format_hex(BPTR(&buf), BLEN(&buf), 80, &gc));
+
+    msg(D_PUSH_ERRORS, "WARNING: Received malformed custom app control channel "
+        "(%s) message control message: %s", err_reason,
+        BSTR(buffer));
+    gc_free(&gc);
+}
+
 /**
  * Parse the keyword for the AUTH_PENDING request
  * @param buffer                buffer containing the keywords, the buffer's
@@ -434,6 +592,36 @@ send_auth_failed(struct context *c, const char *client_reason)
     gc_free(&gc);
 }
 
+bool
+send_acc_message(struct tls_multi *tls_multi,
+                 struct tls_session *session,
+                 const char *protocol, bool fragment,
+                 const char *msg, bool base64)
+{
+    /* TODO check client capabilities */
+    /* 3 for the encoding, potential F, and , 1 for the final flag, 5 for the message size itself */
+    const size_t max_header_size = strlen("ACC,") + 3 + strlen(protocol) + 1 + 5;
+
+    size_t len = max_header_size + strlen(msg);
+
+    if (len > PUSH_BUNDLE_SIZE)
+    {
+        return false;
+    }
+
+    struct gc_arena gc = gc_new();
+    struct buffer buf = alloc_buf_gc(len, &gc);
+
+    /* Example message: ACC,muppets,15,A,I am Miss Piggy */
+    buf_printf(&buf, "ACC,%s,%zu,%s%s,%s", protocol,
+               strlen(msg),
+               base64 ? "6" : "A",
+               fragment ? ":F" : "",
+               msg);
+
+    send_control_channel_string_dowork(session, BSTR(&buf), D_PUSH);
+    return true;
+}
 
 bool
 send_auth_pending_messages(struct tls_multi *tls_multi,

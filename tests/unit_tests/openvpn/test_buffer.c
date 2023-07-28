@@ -452,7 +452,6 @@ test_buffer_read_int(void **state)
     assert_false(buffer_read_int(&buf, &tmp));
 
     buf = alloc_buf_gc(1000, &gc);
-    buf_printf(&buf, "");
     assert_false(buffer_read_int(&buf, &tmp));
 
     gc_free(&gc);

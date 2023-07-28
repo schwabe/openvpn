@@ -265,6 +265,10 @@ parse_incoming_control_channel_command(struct context *c, struct buffer *buf)
     {
         receive_auth_pending(c, buf);
     }
+    else if (buf_string_match_head_str(buf, "ACC"))
+    {
+        receive_acc_message(c, buf);
+    }
     else if (buf_string_match_head_str(buf, "EXIT"))
     {
         receive_exit_message(c);

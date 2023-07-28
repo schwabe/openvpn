@@ -192,6 +192,10 @@ struct management_callback
                          const char *reason,
                          const char *client_reason,
                          struct buffer_list *cc_config); /* ownership transferred */
+    bool (*acc_msg) (void *arg,
+                     const unsigned long cid,
+                     const unsigned int mda_key_id,
+                     struct buffer_list *msg);
     bool (*client_pending_auth) (void *arg,
                                  const unsigned long cid,
                                  const unsigned int kid,
@@ -300,6 +304,7 @@ struct man_connection {
 #define IEC_RSA_SIGN    3
 #define IEC_CERTIFICATE 4
 #define IEC_PK_SIGN     5
+#define IEC_ACC_MSG     6
     int in_extra_cmd;
     struct buffer_list *in_extra;
     unsigned long in_extra_cid;
@@ -426,6 +431,14 @@ void management_notify_client_cr_response(unsigned mda_key_id,
                                           const struct man_def_auth_context *mdac,
                                           const struct env_set *es,
                                           const char *response);
+
+void
+management_notify_acc_fragment(unsigned mda_key_id,
+                               const struct man_def_auth_context *mdac,
+                               const struct env_set *es,
+                               const char *protocol,
+                               bool fragment,
+                               const char *msg);
 
 char *management_query_pk_sig(struct management *man, const char *b64_data,
                               const char *algorithm);

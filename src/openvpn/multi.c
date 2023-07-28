@@ -4109,6 +4109,65 @@ management_client_auth(void *arg,
     return ret;
 }
 
+static bool
+management_client_acc_msg(void *arg,
+                          const unsigned long cid,
+                          const unsigned int mda_key_id,
+                          struct buffer_list *input) /* ownership transferred */
+{
+    struct gc_arena gc = gc_new();
+    struct multi_context *m = (struct multi_context *) arg;
+    struct multi_instance *mi = lookup_by_cid(m, cid);
+
+    if (mi && buffer_list_defined(input))
+    {
+        struct tls_multi *multi = mi->context.c2.tls_multi;
+        struct tls_session *session = lookup_session_by_mda_key_id(multi, mda_key_id);
+
+        const struct buffer *proto_buf = buffer_list_peek(input);
+        const char *protocol = string_alloc(BSTR(proto_buf), &gc);
+        buffer_list_pop(input);
+
+        const struct buffer *encoding_buf = buffer_list_peek(input);
+        char *encoding = buf_str(encoding_buf);
+        char *flag = NULL;
+        bool b64encoding = false;
+        bool fragment = false;
+
+        while ((flag = strsep(&encoding, ":")))
+        {
+            if (!strcmp(flag, "6"))
+            {
+                b64encoding = true;
+            }
+            else if (!strcmp(flag, "F"))
+            {
+                fragment = true;
+            }
+        }
+        buffer_list_pop(input);
+
+        buffer_list_aggregate_separator(input, 10000, "");
+        const struct buffer *acc_msg_buf = buffer_list_peek(input);
+
+        if (!proto_buf || !input || !acc_msg_buf)
+        {
+            gc_free(&gc);
+            buffer_list_free(input);
+            return false;
+        }
+
+        send_acc_message(multi, session, protocol,
+                         fragment, buf_str(acc_msg_buf),
+                         b64encoding);
+        multi_schedule_context_wakeup(m, mi);
+    }
+
+    buffer_list_free(input);
+    gc_free(&gc);
+    return true;
+}
+
 static char *
 management_get_peer_info(void *arg, const unsigned long cid)
 {
@@ -4145,6 +4204,7 @@ init_management_callback_multi(struct multi_context *m)
         cb.n_clients = management_callback_n_clients;
         cb.kill_by_cid = management_kill_by_cid;
         cb.client_auth = management_client_auth;
+        cb.acc_msg = management_client_acc_msg;
         cb.client_pending_auth = management_client_pending_auth;
         cb.get_peer_info = management_get_peer_info;
         management_set_callback(management, &cb);
