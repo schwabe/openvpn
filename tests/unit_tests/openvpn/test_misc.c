@@ -39,6 +39,8 @@
 #include "test_common.h"
 #include "list.h"
 #include "mock_msg.h"
+#include "mock_management.h"
+#include "test_acc.h"
 
 static void
 test_compat_lzo_string(void **state)
@@ -385,12 +387,16 @@ const struct CMUnitTest misc_tests[] = {
     cmocka_unit_test(test_auth_fail_temp_flags),
     cmocka_unit_test(test_auth_fail_temp_flags_msg),
     cmocka_unit_test(test_list),
-    cmocka_unit_test(test_atoi_variants)
+    cmocka_unit_test(test_atoi_variants),
+    cmocka_unit_test(test_acc_parse_ssl_clientshake)
 };
 
 int
 main(void)
 {
     openvpn_unit_test_setup();
-    return cmocka_run_group_tests(misc_tests, NULL, NULL);
+    init_mock_management();
+    int ret = cmocka_run_group_tests(misc_tests, NULL, NULL);
+    uninit_mock_management();
+    return ret;
 }

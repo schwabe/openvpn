@@ -324,10 +324,16 @@ misc_testdriver_CFLAGS  = \
 misc_testdriver_LDFLAGS = @TEST_LDFLAGS@
 
 misc_testdriver_SOURCES = test_misc.c mock_msg.c \
+	test_acc.c \
+	mock_management.c \
 	mock_get_random.c \
 	$(top_srcdir)/src/openvpn/buffer.c \
 	$(top_srcdir)/src/openvpn/options_util.c \
 	$(top_srcdir)/src/openvpn/ssl_util.c \
 	$(top_srcdir)/src/openvpn/win32-util.c \
 	$(top_srcdir)/src/openvpn/platform.c \
-	$(top_srcdir)/src/openvpn/list.c
+	$(top_srcdir)/src/openvpn/list.c \
+	$(top_srcdir)/src/openvpn/acc.c \
+	$(top_srcdir)/src/openvpn/push_utils.c \
+	$(top_srcdir)/src/openvpn/base64.c
+

@@ -374,6 +374,8 @@ set(SOURCE_FILES
     src/compat/compat-dirname.c
     src/compat/compat-gettimeofday.c
     src/compat/compat-strsep.c
+    src/openvpn/acc.c
+    src/openvpn/acc.h
     src/openvpn/argv.c
     src/openvpn/argv.h
     src/openvpn/base64.c
@@ -509,6 +511,8 @@ set(SOURCE_FILES
     src/openvpn/ps.h
     src/openvpn/push.c
     src/openvpn/push.h
+    src/openvpn/push_utils.c
+    src/openvpn/push_utils.h
     src/openvpn/pushlist.h
     src/openvpn/reflect_filter.c
     src/openvpn/reflect_filter.h
@@ -771,11 +775,16 @@ if (BUILD_TESTING)
     )
 
     target_sources(test_misc PRIVATE
+        tests/unit_tests/openvpn/test_acc.c
         tests/unit_tests/openvpn/mock_get_random.c
+        tests/unit_tests/openvpn/mock_management.c
         src/openvpn/options_util.c
         src/openvpn/ssl_util.c
         src/openvpn/list.c
-        )
+        src/openvpn/push_utils.c
+        src/openvpn/acc.c
+        src/openvpn/base64.c
+    )
 
     target_sources(test_ncp PRIVATE
         src/openvpn/crypto_epoch.c

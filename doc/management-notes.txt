@@ -755,6 +755,29 @@ and <challenge_text> fields are used:
 The client should return the response to the crtext challenge
 using the cr-response command.
 
+COMMAND -- acc-msg (OpenVPN 2.7 or higher)
+------------------------------------------
+
+This commands sends a message to a client, the format of the command is
+
+  client-auth {CID} {KID}
+  {protocol}
+  {flags}
+  {message}
+  END
+
+CID,KID -- client ID and Key ID.  See documentation for ">CLIENT:"
+notification for more info.
+
+protocol -- the ACC protocol identified that this message should be
+            tagged with.
+
+flags    -- a colon seperated list of the encoding and the flag if
+            the message is a fragment. E.g. "6:F" for a base64 encoded
+            message that
+
+message  -- The message encoded in the specified encoding in flags
+
 COMMAND -- client-deny  (OpenVPN 2.1 or higher)
 -----------------------------------------------
 
@@ -1175,6 +1198,17 @@ CLIENT notification types:
    response. Mechanisms that need multiple rounds or more complex answers
    should implement a different response type than CR_RESPONSE.
 
+(6) App custom control message
+
+    This message is an application specific payload message that is transported
+    over the OpenVPN control channel.
+
+    >CLIENT:ACC,{CID},{KID},{protocol},{fragment},{msg_base64}
+
+    The protocol is a short ascii string identifying the app specific custom
+    protocol and identifies the protocol. If fragment is set to 1, the message
+    is not complete and the next message should be concatenated to this message
+    to form a complete message.
 
 Variables:
 

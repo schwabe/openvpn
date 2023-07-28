@@ -287,6 +287,7 @@ receive_cr_response(struct context *c, const struct buffer *buffer)
     msg(D_PUSH, "CR response was sent by client ('%s')", m);
 }
 
+
 /**
  * Parse the keyword for the AUTH_PENDING request
  * @param buffer                buffer containing the keywords, the buffer's
@@ -433,7 +434,6 @@ send_auth_failed(struct context *c, const char *client_reason)
 
     gc_free(&gc);
 }
-
 
 bool
 send_auth_pending_messages(struct tls_multi *tls_multi,

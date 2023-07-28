@@ -1,11 +1,13 @@
 /*
  *  OpenVPN -- An application to securely tunnel IP networks
- *             over a single UDP port, with support for SSL/TLS-based
+ *             over a single TCP/UDP port, with support for SSL/TLS-based
  *             session authentication and key exchange,
  *             packet encryption, packet authentication, and
  *             packet compression.
  *
- *  Copyright (C) 2002-2024 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2025 OpenVPN Inc <sales@openvpn.net>
+ *  Copyright (C) 2025 Arne Schwabe <arne@rfc2549.org>
+ *
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License version 2
@@ -21,46 +23,12 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-/* Minimal set of mocked management function/globals to get unit tests to
- * compile */
+#include "buffer.h"
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#include "syshead.h"
-
-#include <stdlib.h>
-#include "manage.h"
-
-#include "mock_management.h"
-
-#ifdef ENABLE_MANAGEMENT
-
-struct management *management; /* GLOBAL */
-
-void
-management_auth_failure(struct management *man, const char *type, const char *reason)
-{
-    ASSERT(false);
-}
-
+/**
+ * Extract a field from buf that end with the \c sep character. The
+ * returned string is allocated in the gc_arena. If the seperator character
+ * is not found, the function returns the nullptr.
+ */
 char *
-management_query_pk_sig(struct management *man, const char *b64_data,
-                        const char *algorithm)
-{
-    return NULL;
-}
-
-void
-init_mock_management(void)
-{
-    ALLOC_OBJ_CLEAR(management, struct management);
-}
-
-void
-uninit_mock_management(void)
-{
-    free(management);
-}
-#endif /* ifdef ENABLE_MANAGEMENT */
+extract_field(struct buffer *buf, char sep, struct gc_arena *gc);

@@ -40,6 +40,7 @@ endif
 sbin_PROGRAMS = openvpn
 
 openvpn_SOURCES = \
+	acc.c acc.h \
 	argv.c argv.h \
 	auth_token.c auth_token.h \
 	base64.c base64.h \
@@ -118,6 +119,7 @@ openvpn_SOURCES = \
 	proxy.c proxy.h \
 	ps.c ps.h \
 	push.c push.h \
+	push_utils.c push_utils.h \
 	pushlist.h \
 	reflect_filter.c reflect_filter.h \
 	reliable.c reliable.h \
