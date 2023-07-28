@@ -12,6 +12,17 @@ configuration.
   When this option is set, OpenVPN will not drop incoming tun packets with
   same destination as host.
 
+--app-custom-control protocollist
+  Sets the list of supported app custom control protocols.
+  These protocols are announced to the server when this option is used
+  as a client. If the option is set on a server it will negotiate the
+  common protocols with the client.
+
+  The protocollist is a : separated list of protocol identifiers.
+
+  See management-notes.txt in the OpenVPN distribution and the OpenVPN RFC
+  draft for a description of app custom control protocol support.
+
 --auth-token token
   This is not an option to be used directly in any configuration files,
   but rather push this option from a ``--client-connect`` script or a
@@ -436,6 +447,12 @@ configuration.
   :code:`IV_SSO=[crtext,][openurl,][proxy_url]`
         Additional authentication methods supported by the client.
         This may be set by the client UI/GUI using ``--setenv``.
+
+  :code:`IV_ACC=<max_msg_len>,<flags>,<protocols>`
+        If the option ``--app-custom-control`` is set, the client will
+        send the supported max ACC message length, the supported formats
+        as (:code:`A:6`) and the list of configured protocols (e.g.
+        :code:`flower:happy:power`)
 
   The following flags depend on which compression formats are compiled in
   and whether compression is allowed by options. See `Protocol options`_

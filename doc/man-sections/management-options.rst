@@ -134,3 +134,9 @@ server and client mode operations.
 
 --management-up-down
   Report tunnel up/down events to management interface.
+
+--app-custom-control protocol-list
+  Sets the app custom control protocols that are supported and should be
+  negotiated. protocol-list is a list of allowed protocols separated by :
+  A client will announced these protocols via the IV_ACC variable and the
+  server will notify the client about the common protocols.

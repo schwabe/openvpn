@@ -53,6 +53,7 @@
 #include "ssl_util.h"
 #include "dco.h"
 #include "reflect_filter.h"
+#include "acc.h"
 
 /*#define MULTI_DEBUG_EVENT_LOOP*/
 
@@ -1735,8 +1736,9 @@ multi_client_connect_setenv(struct multi_instance *mi)
  * - peer id
  */
 static bool
-multi_client_set_protocol_options(struct context *c)
+multi_client_set_protocol_options(struct multi_instance *mi)
 {
+    struct context *c = &mi->context;
     struct tls_multi *tls_multi = c->c2.tls_multi;
     const char *const peer_info = tls_multi->peer_info;
     struct options *o = &c->options;
@@ -1793,6 +1795,13 @@ multi_client_set_protocol_options(struct context *c)
     if (proto & IV_PROTO_CC_EXIT_NOTIFY)
     {
         o->imported_protocol_flags |= CO_USE_CC_EXIT_NOTIFY;
+    }
+
+    if (o->acc_protocols)
+    {
+        /* If ACC is enabled server side call to find common acc protocols,
+         * will be pushed during push message */
+        determine_common_acc_protocols(mi);
     }
 
     /* Select cipher if client supports Negotiable Crypto Parameters */
@@ -2380,7 +2389,7 @@ multi_client_connect_late_setup(struct multi_context *m, struct multi_instance *
      * peer must be added before iroutes. For other platforms it doesn't matter. */
 
     /* authentication complete, calculate dynamic client specific options */
-    if (!multi_client_set_protocol_options(&mi->context))
+    if (!multi_client_set_protocol_options(mi))
     {
         mi->context.c2.tls_multi->multi_state = CAS_FAILED;
     }
@@ -4085,6 +4094,26 @@ lookup_session_by_mda_key_id(struct tls_multi *multi,
     }
 }
 
+static const char *
+calculate_app_control_extra(struct multi_instance *mi, struct gc_arena *gc)
+{
+    struct context *c = &mi->context;
+    determine_common_acc_protocols(mi);
+
+    if (!c->options.acc_negotiated_protocols)
+    {
+        msg(M_CLIENT, "ACC: No negotiated protocols");
+        return NULL;
+    }
+
+    struct buffer buf = alloc_buf_gc(1024, gc);
+
+    buf_printf(&buf, "ACC:%d A:6 %s", c->options.acc_max_message_length,
+               c->options.acc_negotiated_protocols);
+    return buf_str(&buf);
+}
+
+
 static bool
 management_client_pending_auth(void *arg, const unsigned long cid, const unsigned int mda_key_id,
                                const char *extra, unsigned int timeout)
@@ -4095,10 +4124,22 @@ management_client_pending_auth(void *arg, const unsigned long cid, const unsigne
     if (mi)
     {
         struct tls_multi *multi = mi->context.c2.tls_multi;
+
+        struct gc_arena gc = gc_new();
+        if (!strcmp(extra, "ACC"))
+        {
+            extra = calculate_app_control_extra(mi, &gc);
+            if (!extra)
+            {
+                gc_free(&gc);
+                return false;
+            }
+        }
         struct tls_session *session = lookup_session_by_mda_key_id(multi, mda_key_id);
 
         if (!session)
         {
+            gc_free(&gc);
             return false;
         }
 
@@ -4106,6 +4147,7 @@ management_client_pending_auth(void *arg, const unsigned long cid, const unsigne
         bool ret = send_auth_pending_messages(multi, session, extra, timeout);
         reschedule_multi_process(&mi->context);
         multi_schedule_context_wakeup(m, mi);
+        gc_free(&gc);
         return ret;
     }
     return false;
@@ -4149,6 +4191,39 @@ management_client_auth(void *arg, const unsigned long cid, const unsigned int md
     return ret;
 }
 
+
+static bool
+management_client_acc_msg(void *arg,
+                          const unsigned long cid,
+                          const unsigned int mda_key_id,
+                          struct buffer_list *input) /* ownership transferred */
+{
+    struct multi_context *m = (struct multi_context *)arg;
+    struct multi_instance *mi = lookup_by_cid(m, cid);
+
+    bool ret = false;
+    if (mi && buffer_list_defined(input))
+    {
+        struct tls_multi *multi = mi->context.c2.tls_multi;
+        struct tls_session *session = lookup_session_by_mda_key_id(multi, mda_key_id);
+        if (!session)
+        {
+            msg(M_CLIENT, "client session not found");
+            buffer_list_free(input);
+            return false;
+        }
+
+        struct options *opt = &mi->context.options;
+
+        ret = management_send_acc_message(&mi->context, multi, session, opt->acc_negotiated_protocols, input);
+        multi_schedule_context_wakeup(m, mi);
+    }
+
+    buffer_list_free(input);
+    return ret;
+}
+
+
 static char *
 management_get_peer_info(void *arg, const unsigned long cid)
 {
@@ -4185,6 +4260,7 @@ init_management_callback_multi(struct multi_context *m)
         cb.n_clients = management_callback_n_clients;
         cb.kill_by_cid = management_kill_by_cid;
         cb.client_auth = management_client_auth;
+        cb.client_acc_msg = management_client_acc_msg;
         cb.client_pending_auth = management_client_pending_auth;
         cb.get_peer_info = management_get_peer_info;
         cb.push_update_broadcast = management_callback_send_push_update_broadcast;

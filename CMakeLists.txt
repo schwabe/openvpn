@@ -435,6 +435,8 @@ set(SOURCE_FILES
     src/compat/compat-strlcpy.c
     src/compat/compat-strsep.c
     src/compat/compat-strtok_r.c
+    src/openvpn/acc.c
+    src/openvpn/acc.h
     src/openvpn/argv.c
     src/openvpn/argv.h
     src/openvpn/base64.c
@@ -571,8 +573,8 @@ set(SOURCE_FILES
     src/openvpn/ps.c
     src/openvpn/ps.h
     src/openvpn/push.c
-    src/openvpn/push_util.c
     src/openvpn/push.h
+    src/openvpn/push_util.c
     src/openvpn/pushlist.h
     src/openvpn/reflect_filter.c
     src/openvpn/reflect_filter.h
@@ -826,7 +828,10 @@ if (BUILD_TESTING)
             tests/unit_tests/openvpn/mock_management.c
             tests/unit_tests/openvpn/mock_ssl_dependencies.c
             tests/unit_tests/openvpn/mock_win32_execve.c
+            tests/unit_tests/openvpn/test_acc.c
+            src/openvpn/acc.c
             src/openvpn/argv.c
+            src/openvpn/auth_token.c
             src/openvpn/base64.c
             src/openvpn/crypto_epoch.c
             src/openvpn/crypto_mbedtls.c
@@ -840,8 +845,11 @@ if (BUILD_TESTING)
             src/openvpn/options_util.c
             src/openvpn/otime.c
             src/openvpn/packet_id.c
+            src/openvpn/reliable.c
+            src/openvpn/session_id.c
             src/openvpn/run_command.c
             src/openvpn/ssl_mbedtls.c
+            src/openvpn/ssl_ncp.c
             src/openvpn/ssl_openssl.c
             src/openvpn/ssl_util.c
             src/openvpn/ssl_verify_mbedtls.c
@@ -858,6 +866,8 @@ if (BUILD_TESTING)
     target_sources(test_misc PRIVATE
         tests/unit_tests/openvpn/mock_get_random.c
         tests/unit_tests/openvpn/test_schedule.c
+        tests/unit_tests/openvpn/mock_management.c
+        src/openvpn/base64.c
         src/openvpn/options_util.c
         src/openvpn/otime.c
         src/openvpn/ssl_util.c
