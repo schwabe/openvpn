@@ -44,8 +44,10 @@
 #include "dco.h"
 #include "push.h"
 #include "multi.h"
+#include "acc.h"
 
 #include "memdbg.h"
+#include "ssl_ncp.h"
 
 #ifdef ENABLE_PKCS11
 #include "pkcs11.h"
@@ -1078,6 +1080,35 @@ in_extra_dispatch(struct management *man)
             }
             break;
 
+        case IEC_CLIENT_ACC_MSG:
+            if (man->persist.callback.client_acc_msg)
+            {
+                bool status = (*man->persist.callback.client_acc_msg)(man->persist.callback.arg,
+                                                                      man->connection.in_extra_cid,
+                                                                      man->connection.in_extra_kid,
+                                                                      man->connection.in_extra);
+                man->connection.in_extra = NULL;
+                report_command_status(status, "client-acc-msg");
+            }
+            else
+            {
+                man_command_unsupported("client-acc-msg");
+            }
+            break;
+
+        case IEC_ACC_MSG:
+            if (man->persist.callback.acc_msg)
+            {
+                bool status = (*man->persist.callback.acc_msg)(man->persist.callback.arg,
+                                                               man->connection.in_extra);
+                man->connection.in_extra = NULL;
+                report_command_status(status, "acc-msg");
+            }
+            else
+            {
+                man_command_unsupported("acc-msg");
+            }
+            break;
         case IEC_PK_SIGN:
             man->connection.ext_key_state = EKS_READY;
             buffer_list_free(man->connection.ext_key_input);
@@ -1199,6 +1230,29 @@ man_client_pending_auth(struct management *man, const char *cid_str, const char 
             man_command_unsupported("client-pending-auth");
         }
     }
+}
+
+static void
+man_client_acc_msg(struct management *man, const char *cid_str,
+                   const char *kid_str)
+{
+    struct man_connection *mc = &man->connection;
+    mc->in_extra_cid = 0;
+    mc->in_extra_kid = 0;
+    if (parse_cid(cid_str, &mc->in_extra_cid)
+        && parse_uint(kid_str, "KID", &mc->in_extra_kid))
+    {
+        mc->in_extra_cmd = IEC_CLIENT_ACC_MSG;
+        in_extra_reset(mc, IER_NEW);
+    }
+}
+
+static void
+man_acc_msg(struct management *man)
+{
+    struct man_connection *mc = &man->connection;
+    mc->in_extra_cmd = IEC_ACC_MSG;
+    in_extra_reset(mc, IER_NEW);
 }
 
 static void
@@ -1757,6 +1811,17 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
         {
             man_client_pending_auth(man, p[1], p[2], p[3], p[4]);
         }
+    }
+    else if (streq(p[0], "client-acc-msg"))
+    {
+        if (man_need(man, p, 2, 0))
+        {
+            man_client_acc_msg(man, p[1], p[2]);
+        }
+    }
+    else if (streq(p[0], "acc-msg"))
+    {
+        man_acc_msg(man);
     }
     else if (streq(p[0], "rsa-sig"))
     {
@@ -3105,6 +3170,7 @@ management_notify_client_cr_response(unsigned mda_key_id, const struct man_def_a
     }
 }
 
+
 void
 management_connection_established(struct management *management, struct man_def_auth_context *mdac,
                                   const struct env_set *es)
@@ -4336,6 +4402,62 @@ man_persist_client_stats(struct management *man, struct context *c)
     }
 }
 
+bool
+management_send_acc_message(struct context *c, struct tls_multi *multi, struct tls_session *session,
+                            const char *negotiated_protocols, struct buffer_list *input)
+{
+    /* also ensures that are enough inputs in the list to safely call
+     * buffer_list_peek without extra NULL checks */
+    if (!input || input->size < 3)
+    {
+        msg(M_CLIENT, "not enough input lines for sending acc message, "
+                      "missing protocol, flag and/or messages lines");
+        return false;
+    }
+
+    struct gc_arena gc = gc_new();
+
+    const struct buffer *proto_buf = buffer_list_peek(input);
+    const char *protocol = string_alloc(BSTR(proto_buf), &gc);
+    buffer_list_pop(input);
+
+    const struct buffer *encoding_buf = buffer_list_peek(input);
+    char *encoding = buf_str(encoding_buf);
+    char *flag = NULL;
+    bool b64encoding = false;
+    bool fragment = false;
+
+    while ((flag = strsep(&encoding, ":")))
+    {
+        if (!strcmp(flag, "6"))
+        {
+            b64encoding = true;
+        }
+        else if (!strcmp(flag, "F"))
+        {
+            fragment = true;
+        }
+    }
+    buffer_list_pop(input);
+
+    buffer_list_aggregate_separator(input, 10000, "");
+    const struct buffer *acc_msg_buf = buffer_list_peek(input);
+
+    if (!negotiated_protocols || !tls_item_in_cipher_list(protocol, negotiated_protocols))
+    {
+        msg(M_CLIENT, "protocol not in the list of negotiated protocols: %s", np(negotiated_protocols));
+        goto error;
+    }
+
+    bool ret = send_acc_message(c, multi, session, protocol,
+                                fragment, buf_str(acc_msg_buf),
+                                b64encoding);
+    gc_free(&gc);
+    return ret;
+error:
+    gc_free(&gc);
+    return false;
+}
 #else /* ifdef ENABLE_MANAGEMENT */
 
 #include "win32.h"

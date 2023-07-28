@@ -40,11 +40,34 @@
 #include "list.h"
 #include "mock_msg.h"
 #include "crypto.h"
+#include "test_schedule.h"
+#include "multi.h"
+
 #ifdef _WIN32
 #include "win32-util.h"
 #endif
-#include "test_schedule.h"
 
+/* extra mocks */
+bool
+apply_push_options(struct context *c, struct options *options, struct buffer *buf,
+                   uint64_t permission_mask, uint64_t *option_types_found,
+                   struct env_set *es, bool is_update)
+{
+    return true;
+}
+
+bool
+send_control_channel_string(struct context *c, const char *str, msglvl_t msglevel)
+{
+    check_expected_ptr(str);
+    return true;
+}
+
+struct multi_instance *
+lookup_by_cid(struct multi_context *m, const unsigned long cid)
+{
+    return *(m->instances);
+}
 
 static void
 test_compat_lzo_string(void **state)

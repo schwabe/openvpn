@@ -52,6 +52,8 @@
 #include "ssl_verify.h"
 #include "openvpn.h"
 
+#include "test_acc.h"
+
 /* Mock function to be allowed to include win32.c which is required for
  * getting the temp directory */
 #ifdef _WIN32
@@ -86,6 +88,20 @@ purge_user_pass(struct user_pass *up, bool force)
 {
     return;
 }
+void
+reschedule_multi_process(struct context *c)
+{
+}
+
+/* Define a dummy dco cipher option to avoid linking against all the DCO
+ * units */
+#if defined(ENABLE_DCO)
+const char *
+dco_get_supported_ciphers(void)
+{
+    return "AES-192-GCM:AES-128-CBC:AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305";
+}
+#endif
 
 /* generated using
  * openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:secp384r1 -keyout - \
@@ -960,8 +976,11 @@ main(void)
         cmocka_unit_test(test_data_channel_known_vectors_epoch),
         cmocka_unit_test(test_data_channel_known_vectors_shortpktid),
         cmocka_unit_test(crypto_test_print_cert_details),
-        cmocka_unit_test(ssl_test_extract_peer_info)
-
+        cmocka_unit_test(ssl_test_extract_peer_info),
+        cmocka_unit_test(test_acc_parse_client_messages),
+        cmocka_unit_test(test_parse_acc_parameters),
+        cmocka_unit_test(test_acc_common_protocols),
+        cmocka_unit_test(test_acc_send_message)
     };
 
 #if defined(ENABLE_CRYPTO_OPENSSL)

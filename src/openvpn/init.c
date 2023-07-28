@@ -2277,6 +2277,10 @@ tls_print_deferred_options_results(struct context *c)
             buf_printf(&out, " aead-epoch");
         }
     }
+    if (c->options.acc_negotiated_protocols)
+    {
+        buf_printf(&out, " custom-control %d,A:6,%s", c->options.acc_max_message_length, c->options.acc_negotiated_protocols);
+    }
 
     if (BLENZ(&out) > strlen(header))
     {
@@ -2519,6 +2523,11 @@ pull_permission_mask(const struct context *c)
     if (!c->options.route_nopull)
     {
         flags |= (OPT_P_ROUTE | OPT_P_DHCPDNS);
+    }
+
+    if (c->options.acc_protocols)
+    {
+        flags |= OPT_P_ACC;
     }
 
     return flags;
@@ -3338,6 +3347,7 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
     to.verify_hash_depth = options->verify_hash_depth;
     to.verify_hash_no_ca = options->verify_hash_no_ca;
     memcpy(to.x509_username_field, options->x509_username_field, sizeof(to.x509_username_field));
+    to.acc_protocols = options->acc_protocols;
     to.es = c->c2.es;
     to.net_ctx = &c->net_ctx;
 
@@ -4292,6 +4302,27 @@ management_callback_network_change(void *arg, bool samenetwork)
 }
 #endif /* ifdef TARGET_ANDROID */
 
+static bool
+management_acc_msg(void *arg,
+                   struct buffer_list *input) /* ownership transferred */
+{
+    struct gc_arena gc = gc_new();
+    struct context *c = arg;
+
+    bool ret = true;
+    if (buffer_list_defined(input) && c->c2.tls_multi)
+    {
+        struct tls_multi *multi = c->c2.tls_multi;
+        struct tls_session *session = &multi->session[TM_ACTIVE];
+        struct options *opt = &c->options;
+
+        ret = management_send_acc_message(c, multi, session, opt->acc_negotiated_protocols, input);
+    }
+
+    buffer_list_free(input);
+    gc_free(&gc);
+    return ret;
+}
 #endif /* ifdef ENABLE_MANAGEMENT */
 
 void
@@ -4308,6 +4339,7 @@ init_management_callback_p2p(struct context *c)
         cb.proxy_cmd = management_callback_proxy_cmd;
         cb.remote_cmd = management_callback_remote_cmd;
         cb.send_cc_message = management_callback_send_cc_message;
+        cb.acc_msg = management_acc_msg;
 #ifdef TARGET_ANDROID
         cb.network_change = management_callback_network_change;
 #endif
