@@ -202,6 +202,7 @@ struct management_callback
     bool (*remote_cmd) (void *arg, const char **p);
 #ifdef TARGET_ANDROID
     int (*network_change)(void *arg, bool samenetwork);
+    void (*reopen_tun)(void *arg, int newfd);
 #endif
     unsigned int (*remote_entry_count)(void *arg);
     bool (*remote_entry_get)(void *arg, unsigned int index, char **remote);

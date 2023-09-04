@@ -1317,6 +1317,15 @@ man_network_change(struct management *man, bool samenetwork)
         }
     }
 }
+
+static void
+man_tun_reopen(struct management *man)
+{
+    if (man->persist.callback.reopen_tun)
+    {
+        man->persist.callback.reopen_tun(man->persist.callback.arg, man->connection.lastfdreceived);
+    }
+}
 #endif
 
 static void
@@ -1387,6 +1396,10 @@ man_dispatch_command(struct management *man, struct status_output *so, const cha
         }
 
         man_network_change(man, samenetwork);
+    }
+    else if (streq(p[0], "reopen-tun"))
+    {
+        man_tun_reopen(man);
     }
 #endif
     else if (streq(p[0], "load-stats"))

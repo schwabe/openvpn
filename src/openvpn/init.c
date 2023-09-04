@@ -4291,6 +4291,30 @@ management_callback_network_change(void *arg, bool samenetwork)
         return -2;
     }
 }
+
+int
+management_callback_repace_tunfd(void *arg, int newfd)
+{
+    struct context *c = arg;
+    int newtunfd = newfd;
+
+    if (!(newtunfd > 0))
+    {
+        msg(M_CLIENT, "ERROR: no tun fd received");
+        return 0;
+    }
+    else if (!c->c1.tuntap || !c->c1.tuntap->fd)
+    {
+        msg(M_CLIENT, "ERROR: fd not open");
+        close(newtunfd);
+        return 0;
+    }
+    close(c->c1.tuntap->fd);
+
+    c->c1.tuntap->fd = newtunfd;
+    msg(M_CLIENT, "REOPENTUN: replaced tun fd");
+    return 0;
+}
 #endif /* ifdef TARGET_ANDROID */
 
 #endif /* ifdef ENABLE_MANAGEMENT */
@@ -4311,6 +4335,7 @@ init_management_callback_p2p(struct context *c)
         cb.send_cc_message = management_callback_send_cc_message;
 #ifdef TARGET_ANDROID
         cb.network_change = management_callback_network_change;
+        cb.reopen_tun = management_callback_repace_tunfd;
 #endif
         cb.remote_entry_count = management_callback_remote_entry_count;
         cb.remote_entry_get = management_callback_remote_entry_get;
