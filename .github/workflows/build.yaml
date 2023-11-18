@@ -544,8 +544,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        ssllib: [mbedtls3]
         build: [ normal, asan ]
+        mbedtlsver: [ v3.5.1, v2.28.6 ]
         include:
           - build: asan
             cflags: "-fsanitize=address -fno-sanitize-recover=all  -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
@@ -556,29 +556,44 @@ jobs:
             ldflags: ""
             cc: gcc
 
-    name: "${{matrix.cc}} ${{matrix.build}} - ${{matrix.os}} - ${{matrix.ssllib}}"
+    name: "${{matrix.cc}} ${{matrix.build}} - ${{matrix.os}} - mbed TLS ${{matrix.mbedtlsver}}"
     runs-on: ${{matrix.os}}
     env:
       CFLAGS: ${{ matrix.cflags }}
       LDFLAGS: ${{ matrix.ldflags }}
       CC: ${{matrix.cc}}
       UBSAN_OPTIONS: print_stacktrace=1
+      MBEDTLS_CFLAGS: -I/opt/mbedtls/include
+      MBEDTLS_LIBS: -L/opt/mbedtls/lib -lmbedtls -lmbedx509 -lmbedcrypto
 
     steps:
       - name: Install dependencies
         run: sudo apt update && sudo apt install -y liblzo2-dev libpam0g-dev liblz4-dev linux-libc-dev man2html clang libcmocka-dev python3-docutils python3-jinja2 python3-jsonschema libtool automake autoconf pkg-config libcap-ng-dev libnl-genl-3-dev
-      - name: "mbedtls: checkout"
+      - name: Cache mbed TLS
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: '/opt/mbedtls'
+          key: ${{ matrix.build }}-mbedtls-${{matrix.mbedtlsver}}-${{matrix.cmakebuild}}
+      - name: "Mbed TLS: checkout"
+        if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           path: mbedtls
           repository: Mbed-TLS/mbedtls
-          ref: v3.5.2
-      - name: "mbedtls: make no_test"
-        run: make -j3 no_test SHARED=1
+          ref: ${{ matrix.mbedtlsver }}
+      - name: "Mbed TLS: make"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: make -j3 SHARED=1
         working-directory: mbedtls
-      - name: "mbedtls: make install"
-        run: sudo make install DESTDIR=/usr
+      - name: "Mbed TLS: make install"
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: sudo make install DESTDIR=/opt/mbedtls
         working-directory: mbedtls
+      - name: add /opt/mbedtls/lib to ld.so.conf.d
+        run: echo /opt/mbedtls/lib | sudo tee /etc/ld.so.conf.d/mbedtls.conf
+      - name: "ldconfig"
+        run: sudo ldconfig
       - name: Checkout OpenVPN
         uses: actions/checkout@v4
       - name: autoconf
