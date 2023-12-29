@@ -6,6 +6,7 @@ on:
 
 jobs:
   latest:
+    if: github.repository_owner == 'OpenVPN'
     runs-on: ubuntu-latest
     steps:
       - name: Check submission cache
