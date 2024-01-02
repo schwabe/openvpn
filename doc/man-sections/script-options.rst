@@ -424,7 +424,8 @@ SCRIPT HOOKS
   parameters passed as environmental variables.
 
 --tls-export-cert dir
-  Adds an environment variable ``peer_cert`` when calling the
+  Adds an environment variable ``peer_cert_{x}`` (and an alias
+  ``peer_cert`` for the current certificate depth) when calling the
   ``--tls-verify`` script or executing the OPENVPN_PLUGIN_TLS_VERIFY plugin
   hook to verify the certificate.
 
@@ -792,6 +793,11 @@ instances.
     If the option ``--tls-export-cert`` is enabled, this option contains
     the path to the current peer certificate to be verified in PEM format.
     See also the argument certificate_depth to the ``--tls-verify`` command.
+
+:code:`peer_cert_{n}`
+    If the option ``--tls-export-cert`` is enabled, this option contains
+    the path to the current peer certificate to be verified in PEM format
+    where ``n`` is the verification level.
 
 :code:`proto`
     The ``--proto`` parameter. Set on program initiation and reset on

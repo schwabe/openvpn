@@ -39,6 +39,7 @@
 #include "run_command.h"
 #include "ssl_verify.h"
 #include "ssl_verify_backend.h"
+#include "platform.h"
 
 #ifdef ENABLE_CRYPTO_OPENSSL
 #include "ssl_verify_openssl.h"
@@ -459,27 +460,45 @@ verify_cert_set_env(struct env_set *es, openvpn_x509_cert_t *peer_cert, int cert
 }
 
 /**
+ * Unlinks a file specified by in the env item that has the form
+ * key=filename.
+ */
+static void
+unlink_file_env(struct env_item *env)
+{
+    /* values in env are always x=y */
+    const char *filename = strchr(env->string, '=');
+    ASSERT(filename);
+
+    /* Move just past the = */
+    filename += 1;
+
+    platform_unlink((const char *) filename);
+}
+
+/**
  * Exports the certificate in \c peer_cert into the environment and adds
  * the filname
  */
 static bool
-verify_cert_cert_export_env(struct env_set *es, openvpn_x509_cert_t *peer_cert,
-                            const char *pem_export_fname)
+verify_cert_cert_export_env(const struct tls_options *opt,
+                            openvpn_x509_cert_t *peer_cert, int cert_depth)
 {
-    /* export the path to the current certificate in pem file format */
-    setenv_str(es, "peer_cert", pem_export_fname);
+    struct gc_arena gc = gc_new();
+    const char *pem_export_filename = platform_create_temp_file(opt->export_peer_cert_dir,
+                                                                "pef", &gc);
+    char envstr[128];
 
-    return backend_x509_write_pem(peer_cert, pem_export_fname) == SUCCESS;
-}
+    /* export the path to the certificate in pem file format */
+    snprintf(envstr, sizeof(envstr), "peer_cert_%d=%s", cert_depth,
+             pem_export_filename);
+    setenv_str(opt->es, envstr, pem_export_filename);
+    env_set_add_specialfree(opt->es, envstr, &unlink_file_env);
 
-static void
-verify_cert_cert_delete_env(struct env_set *es, const char *pem_export_fname)
-{
-    env_set_del(es, "peer_cert");
-    if (pem_export_fname)
-    {
-        unlink(pem_export_fname);
-    }
+    /* compatibility with older scripts/plugins that expect peer_cert without
+     * suffix */
+    setenv_str(opt->es, "peer_cert", pem_export_filename);
+    return backend_x509_write_pem(peer_cert, pem_export_filename) == SUCCESS;
 }
 
 /*
@@ -601,7 +620,6 @@ verify_cert(struct tls_session *session, openvpn_x509_cert_t *cert, int cert_dep
      * them defined */
     result_t ret = FAILURE;
     struct gc_arena gc = gc_new();
-    const char *pem_export_fname = NULL;
 
     const struct tls_options *opt = session->opt;
     ASSERT(opt);
@@ -734,11 +752,7 @@ verify_cert(struct tls_session *session, openvpn_x509_cert_t *cert, int cert_dep
 
     if (opt->export_peer_cert_dir)
     {
-        pem_export_fname = platform_create_temp_file(opt->export_peer_cert_dir,
-                                                     "pef", &gc);
-
-        if (!pem_export_fname
-            || !verify_cert_cert_export_env(opt->es, cert, pem_export_fname))
+        if (!verify_cert_cert_export_env(opt, cert, cert_depth))
         {
             msg(D_TLS_ERRORS, "TLS Error: Failed to export certificate for "
                 "--tls-export-cert in %s", opt->export_peer_cert_dir);
@@ -796,7 +810,9 @@ verify_cert(struct tls_session *session, openvpn_x509_cert_t *cert, int cert_dep
     ret = SUCCESS;
 
 cleanup:
-    verify_cert_cert_delete_env(opt->es, pem_export_fname);
+    /* delete the variable for the current depth if present as it does not make
+     * sense going forward in other calls of other scripts */
+    env_set_del(opt->es, "peer_cert");
     if (ret != SUCCESS)
     {
         tls_clear_error(); /* always? */
