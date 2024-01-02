@@ -26,13 +26,22 @@
 #endif
 
 #include "syshead.h"
+#include <stdbool.h>
 
 #include <setjmp.h>
 #include <cmocka.h>
 
 #include "buffer.h"
+#include "env_set.h"
 #include "buffer.c"
 #include "test_common.h"
+
+/* mock this function as it is required by env.c */
+int
+script_security(void)
+{
+    return 0;
+}
 
 static void
 test_buffer_strprefix(void **state)
@@ -457,6 +466,47 @@ test_buffer_read_int(void **state)
     gc_free(&gc);
 }
 
+static bool unit_test_free_called = false;
+
+static void
+unit_test_special_free(struct env_item *ei)
+{
+    assert_string_equal(ei->string, "unit=test");
+    unit_test_free_called = true;
+}
+
+static void
+test_env_special_free(void **state)
+{
+    /* Test called via env_set_destroy */
+    struct env_set *es = env_set_create(NULL);
+    env_set_add_specialfree(es, "unit=test", &unit_test_special_free);
+    env_set_destroy(es);
+    assert_true(unit_test_free_called);
+    unit_test_free_called = false;
+
+    /* Test called via env_remove */
+    es = env_set_create(NULL);
+    env_set_add_specialfree(es, "unit=test", &unit_test_special_free);
+    env_set_del(es, "unit");
+    assert_true(unit_test_free_called);
+    unit_test_free_called = false;
+    env_set_destroy(es);
+
+    /* Test for env with GC */
+    struct gc_arena gc = gc_new();
+    es = env_set_create(&gc);
+    env_set_add_specialfree(es, "unit=test", &unit_test_special_free);
+    env_set_destroy(es);
+
+    /* The free should be done as part of gc free and not as part of
+     * the env set destroy */
+    assert_false(unit_test_free_called);
+
+    gc_free(&gc);
+    assert_true(unit_test_free_called);
+}
+
 int
 main(void)
 {
@@ -492,7 +542,8 @@ main(void)
         cmocka_unit_test(test_character_class),
         cmocka_unit_test(test_character_string_mod_buf),
         cmocka_unit_test(test_snprintf),
-        cmocka_unit_test(test_buffer_read_int)
+        cmocka_unit_test(test_buffer_read_int),
+        cmocka_unit_test(test_env_special_free)
     };
 
     return cmocka_run_group_tests_name("buffer", tests, NULL, NULL);

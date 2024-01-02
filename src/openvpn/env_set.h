@@ -36,6 +36,7 @@
 
 struct env_item {
     char *string;
+    void (*free_function)(struct env_item *);
     struct env_item *next;
 };
 
@@ -86,6 +87,11 @@ void env_set_destroy(struct env_set *es);
 bool env_set_del(struct env_set *es, const char *str);
 
 void env_set_add(struct env_set *es, const char *str);
+
+void
+env_set_add_specialfree(struct env_set *es, const char *str,
+                        void (*free_function)(struct env_item *));
+
 
 const char *env_set_get(const struct env_set *es, const char *name);
 

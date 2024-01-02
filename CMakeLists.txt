@@ -708,6 +708,7 @@ if (BUILD_TESTING)
 
     target_sources(test_buffer PRIVATE
         tests/unit_tests/openvpn/mock_get_random.c
+        src/openvpn/env_set.c
         )
 
     target_sources(test_crypto PRIVATE

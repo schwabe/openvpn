@@ -112,6 +112,10 @@ remove_env_item(const char *str, const bool do_free, struct env_item **list)
             }
             if (do_free)
             {
+                if (current->free_function)
+                {
+                    current->free_function(current);
+                }
                 secure_memzero(current->string, strlen(current->string));
                 free(current->string);
                 free(current);
@@ -124,15 +128,37 @@ remove_env_item(const char *str, const bool do_free, struct env_item **list)
 }
 
 static void
-add_env_item(char *str, const bool do_alloc, struct env_item **list, struct gc_arena *gc)
+env_gc_freefunction_wrapper(void *arg)
+{
+    struct env_item *ei = arg;
+    ei->free_function(ei);
+    free(ei->string);
+    free(ei);
+}
+
+static void
+add_env_item(char *str, void (*free_function)(struct env_item *),
+             struct env_item **list, struct gc_arena *gc)
 {
     struct env_item *item;
 
     ASSERT(str);
     ASSERT(list);
 
-    ALLOC_OBJ_GC(item, struct env_item, gc);
-    item->string = do_alloc ? string_alloc(str, gc) : str;
+    if (gc && free_function)
+    {
+        /* alloc items manually without gc to allow the gc_wrap_free
+         * function to free them all in the right order */
+        ALLOC_OBJ(item, struct env_item);
+        item->string = string_alloc(str, NULL);
+        gc_addspecial(item, env_gc_freefunction_wrapper, gc);
+    }
+    else
+    {
+        ALLOC_OBJ_GC(item, struct env_item, gc);
+        item->string = string_alloc(str, gc);
+    }
+    item->free_function = free_function;
     item->next = *list;
     *list = item;
 }
@@ -146,10 +172,11 @@ env_set_del_nolock(struct env_set *es, const char *str)
 }
 
 static void
-env_set_add_nolock(struct env_set *es, const char *str)
+env_set_add_nolock(struct env_set *es, const char *str,
+                   void (*free_function)(struct env_item *))
 {
     remove_env_item(str, es->gc == NULL, &es->list);
-    add_env_item((char *)str, true, &es->list, es->gc);
+    add_env_item((char *)str, free_function, &es->list, es->gc);
 }
 
 struct env_set *
@@ -171,6 +198,10 @@ env_set_destroy(struct env_set *es)
         while (e)
         {
             struct env_item *next = e->next;
+            if (e->free_function)
+            {
+                e->free_function(e);
+            }
             free(e->string);
             free(e);
             e = next;
@@ -194,7 +225,16 @@ env_set_add(struct env_set *es, const char *str)
 {
     ASSERT(es);
     ASSERT(str);
-    env_set_add_nolock(es, str);
+    env_set_add_nolock(es, str, NULL);
+}
+
+void
+env_set_add_specialfree(struct env_set *es, const char *str,
+                        void (*free_function)(struct env_item *))
+{
+    ASSERT(es);
+    ASSERT(str);
+    env_set_add_nolock(es, str, free_function);
 }
 
 const char *
@@ -246,7 +286,7 @@ env_set_inherit(struct env_set *es, const struct env_set *src)
         e = src->list;
         while (e)
         {
-            env_set_add_nolock(es, e->string);
+            env_set_add_nolock(es, e->string, e->free_function);
             e = e->next;
         }
     }
