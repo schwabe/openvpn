@@ -249,6 +249,16 @@ int dco_get_peer_stats(struct context *c);
  */
 const char *dco_get_supported_ciphers(void);
 
+/**
+ * Return whether the dco implementation supports the new protocol features of
+ * a 64 bit packet counter and AEAD tag at the end.
+ */
+static inline bool
+dco_supports_data_v3(struct context *c)
+{
+    return false;
+}
+
 #else /* if defined(ENABLE_DCO) */
 
 typedef void *dco_context_t;
@@ -380,5 +390,10 @@ dco_get_supported_ciphers(void)
     return "";
 }
 
+static inline bool
+dco_supports_data_v3(struct context *c)
+{
+    return false;
+}
 #endif /* defined(ENABLE_DCO) */
 #endif /* ifndef DCO_H */

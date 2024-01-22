@@ -68,6 +68,7 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
     const struct key_ctx *ctx = &opt->key_ctx_bi.encrypt;
     uint8_t *mac_out = NULL;
     const int mac_len = OPENVPN_AEAD_TAG_LENGTH;
+    bool longiv = opt->flags & CO_64_BIT_PKT_ID;
 
     /* IV, packet-ID and implicit IV required for this mode. */
     ASSERT(ctx->cipher);
@@ -86,7 +87,7 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
         buf_set_write(&iv_buffer, iv, iv_len);
 
         /* IV starts with packet id to make the IV unique for packet */
-        if (!packet_id_write(&opt->packet_id.send, &iv_buffer, false, false))
+        if (!packet_id_write_flat(&opt->packet_id.send, &iv_buffer, longiv))
         {
             msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
             goto err;
@@ -355,6 +356,9 @@ crypto_check_replay(struct crypto_options *opt,
  * Set buf->len to 0 and return false on decrypt error.
  *
  * On success, buf is set to point to plaintext, true is returned.
+ *
+ * This method assumes that everything between ad_start and BPTR(buf) is
+ * authenticated data and therefore has no ad_len parameter
  */
 static bool
 openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
@@ -384,7 +388,11 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     /* IV and Packet ID required for this mode */
     ASSERT(packet_id_initialized(&opt->packet_id));
 
-    /* Combine IV from explicit part from packet and implicit part from context */
+    bool longiv = opt->flags & CO_64_BIT_PKT_ID;
+
+    /* Combine IV from explicit part from packet and implicit part from context.
+     * packet_iv_len and implicit_iv are initialised in init_key_contexts
+     * when keys are initialised as well */
     {
         uint8_t iv[OPENVPN_MAX_IV_LENGTH] = { 0 };
         const int iv_len = cipher_ctx_iv_length(ctx->cipher);
@@ -409,7 +417,7 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     }
 
     /* Read packet ID from packet */
-    if (!packet_id_read(&pin, buf, false))
+    if (!packet_id_read_flat(&pin, buf, longiv))
     {
         CRYPT_ERROR("error reading packet-id");
     }

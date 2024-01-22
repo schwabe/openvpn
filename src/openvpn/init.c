@@ -2332,6 +2332,10 @@ tls_print_deferred_options_results(struct context *c)
         {
             buf_printf(&out, " aead-tag-end");
         }
+        if (o->imported_protocol_flags & CO_64_BIT_PKT_ID)
+        {
+            buf_printf(&out, " pkt-id-64-bit");
+        }
     }
 
     if (buf_len(&out) > strlen(header))
@@ -2702,6 +2706,17 @@ do_deferred_options(struct context *c, const unsigned int found)
             msg(D_PUSH_ERRORS, "OPTIONS ERROR: pushed options are incompatible "
                 "with data channel offload. Use --disable-dco to connect to "
                 "this server");
+            return false;
+        }
+
+        /* Ensure that for proto v3 is enabled fully or not at all */
+        bool aead_end = (c->options.imported_protocol_flags & CO_AEAD_TAG_AT_THE_END);
+        bool longpktiud = (c->options.imported_protocol_flags & CO_64_BIT_PKT_ID);
+
+        if (aead_end != longpktiud)
+        {
+            msg(D_PUSH_ERRORS, "OPTIONS ERROR: Aead tag at the end and 64 bit"
+                "packet counter must be enabled together.");
             return false;
         }
     }
@@ -3302,6 +3317,16 @@ do_init_crypto_tls(struct context *c, const unsigned int flags)
         to.push_peer_info_detail = 1;
     }
 
+    /* Check if the DCO drivers support the new 64bit packet counter and
+     * AEAD tag at the end */
+    if (dco_enabled(options))
+    {
+        to.data_v3_features_supported = dco_supports_data_v3(c);
+    }
+    else
+    {
+        to.data_v3_features_supported = true;
+    }
 
     /* should we not xmit any packets until we get an initial
      * response from client? */

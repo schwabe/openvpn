@@ -98,7 +98,7 @@ crypto_pem_encode_certificate(void **state)
 {
     struct gc_arena gc = gc_new();
 
-    struct tls_root_ctx ctx = { 0 };
+    struct tls_root_ctx ctx = {0};
     tls_ctx_client_new(&ctx);
     tls_ctx_load_cert_file(&ctx, unittest_cert, true);
 
@@ -124,19 +124,22 @@ crypto_pem_encode_certificate(void **state)
 }
 
 static void
-init_implicit_iv(struct crypto_options *co)
+init_implicit_iv(struct crypto_options *co, struct key2 *key2)
 {
     cipher_ctx_t *cipher = co->key_ctx_bi.encrypt.cipher;
 
+
     if (cipher_ctx_mode_aead(cipher))
     {
-        size_t impl_iv_len = cipher_ctx_iv_length(cipher) - sizeof(packet_id_type);
+        bool longiv = co->flags & CO_64_BIT_PKT_ID;
+
+        size_t impl_iv_len = cipher_ctx_iv_length(cipher) - packet_id_size(longiv);
         ASSERT(cipher_ctx_iv_length(cipher) <= OPENVPN_MAX_IV_LENGTH);
         ASSERT(cipher_ctx_iv_length(cipher) >= OPENVPN_AEAD_MIN_IV_LEN);
 
         /* Generate dummy implicit IV */
-        ASSERT(rand_bytes(co->key_ctx_bi.encrypt.implicit_iv,
-                          OPENVPN_MAX_IV_LENGTH));
+        ASSERT(memcpy(co->key_ctx_bi.encrypt.implicit_iv, key2->keys[0].hmac,
+                      OPENVPN_MAX_IV_LENGTH));
         co->key_ctx_bi.encrypt.implicit_iv_len = impl_iv_len;
 
         memcpy(co->key_ctx_bi.decrypt.implicit_iv,
@@ -195,7 +198,6 @@ do_data_channel_round_trip(struct crypto_options *co)
     /* init work */
     ASSERT(buf_init(&work, frame.buf.headroom));
 
-    init_implicit_iv(co);
     update_time();
 
     /* Test encryption, decryption for all packet sizes */
@@ -235,24 +237,36 @@ do_data_channel_round_trip(struct crypto_options *co)
     gc_free(&gc);
 }
 
-
-
 struct crypto_options
-init_crypto_options(const char *cipher, const char *auth)
+init_crypto_options(const char *cipher, const char *auth, int flags,
+                    struct key2 *statickey)
 {
-    struct key2 key2 = { .n = 2};
+    struct key2 key2 = {.n = 2};
 
-    ASSERT(rand_bytes(key2.keys[0].cipher, sizeof(key2.keys[0].cipher)));
-    ASSERT(rand_bytes(key2.keys[0].hmac, sizeof(key2.keys[0].hmac)));
-    ASSERT(rand_bytes(key2.keys[1].cipher, sizeof(key2.keys[1].cipher)));
-    ASSERT(rand_bytes(key2.keys[1].hmac, sizeof(key2.keys)[1].hmac));
+    if (statickey)
+    {
+        /* Use chosen static key instead of random key when defined */
+        key2 = *statickey;
+    }
+    else
+    {
+        ASSERT(rand_bytes(key2.keys[0].cipher, sizeof(key2.keys[0].cipher)));
+        ASSERT(rand_bytes(key2.keys[0].hmac, sizeof(key2.keys[0].hmac)));
+        ASSERT(rand_bytes(key2.keys[1].cipher, sizeof(key2.keys[1].cipher)));
+        ASSERT(rand_bytes(key2.keys[1].hmac, sizeof(key2.keys)[1].hmac));
 
-    struct crypto_options co = { 0 };
+    }
+
+    struct crypto_options co = {0};
 
     struct key_type kt = create_kt(cipher, auth, "ssl-test");
 
     init_key_ctx_bi(&co.key_ctx_bi, &key2, 0, &kt, "unit-test-ssl");
-    packet_id_init(&co.packet_id,  5, 5, "UNITTEST", 0);
+    packet_id_init(&co.packet_id, 5, 5, "UNITTEST", 0);
+
+    co.flags |= flags;
+
+    init_implicit_iv(&co, &key2);
 
     return co;
 }
@@ -262,7 +276,6 @@ uninit_crypto_options(struct crypto_options *co)
 {
     packet_id_free(&co->packet_id);
     free_key_ctx_bi(&co->key_ctx_bi);
-
 }
 
 /* This adds a few more methods than strictly necessary but this allows
@@ -271,8 +284,27 @@ uninit_crypto_options(struct crypto_options *co)
 static void
 run_data_channel_with_cipher_end(const char *cipher)
 {
-    struct crypto_options co = init_crypto_options(cipher, "none");
-    co.flags |= CO_AEAD_TAG_AT_THE_END;
+    struct crypto_options co = init_crypto_options(cipher, "none",
+                                                   CO_AEAD_TAG_AT_THE_END, NULL);
+
+    do_data_channel_round_trip(&co);
+    uninit_crypto_options(&co);
+}
+
+static void
+run_data_channel_with_cipher_end_and_long_pkt_counter(const char *cipher)
+{
+    struct crypto_options co = init_crypto_options(cipher, "none",
+                                                   CO_AEAD_TAG_AT_THE_END | CO_64_BIT_PKT_ID, NULL);
+    do_data_channel_round_trip(&co);
+    uninit_crypto_options(&co);
+}
+
+static void
+run_data_channel_with_long_pkt_counter(const char *cipher)
+{
+    struct crypto_options co = init_crypto_options(cipher, "none",
+                                                   CO_64_BIT_PKT_ID, NULL);
     do_data_channel_round_trip(&co);
     uninit_crypto_options(&co);
 }
@@ -280,31 +312,36 @@ run_data_channel_with_cipher_end(const char *cipher)
 static void
 run_data_channel_with_cipher(const char *cipher, const char *auth)
 {
-    struct crypto_options co = init_crypto_options(cipher, auth);
+    struct crypto_options co = init_crypto_options(cipher, auth, 0, NULL);
     do_data_channel_round_trip(&co);
     uninit_crypto_options(&co);
 }
 
+static void
+run_aead_channel_tests(const char *cipher)
+{
+    run_data_channel_with_cipher_end(cipher);
+    run_data_channel_with_cipher(cipher, "none");
+    run_data_channel_with_cipher_end_and_long_pkt_counter(cipher);
+    run_data_channel_with_long_pkt_counter(cipher);
+}
 
 static void
 test_data_channel_roundtrip_aes_128_gcm(void **state)
 {
-    run_data_channel_with_cipher_end("AES-128-GCM");
-    run_data_channel_with_cipher("AES-128-GCM", "none");
+    run_aead_channel_tests("AES-128-GCM");
 }
 
 static void
 test_data_channel_roundtrip_aes_192_gcm(void **state)
 {
-    run_data_channel_with_cipher_end("AES-192-GCM");
-    run_data_channel_with_cipher("AES-192-GCM", "none");
+    run_aead_channel_tests("AES-192-GCM");
 }
 
 static void
 test_data_channel_roundtrip_aes_256_gcm(void **state)
 {
-    run_data_channel_with_cipher_end("AES-256-GCM");
-    run_data_channel_with_cipher("AES-256-GCM", "none");
+    run_aead_channel_tests("AES-256-GCM");
 }
 
 static void
@@ -334,8 +371,7 @@ test_data_channel_roundtrip_chacha20_poly1305(void **state)
         return;
     }
 
-    run_data_channel_with_cipher_end("ChaCha20-Poly1305");
-    run_data_channel_with_cipher("ChaCha20-Poly1305", "none");
+    run_aead_channel_tests("ChaCha20-Poly1305");
 }
 
 static void
@@ -349,6 +385,155 @@ test_data_channel_roundtrip_bf_cbc(void **state)
     run_data_channel_with_cipher("BF-CBC", "SHA1");
 }
 
+static struct key2
+create_key(void)
+{
+    struct key2 key2 = {.n = 2};
+
+    const uint8_t key[] =
+    {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', '0', '1', '2', '3', '4', '5', '6', '7', 'A', 'B', 'C', 'D', 'E', 'F',
+     'G', 'H', 'j', 'k', 'u', 'c', 'h', 'e', 'n', 'l'};
+
+    static_assert(sizeof(key) == 32, "Size of key should be 32 bytes");
+
+    /* copy the key a few times to ensure to have the size we need for
+     * Statickey but XOR it to not repeat it */
+    uint8_t keydata[sizeof(key2.keys)];
+
+    for (int i = 0; i < sizeof(key2.keys); i++)
+    {
+        keydata[i] = (uint8_t) (key[i % sizeof(key)] ^ i);
+    }
+
+
+    ASSERT(memcpy(key2.keys[0].cipher, keydata, sizeof(key2.keys[0].cipher)));
+    ASSERT(memcpy(key2.keys[0].hmac, keydata + 64, sizeof(key2.keys[0].hmac)));
+    ASSERT(memcpy(key2.keys[1].cipher, keydata + 128, sizeof(key2.keys[1].cipher)));
+    ASSERT(memcpy(key2.keys[1].hmac, keydata + 192, sizeof(key2.keys)[1].hmac));
+
+    return key2;
+}
+
+static void
+test_data_channel_known_vectors_run(bool longpktcounter)
+{
+    struct key2 key2 = create_key();
+
+    int flags = longpktcounter ? CO_64_BIT_PKT_ID : 0;
+    flags |= CO_AEAD_TAG_AT_THE_END;
+
+    struct crypto_options co = init_crypto_options("AES-256-GCM", "none", flags,
+                                                   &key2);
+
+    struct gc_arena gc = gc_new();
+
+    /* initialise frame for the test */
+    struct frame frame;
+    init_frame_parameters(&frame);
+
+    struct buffer src = alloc_buf_gc(frame.buf.payload_size, &gc);
+    struct buffer work = alloc_buf_gc(BUF_SIZE(&frame), &gc);
+    struct buffer encrypt_workspace = alloc_buf_gc(BUF_SIZE(&frame), &gc);
+    struct buffer decrypt_workspace = alloc_buf_gc(BUF_SIZE(&frame), &gc);
+    struct buffer buf = clear_buf();
+    void *buf_p;
+
+    /* init work */
+    ASSERT(buf_init(&work, frame.buf.headroom));
+
+    now = 0;
+
+    /* msg(M_INFO, "TESTING ENCRYPT/DECRYPT of packet length=%d", i); */
+
+    /*
+     * Load src with known data.
+     */
+    ASSERT(buf_init(&src, 0));
+    const char *plaintext = "The quick little fox jumps over the bureaucratic hurdles";
+
+    ASSERT(buf_write(&src, plaintext, strlen(plaintext)));
+
+    /* copy source to input buf */
+    buf = work;
+    buf_p = buf_write_alloc(&buf, BLEN(&src));
+    ASSERT(buf_p);
+    memcpy(buf_p, BPTR(&src), BLEN(&src));
+
+    /* initialize work buffer with buf.headroom bytes of prepend capacity */
+    ASSERT(buf_init(&encrypt_workspace, frame.buf.headroom));
+
+    /* add packet opcode and peer id */
+    buf_write_u8(&encrypt_workspace, 7);
+    buf_write_u8(&encrypt_workspace, 0);
+    buf_write_u8(&encrypt_workspace, 0);
+    buf_write_u8(&encrypt_workspace, 23);
+
+    /* encrypt */
+    openvpn_encrypt(&buf, encrypt_workspace, &co);
+
+    /* separate buffer in authenticated data and encrypted data */
+    uint8_t *ad_start = BPTR(&buf);
+    buf_advance(&buf, 4);
+
+    if (longpktcounter)
+    {
+        uint8_t packetid1[8] = {0, 0, 0, 0, 0, 0, 0, 1};
+        assert_memory_equal(BPTR(&buf), packetid1, 8);
+    }
+    else
+    {
+        uint8_t packetid1[4] = {0, 0, 0, 1};
+        assert_memory_equal(BPTR(&buf), packetid1, 4);
+    }
+
+    uint8_t *tag_location = BEND(&buf) - OPENVPN_AEAD_TAG_LENGTH;
+
+    if (longpktcounter)
+    {
+        const uint8_t exp_tag_long[16] =
+        {0x52, 0xee, 0xef, 0xdb, 0x34, 0xb7, 0xbd, 0x79, 0xfe, 0xbf, 0x69, 0xd0, 0x4e, 0x92, 0xfe, 0x4b};
+        assert_memory_equal(tag_location, exp_tag_long, OPENVPN_AEAD_TAG_LENGTH);
+    }
+    else
+    {
+        const uint8_t exp_tag_short[16] =
+        {0x1f, 0xdd, 0x90, 0x8f, 0x0e, 0x9d, 0xc2, 0x5e, 0x79, 0xd8, 0x32, 0x02, 0x0d, 0x58, 0xe7, 0x3f};
+        assert_memory_equal(tag_location, exp_tag_short, OPENVPN_AEAD_TAG_LENGTH);
+    }
+
+    if (longpktcounter)
+    {
+        const uint8_t bytesat14[6] = {0xc7, 0x40, 0x47, 0x81, 0xac, 0x8c};
+        assert_memory_equal(BPTR(&buf) + 14, bytesat14, sizeof(bytesat14));
+    }
+    else
+    {
+        const uint8_t bytesat14[6] = {0xa8, 0x2e, 0x6b, 0x17, 0x06, 0xd9};
+        assert_memory_equal(BPTR(&buf) + 14, bytesat14, sizeof(bytesat14));
+    }
+
+    /* decrypt */
+    openvpn_decrypt(&buf, decrypt_workspace, &co, &frame, ad_start);
+
+    /* compare */
+    assert_int_equal(buf.len, strlen(plaintext));
+    assert_memory_equal(BPTR(&buf), plaintext, strlen(plaintext));
+
+    uninit_crypto_options(&co);
+    gc_free(&gc);
+}
+
+static void
+test_data_channel_known_vectors_longpktid(void **state)
+{
+    test_data_channel_known_vectors_run(true);
+}
+
+static void
+test_data_channel_known_vectors_shortpktid(void **state)
+{
+    test_data_channel_known_vectors_run(false);
+}
 
 int
 main(void)
@@ -365,6 +550,8 @@ main(void)
         cmocka_unit_test(test_data_channel_roundtrip_aes_192_cbc),
         cmocka_unit_test(test_data_channel_roundtrip_aes_256_cbc),
         cmocka_unit_test(test_data_channel_roundtrip_bf_cbc),
+        cmocka_unit_test(test_data_channel_known_vectors_longpktid),
+        cmocka_unit_test(test_data_channel_known_vectors_shortpktid)
     };
 
 #if defined(ENABLE_CRYPTO_OPENSSL)

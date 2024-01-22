@@ -1851,6 +1851,13 @@ multi_client_set_protocol_options(struct context *c)
         o->imported_protocol_flags |= CO_USE_CC_EXIT_NOTIFY;
     }
 
+    if (tls_multi->session[TM_ACTIVE].opt->data_v3_features_supported
+        && (proto & IV_PROTO_DATA_V3))
+    {
+        o->imported_protocol_flags |= CO_AEAD_TAG_AT_THE_END;
+        o->imported_protocol_flags |= CO_64_BIT_PKT_ID;
+    }
+
     /* Select cipher if client supports Negotiable Crypto Parameters */
 
     /* if we have already created our key, we cannot *change* our own

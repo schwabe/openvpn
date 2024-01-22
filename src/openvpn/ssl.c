@@ -105,9 +105,11 @@ show_tls_performance_stats(void)
  * @param ctx                   Encrypt/decrypt key context
  * @param key                   HMAC key, used to calculate implicit IV
  * @param key_len               HMAC key length
+ * @param long_pkt_id           64-bit packet counters are used
  */
 static void
-key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len);
+key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len,
+                           bool long_pkt_id);
 
 
 /**
@@ -1381,13 +1383,15 @@ init_key_contexts(struct key_state *ks,
     }
     else
     {
+        bool longiv = ks->crypto_options.flags & CO_64_BIT_PKT_ID;
         init_key_ctx_bi(key, key2, key_direction, key_type, "Data Channel");
         /* Initialize implicit IVs */
-        key_ctx_update_implicit_iv(&key->encrypt, key2->keys[(int)server].hmac,
-                                   MAX_HMAC_KEY_LENGTH);
+        key_ctx_update_implicit_iv(&key->encrypt,
+                                   key2->keys[(int)server].hmac,
+                                   MAX_HMAC_KEY_LENGTH, longiv);
         key_ctx_update_implicit_iv(&key->decrypt,
                                    key2->keys[1 - (int)server].hmac,
-                                   MAX_HMAC_KEY_LENGTH);
+                                   MAX_HMAC_KEY_LENGTH, longiv);
     }
 }
 
@@ -1525,14 +1529,15 @@ exit:
 }
 
 static void
-key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key, size_t key_len)
+key_ctx_update_implicit_iv(struct key_ctx *ctx, uint8_t *key,
+                           size_t key_len, bool longiv)
 {
     /* Only use implicit IV in AEAD cipher mode, where HMAC key is not used */
     if (cipher_ctx_mode_aead(ctx->cipher))
     {
         size_t impl_iv_len = 0;
         ASSERT(cipher_ctx_iv_length(ctx->cipher) >= OPENVPN_AEAD_MIN_IV_LEN);
-        impl_iv_len = cipher_ctx_iv_length(ctx->cipher) - sizeof(packet_id_type);
+        impl_iv_len = cipher_ctx_iv_length(ctx->cipher) - packet_id_size(longiv);
         ASSERT(impl_iv_len <= OPENVPN_MAX_IV_LENGTH);
         ASSERT(impl_iv_len <= key_len);
         memcpy(ctx->implicit_iv, key, impl_iv_len);
@@ -1946,6 +1951,12 @@ push_peer_info(struct buffer *buf, struct tls_session *session)
         iv_proto |= IV_PROTO_TLS_KEY_EXPORT;
         iv_proto |= IV_PROTO_DYN_TLS_CRYPT;
 #endif
+
+        /* support for AEAD tag at the end and 8 byte IV */
+        if (session->opt->data_v3_features_supported)
+        {
+            iv_proto |= IV_PROTO_DATA_V3;
+        }
 
         buf_printf(&out, "IV_PROTO=%d\n", iv_proto);
 
