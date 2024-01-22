@@ -430,6 +430,12 @@ p2p_ncp_set_options(struct tls_multi *multi, struct tls_session *session)
         session->opt->crypto_flags |= CO_USE_CC_EXIT_NOTIFY;
     }
 
+    if (session->opt->data_v3_features_supported && (iv_proto_peer & IV_PROTO_DATA_V3))
+    {
+        session->opt->crypto_flags |= CO_AEAD_TAG_AT_THE_END;
+        session->opt->crypto_flags |= CO_64_BIT_PKT_ID;
+    }
+
 #if defined(HAVE_EXPORT_KEYING_MATERIAL)
     if (iv_proto_peer & IV_PROTO_TLS_KEY_EXPORT)
     {

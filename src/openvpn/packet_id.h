@@ -244,8 +244,15 @@ const char *packet_id_persist_print(const struct packet_id_persist *p, struct gc
  * Read/write a packet ID to/from the buffer.  Short form is sequence number
  * only.  Long form is sequence number and timestamp.
  */
-
 bool packet_id_read(struct packet_id_net *pin, struct buffer *buf, bool long_form);
+
+/**
+ * Variant of packet_id_read that expects the timestamp first and packet
+ * counter after that to form a flat 64bit counter on the wire if we are
+ * using the long form.
+ */
+bool packet_id_read_flat(struct packet_id_net *pin, struct buffer *buf, bool long_form);
+
 
 /**
  * Write a packet ID to buf, and update the packet ID state.
@@ -259,6 +266,22 @@ bool packet_id_read(struct packet_id_net *pin, struct buffer *buf, bool long_for
  */
 bool packet_id_write(struct packet_id_send *p, struct buffer *buf,
                      bool long_form, bool prepend);
+
+
+/**
+ * Write a packet ID to buf, and update the packet ID state. This variant
+ * will always use a variant of the packet id that can just be seen as
+ * a flat 64 bit counter.
+ *
+ * @param p             Packet ID state.
+ * @param buf           Buffer to write the packet ID to
+ * @param long_form     If true, also update and write time_t to buf
+ *
+ * @return true if successful, false otherwise.
+ */
+bool
+packet_id_write_flat(struct packet_id_send *p, struct buffer *buf,
+                     bool long_form);
 
 /*
  * Inline functions.

@@ -8696,6 +8696,10 @@ add_option(struct options *options,
             {
                 options->imported_protocol_flags |= CO_AEAD_TAG_AT_THE_END;
             }
+            else if (streq(p[j], "pkt-id-64-bit"))
+            {
+                options->imported_protocol_flags |= CO_64_BIT_PKT_ID;
+            }
             else
             {
                 msg(msglevel, "Unknown protocol-flags flag: %s", p[j]);

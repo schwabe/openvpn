@@ -693,6 +693,10 @@ prepare_push_reply(struct context *c, struct gc_arena *gc,
     {
         buf_printf(&proto_flags, " aead-tag-end");
     }
+    if (o->imported_protocol_flags & CO_64_BIT_PKT_ID)
+    {
+        buf_printf(&proto_flags, " pkt-id-64-bit");
+    }
 
     if (buf_len(&proto_flags) > 0)
     {
