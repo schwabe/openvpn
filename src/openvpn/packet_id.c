@@ -320,6 +320,31 @@ packet_id_read(struct packet_id_net *pin, struct buffer *buf, bool long_form)
     return true;
 }
 
+bool
+packet_id_read_flat(struct packet_id_net *pin, struct buffer *buf, bool long_form)
+{
+    packet_id_type net_id;
+    net_time_t net_time;
+
+    pin->id = 0;
+    pin->time = 0;
+
+    if (long_form)
+    {
+        if (!buf_read(buf, &net_time, sizeof(net_time)))
+        {
+            return false;
+        }
+        pin->time = ntohtime(net_time);
+    }
+    if (!buf_read(buf, &net_id, sizeof(net_id)))
+    {
+        return false;
+    }
+    pin->id = ntohpid(net_id);
+    return true;
+}
+
 static bool
 packet_id_send_update(struct packet_id_send *p, bool long_form)
 {
@@ -340,6 +365,30 @@ packet_id_send_update(struct packet_id_send *p, bool long_form)
         p->id = 0;
     }
     p->id++;
+    return true;
+}
+
+bool
+packet_id_write_flat(struct packet_id_send *p, struct buffer *buf, bool long_form)
+{
+    if (!packet_id_send_update(p, long_form))
+    {
+        return false;
+    }
+
+    const packet_id_type net_id = htonpid(p->id);
+    const net_time_t net_time = htontime(p->time);
+
+    if (long_form && !buf_write(buf, &net_time, sizeof(net_time)))
+    {
+        return false;
+    }
+
+    if (!buf_write(buf, &net_id, sizeof(net_id)))
+    {
+        return false;
+    }
+
     return true;
 }
 
