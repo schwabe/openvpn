@@ -248,8 +248,10 @@ struct crypto_options
      *   OpenVPN process startups. */
 
 #define CO_PACKET_ID_LONG_FORM  (1<<0)
-    /**< Bit-flag indicating whether to use
-    *   OpenVPN's long packet ID format. */
+    /**< Bit-flag indicating whether to use OpenVPN's long packet ID format.
+     * This format puts [4 byte counter][4byte timestamp] on the wire in
+     * big endian/network endian format.
+     **/
 #define CO_IGNORE_PACKET_ID     (1<<1)
     /**< Bit-flag indicating whether to ignore
      *   the packet ID of a received packet.
@@ -282,6 +284,15 @@ struct crypto_options
 #define CO_AEAD_TAG_AT_THE_END  (1<<8)
     /**< Bit-flag indicating that the AEAD tag is at the end of the
      *   packet.
+     */
+#define CO_64_BIT_PKT_ID  (1<<9)
+    /**< Bit-flag indicating that we should use a 64 bit (8 byte) packet
+     * counter instead of the 32 bit that we use by default. The difference to
+     * the normal CO_PACKET_ID_LONG_FORM packet ID is that this a real 64 bit
+     * big ending number in the wire format.
+     *
+     * This is only used for AEAD encryption. Other encryption (--static,
+     * --tls-crypt, --tls-auth,...) uses the old format for compatibility
      */
 
     unsigned int flags;         /**< Bit-flags determining behavior of
