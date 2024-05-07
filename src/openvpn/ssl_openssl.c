@@ -1327,7 +1327,7 @@ err:
     return 0;
 }
 
-#if !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_EC) && !defined(ENABLE_CRYPTO_WOLFSSL)
 
 /* called when EC_KEY is destroyed */
 static void
@@ -1488,7 +1488,7 @@ tls_ctx_use_management_external_key(struct tls_root_ctx *ctx)
             goto cleanup;
         }
     }
-#if !defined(OPENSSL_NO_EC)
+#if !defined(OPENSSL_NO_EC) && !defined(ENABLE_CRYPTO_WOLFSSL)
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
     else if (EVP_PKEY_id(pkey) == EVP_PKEY_EC)
 #else /* OPENSSL_VERSION_NUMBER < 0x30000000L */
