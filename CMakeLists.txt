@@ -284,8 +284,9 @@ function(add_library_deps target)
 
         target_link_libraries(${target} PRIVATE -lmbedtls -lmbedx509 -lmbedcrypto)
     elseif (${WOLFSSL})
-        pkg_search_module(wolfssl wolfssl REQUIRED)
-        target_link_libraries(${target} PUBLIC ${wolfssl_LINK_LIBRARIES})
+        pkg_search_module(wolfssl wolfssl REQUIRED IMPORTED_TARGET)
+        target_link_libraries(${target} PUBLIC PkgConfig::wolfssl)
+        # Also include the wolfssl subdir to include the openssl compat headers
         target_include_directories(${target} PRIVATE ${wolfssl_INCLUDE_DIRS}/wolfssl)
     else ()
         set(ENABLE_X509ALTUSERNAME YES)
