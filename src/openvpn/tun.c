@@ -1872,15 +1872,6 @@ tun_name_is_fixed(const char *dev)
     return has_digit(dev);
 }
 
-#if defined(TARGET_LINUX) || defined(TARGET_FREEBSD)
-static bool
-tun_dco_enabled(struct tuntap *tt)
-{
-    return tt->backend_driver == DRIVER_DCO;
-}
-#endif
-
-
 #if !(defined(_WIN32) || defined(TARGET_LINUX) || defined(TARGET_SOLARIS))
 static void
 open_tun_generic(const char *dev, const char *dev_type, const char *dev_node,

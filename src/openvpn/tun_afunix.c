@@ -84,7 +84,7 @@ open_tun_afunix(struct options *o,
 
     /* Ensure that the buffer sizes are decently sized. Otherwise macOS will
      * just have 2048 */
-    struct socket_buffer_size newsizes = {65536, 65536 };
+    struct socket_buffer_size newsizes = {65536, 65536};
     socket_set_buffers(fds[0], &newsizes, false);
     socket_set_buffers(fds[1], &newsizes, false);
 

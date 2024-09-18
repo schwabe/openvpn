@@ -145,7 +145,7 @@ void
 check_dco_key_status(struct context *c)
 {
     /* DCO context is not yet initialised or enabled */
-    if (!dco_enabled(&c->options))
+    if (!tun_dco_enabled(c->c1.tuntap))
     {
         return;
     }
@@ -483,7 +483,7 @@ check_add_routes(struct context *c)
 static void
 check_inactivity_timeout(struct context *c)
 {
-    if (dco_enabled(&c->options) && dco_get_peer_stats(c) == 0)
+    if (tun_dco_enabled(c->c1.tuntap) && dco_get_peer_stats(c) == 0)
     {
         int64_t tot_bytes = c->c2.tun_read_bytes + c->c2.tun_write_bytes;
         int64_t new_bytes = tot_bytes - c->c2.inactivity_bytes;
@@ -623,7 +623,7 @@ encrypt_sign(struct context *c, bool comp_frag)
     const uint8_t *orig_buf = c->c2.buf.data;
     struct crypto_options *co = NULL;
 
-    if (dco_enabled(&c->options))
+    if (tun_dco_enabled(c->c1.tuntap))
     {
         msg(M_WARN, "Attempting to send data packet while data channel offload is in use. "
             "Dropping packet");

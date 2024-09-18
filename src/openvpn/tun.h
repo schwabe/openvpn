@@ -261,6 +261,12 @@ tuntap_defined(const struct tuntap *tt)
 #endif
 }
 
+inline static bool
+tun_dco_enabled(struct tuntap *tt)
+{
+    return tt && tt->backend_driver == DRIVER_DCO;
+}
+
 #ifdef _WIN32
 static inline bool
 tuntap_is_wintun(struct tuntap *tt)

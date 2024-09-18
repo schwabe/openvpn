@@ -474,7 +474,7 @@ dco_check_pull_options(int msglevel, const struct options *o)
 int
 dco_p2p_add_new_peer(struct context *c)
 {
-    if (!dco_enabled(&c->options))
+    if (!tun_dco_enabled(c->c1.tuntap))
     {
         return 0;
     }
@@ -509,7 +509,7 @@ dco_p2p_add_new_peer(struct context *c)
 void
 dco_remove_peer(struct context *c)
 {
-    if (!dco_enabled(&c->options))
+    if (!tun_dco_enabled(c->c1.tuntap))
     {
         return;
     }
@@ -629,7 +629,7 @@ dco_install_iroute(struct multi_context *m, struct multi_instance *mi,
                    struct mroute_addr *addr)
 {
 #if defined(TARGET_LINUX) || defined(TARGET_FREEBSD)
-    if (!dco_enabled(&m->top.options))
+    if (!tun_dco_enabled(m->top.c1.tuntap))
     {
         return;
     }
@@ -666,7 +666,7 @@ void
 dco_delete_iroutes(struct multi_context *m, struct multi_instance *mi)
 {
 #if defined(TARGET_LINUX) || defined(TARGET_FREEBSD)
-    if (!dco_enabled(&m->top.options))
+    if (!tun_dco_enabled(m->top.c1.tuntap))
     {
         return;
     }
