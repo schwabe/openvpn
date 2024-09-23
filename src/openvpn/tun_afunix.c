@@ -48,6 +48,31 @@
 #include <stdlib.h>
 
 static void
+child_handler(int sig)
+{
+    int status;
+    pid_t pid;
+
+    /* EEEEXTEERMINAAATE! */
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        msg(M_INFO, "Child process PID %d died with status code %d", pid, status);
+    }
+}
+
+static void
+enable_signal_handler(void)
+{
+    /* Establish handler. */
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = child_handler;
+
+    sigaction(SIGCHLD, &sa, NULL);
+}
+
+static void
 tun_afunix_exec_child(const char *dev_node, struct tuntap *tt, struct env_set *env)
 {
     struct argv argv = argv_new();
@@ -59,10 +84,13 @@ tun_afunix_exec_child(const char *dev_node, struct tuntap *tt, struct env_set *e
     argv_printf(&argv, "%s", program);
 
     argv_msg(M_INFO, &argv);
+
+    enable_signal_handler();
     tt->afunix.childprocess = openvpn_execve_check(&argv, env, S_NOWAITPID,
                                                    "ERROR: failure executing "
                                                    "process for tun");
     argv_free(&argv);
+
 }
 
 void
@@ -119,6 +147,8 @@ open_tun_afunix(struct options *o,
 
     gc_free(&gc);
 }
+
+
 
 void
 close_tun_afunix(struct tuntap *tt)
