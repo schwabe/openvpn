@@ -234,7 +234,12 @@ port_share_sendmsg(const socket_descriptor_t sd,
         }
         else
         {
-            socketpair(PF_UNIX, SOCK_DGRAM, 0, sd_null);
+            if (!socketpair(AF_UNIX, SOCK_DGRAM, 0, sd_null))
+            {
+                msg(M_WARN|M_ERRNO, "PORT SHARE: socketpair failed -- unable to communicate with background process "
+                    "(%d, %d)", sd, sd_send);
+                goto done;
+            }
             memcpy(CMSG_DATA(h), &sd_null[0], sizeof(sd_null[0]));
         }
 
@@ -246,6 +251,7 @@ port_share_sendmsg(const socket_descriptor_t sd,
                 );
         }
 
+done:
         close_socket_if_defined(sd_null[0]);
         close_socket_if_defined(sd_null[1]);
         free(mesg.msg_control);
