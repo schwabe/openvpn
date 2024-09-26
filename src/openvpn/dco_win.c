@@ -314,10 +314,12 @@ dco_new_key(dco_context_t *dco, unsigned int peerid, int keyid,
 
     CopyMemory(crypto_data.Encrypt.Key, encrypt_key, key_len);
     crypto_data.Encrypt.KeyLen = (char)key_len;
+    /* First 4 zero bytes as ovpn-dco-win does concat instead of XOR */
     CopyMemory(crypto_data.Encrypt.NonceTail, encrypt_iv, nonce_len);
 
     CopyMemory(crypto_data.Decrypt.Key, decrypt_key, key_len);
     crypto_data.Decrypt.KeyLen = (char)key_len;
+    /* First 4 zero bytes as ovpn-dco-win does concat instead of XOR */
     CopyMemory(crypto_data.Decrypt.NonceTail, decrypt_iv, nonce_len);
 
     ASSERT(crypto_data.CipherAlg > 0);

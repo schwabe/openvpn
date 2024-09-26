@@ -585,8 +585,9 @@ dco_new_key(dco_context_t *dco, unsigned int peerid, int keyid,
     if (dco_cipher != OVPN_CIPHER_ALG_NONE)
     {
         NLA_PUT(nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, key_len, encrypt_key);
+        /* First 4 zero bytes as the kernel does concat instead of XOR */
         NLA_PUT(nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, nonce_tail_len,
-                encrypt_iv);
+                encrypt_iv + 4);
     }
     nla_nest_end(nl_msg, key_enc);
 
@@ -595,8 +596,9 @@ dco_new_key(dco_context_t *dco, unsigned int peerid, int keyid,
     if (dco_cipher != OVPN_CIPHER_ALG_NONE)
     {
         NLA_PUT(nl_msg, OVPN_KEY_DIR_ATTR_CIPHER_KEY, key_len, decrypt_key);
+        /* First 4 zero bytes as the kernel does concat instead of XOR */
         NLA_PUT(nl_msg, OVPN_KEY_DIR_ATTR_NONCE_TAIL, nonce_tail_len,
-                decrypt_iv);
+                decrypt_iv + 4);
     }
     nla_nest_end(nl_msg, key_dec);
 

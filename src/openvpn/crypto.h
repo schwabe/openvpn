@@ -163,9 +163,14 @@ struct key_ctx
 {
     cipher_ctx_t *cipher;       /**< Generic cipher %context. */
     hmac_ctx_t *hmac;           /**< Generic HMAC %context. */
+    /**
+     * This implicit IV will be always XORed with the packet id that is sent on
+     * the wire to get the IV.  For the older AEAD format the first 32 bits
+     * of implicit_iv are always 0 so this works as concatenation: after xor
+     * the lower 32 bit of the IV are the packet id and the rest of the IV is
+     * from the implicit IV.
+     */
     uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];
-    /**< The implicit part of the IV */
-    size_t implicit_iv_len;     /**< The length of implicit_iv */
     /** Counter for the number of plaintext encrypted using this cipher
      * in number of 128 bit blocks (only used for AEAD ciphers) */
     uint64_t plaintext_blocks;

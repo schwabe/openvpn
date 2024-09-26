@@ -385,7 +385,9 @@ key_to_nvlist(const uint8_t *key, const uint8_t *implicit_iv, const char *cipher
         key_len = cipher_kt_key_size(ciphername);
 
         nvlist_add_binary(nvl, "key", key, key_len);
-        nvlist_add_binary(nvl, "iv", implicit_iv, 8);
+        /* FreeBSD uses the contact operation, need to skip the first 4 null
+         * bytes */
+        nvlist_add_binary(nvl, "iv", implicit_iv + 4, 8);
     }
 
     return (nvl);
