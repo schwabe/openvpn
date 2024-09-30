@@ -166,6 +166,9 @@ struct key_ctx
     uint8_t implicit_iv[OPENVPN_MAX_IV_LENGTH];
     /**< The implicit part of the IV */
     size_t implicit_iv_len;     /**< The length of implicit_iv */
+    /** Counter for the number of plaintext encrypted using this cipher
+     * in number of 128 bit blocks (only used for AEAD ciphers) */
+    uint64_t plaintext_blocks;
 };
 
 #define KEY_DIRECTION_BIDIRECTIONAL 0 /* same keys for both directions */
@@ -596,11 +599,45 @@ create_kt(const char *cipher, const char *md, const char *optname)
 }
 
 /**
+ * Check if the cipher is an AEAD cipher and needs to be limited to a certain
+ * number of number of block + packets. Return -1 if ciphername is not an AEAD
+ * cipher or no limit (e.g. Chacha20-Poly1305) is needed.
+ *
+ * For reference see the OpenVPN RFC draft and
+ * https://www.ietf.org/archive/id/draft-irtf-cfrg-aead-limits-08.html
+ */
+int64_t
+cipher_get_aead_limits(const char *ciphername);
+
+/**
+ * Blocksize used for the AEAD limit caluclation
+ *
+ * Since cipher_ctx_block_size() is reliable and will return 1 in many
+ * cases use a hardcoded blocksize instead */
+#define     AEAD_LIMIT_BLOCKSIZE    16
+
+/**
  * Checks if the current TLS library supports the TLS 1.0 PRF with MD5+SHA1
  * that OpenVPN uses when TLS Keying Material Export is not available.
  *
  * @return  true if supported, false otherwise.
  */
 bool check_tls_prf_working(void);
+
+/**
+ * Checks if the usage limit for an AEAD cipher is reached
+ *
+ * This method abstracts the calculation to make the calling function easier
+ * to read.
+ */
+static inline bool
+aead_usage_limit_reached(const int64_t limit, const struct key_ctx *key_ctx,
+                         int64_t higest_pid)
+{
+    /* This is the  q + s <=  p^(1/2) * 2^(129/2) - 1 calculation where
+     * q is the number of protected messages (highest_pid)
+     * s Total plaintext length in all messages (in blocks) */
+    return (limit > 0 && key_ctx->plaintext_blocks + higest_pid > limit);
+}
 
 #endif /* CRYPTO_H */
