@@ -207,6 +207,15 @@ void packet_id_init(struct packet_id *p, int seq_backtrack, int time_backtrack, 
 
 void packet_id_free(struct packet_id *p);
 
+/**
+ * Move the packet id recv structure from src to dest. src will will
+ * be reinitialised with
+ * @param dest
+ * @param src
+ */
+void
+packet_id_move_recv(struct packet_id_rec *dest, struct packet_id_rec *src);
+
 /* should we accept an incoming packet id ? */
 bool packet_id_test(struct packet_id_rec *p,
                     const struct packet_id_net *pin);
