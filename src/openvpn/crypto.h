@@ -334,9 +334,10 @@ struct crypto_options
     /**< Bit-flag indicating that renegotiations are using tls-crypt
      *   with a TLS-EKM derived key.
      */
-#define CO_AEAD_TAG_AT_THE_END  (1<<8)
-    /**< Bit-flag indicating that the AEAD tag is at the end of the
-     *   packet.
+#define CO_EPOCH_DATA_KEY_FORMAT  (1<<8)
+    /**< Bit-flag indicating that the data format using
+     * AEAD tag is at the end of the  packet and using epoch
+     * keys is used.
      */
 
     unsigned int flags;         /**< Bit-flags determining behavior of
