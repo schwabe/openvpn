@@ -66,4 +66,77 @@ ovpn_expand_label(const uint8_t *secret, size_t secret_len,
                   const uint8_t *context, size_t context_len,
                   uint8_t *out, uint16_t out_len);
 
-#endif
+/**
+ * Generate a data channel key pair from the epoch key
+ * @param epoch_key     Epoch key to be used
+ * @param key2          Destination for the generated data key
+ */
+void
+epoch_data_key_derive(const struct epoch_key *epoch_key, struct key2 *key2);
+
+/**
+ * Generates and fills the epoch_data_keys_future with next valid
+ * future keys in crypto_options
+ *
+ * This assume that the normal key_ctx_bi and epoch keys are already setup
+ */
+void
+epoch_generate_future_receive_keys(struct crypto_options *co);
+
+
+/** This is called when the peer using a new send key that is not the default
+ * key. This function ensures the following:
+ * - recv key matches the epoch index provided
+ * - send key epoch is equal or higher than recv_key epoch
+ *
+ * @param new_epoch the new epoch to use a the receive key
+ */
+void
+epoch_replace_update_recv_key(struct crypto_options *co,
+                              uint16_t new_epoch);
+
+/**
+ * Updates the send key and send_epoch_keyt in cryptio_options->key_ctx_bi to
+ * use the next epoch */
+void
+epoch_iterate_send_key(struct crypto_options *co);
+
+/**
+ * Frees the extra data structures used by epoch keys in \c crypto_options
+ */
+void
+free_epoch_key_ctx(struct crypto_options *co);
+
+/**
+ * Initialises data channel keys and internal structures for epoch data keys
+ * using the provided E0 epoch key
+ *
+ * @param e1    The E0 epoch key derived by TLS-EKM
+ */
+void
+epoch_init_key_ctx(struct crypto_options *co, const struct key_type *key_type,
+                   int key_direction, const struct epoch_key *e1,
+                   uint16_t future_key_count);
+
+/**
+ * Using an epoch, this function will try to retrieve a decryption
+ * key context that matches that epoch from the \c opt argument
+ * @param opt       crypto_options to use to find the decrypt key
+ * @param epoch     epoch of the key to lookup
+ * @return          the key context with
+ */
+const struct key_ctx *
+lookup_decrypt_epoch_key(struct crypto_options *opt, int epoch);
+
+/**
+ * Checks if we need to iterate the send epoch key. This needs to be in one
+ * of the following condition
+ *  - max epoch counter reached
+ *  - send key aead usage limit reached (for AES-GCM and similar ciphers)
+ *  - recv key usage limit reached
+ */
+void
+epoch_check_send_iterate(struct crypto_options *opt);
+
+
+#endif /* ifndef CRYPTO_EPOCH_H */
