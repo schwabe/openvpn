@@ -430,6 +430,11 @@ p2p_ncp_set_options(struct tls_multi *multi, struct tls_session *session)
         session->opt->crypto_flags |= CO_USE_CC_EXIT_NOTIFY;
     }
 
+    if (session->opt->data_epoch_supported && (iv_proto_peer & IV_PROTO_DATA_EPOCH))
+    {
+        session->opt->crypto_flags |= CO_EPOCH_DATA_KEY_FORMAT;
+    }
+
 #if defined(HAVE_EXPORT_KEYING_MATERIAL)
     if (iv_proto_peer & IV_PROTO_TLS_KEY_EXPORT)
     {
@@ -499,9 +504,12 @@ p2p_mode_ncp(struct tls_multi *multi, struct tls_session *session)
     }
 
     msg(D_TLS_DEBUG_LOW, "P2P mode NCP negotiation result: "
-        "TLS_export=%d, DATA_v2=%d, peer-id %d, cipher=%s",
+        "TLS_export=%d, DATA_v2=%d, peer-id %d, epoch=%d, cipher=%s",
         (bool)(session->opt->crypto_flags & CO_USE_TLS_KEY_MATERIAL_EXPORT),
-        multi->use_peer_id, multi->peer_id, common_cipher);
+        multi->use_peer_id,
+        multi->peer_id,
+        (bool)(session->opt->crypto_flags & CO_EPOCH_DATA_KEY_FORMAT),
+        common_cipher);
 
     gc_free(&gc);
 }
