@@ -1846,6 +1846,12 @@ multi_client_set_protocol_options(struct context *c)
     }
 #endif
 
+    if (tls_multi->session[TM_ACTIVE].opt->data_epoch_supported
+        && (proto & IV_PROTO_DATA_EPOCH))
+    {
+        o->imported_protocol_flags |= CO_EPOCH_DATA_KEY_FORMAT;
+    }
+
     if (proto & IV_PROTO_CC_EXIT_NOTIFY)
     {
         o->imported_protocol_flags |= CO_USE_CC_EXIT_NOTIFY;

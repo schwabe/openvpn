@@ -32,6 +32,8 @@
 #include <string.h>
 
 #include "crypto.h"
+#include "crypto_epoch.h"
+#include "packet_id.h"
 #include "error.h"
 #include "integer.h"
 #include "platform.h"
@@ -68,7 +70,15 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
 {
     struct gc_arena gc;
     int outlen = 0;
+    const bool use_epoch_data_format = opt->flags & CO_EPOCH_DATA_KEY_FORMAT;
+
+    if (use_epoch_data_format)
+    {
+        epoch_check_send_iterate(opt);
+    }
+
     const struct key_ctx *ctx = &opt->key_ctx_bi.encrypt;
+
     uint8_t *mac_out = NULL;
     const int mac_len = OPENVPN_AEAD_TAG_LENGTH;
 
@@ -89,14 +99,24 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
         buf_set_write(&iv_buffer, iv, iv_len);
 
         /* IV starts with packet id to make the IV unique for packet */
-        if (!packet_id_write(&opt->packet_id.send, &iv_buffer, false, false))
+        if (use_epoch_data_format)
         {
-            msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
-            goto err;
+            if (!packet_id_write_epoch(&opt->packet_id.send, ctx->epoch, &iv_buffer))
+            {
+                msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
+                goto err;
+            }
         }
-
+        else
+        {
+            if (!packet_id_write(&opt->packet_id.send, &iv_buffer, false, false))
+            {
+                msg(D_CRYPT_ERRORS, "ENCRYPT ERROR: packet ID roll over");
+                goto err;
+            }
+        }
         /* Write packet id part of IV to work buffer */
-        ASSERT(buf_write(&work, iv, packet_id_size(false)));
+        ASSERT(buf_write(&work, iv, buf_len(&iv_buffer)));
 
         /* Remainder of IV consists of implicit part (unique per session)
          * XOR of packet and implicit IV */
@@ -128,7 +148,7 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
     dmsg(D_PACKET_CONTENT, "ENCRYPT AD: %s",
          format_hex(BPTR(&work), BLEN(&work), 0, &gc));
 
-    if (!(opt->flags & CO_EPOCH_DATA_KEY_FORMAT))
+    if (!use_epoch_data_format)
     {
         /* Reserve space for authentication tag */
         mac_out = buf_write_alloc(&work, mac_len);
@@ -149,7 +169,7 @@ openvpn_encrypt_aead(struct buffer *buf, struct buffer work,
     ASSERT(buf_inc_len(&work, outlen));
 
     /* if the tag is at end the end, allocate it now */
-    if (opt->flags & CO_EPOCH_DATA_KEY_FORMAT)
+    if (use_epoch_data_format)
     {
         /* Reserve space for authentication tag */
         mac_out = buf_write_alloc(&work, mac_len);
@@ -365,14 +385,35 @@ cipher_get_aead_limits(const char *ciphername)
 
 bool
 crypto_check_replay(struct crypto_options *opt,
-                    const struct packet_id_net *pin, const char *error_prefix,
+                    const struct packet_id_net *pin, uint16_t epoch,
+                    const char *error_prefix,
                     struct gc_arena *gc)
 {
     bool ret = false;
-    packet_id_reap_test(&opt->packet_id.rec);
-    if (packet_id_test(&opt->packet_id.rec, pin))
+    struct packet_id_rec *recv;
+
+    if (epoch == 0 || opt->key_ctx_bi.decrypt.epoch == epoch)
     {
-        packet_id_add(&opt->packet_id.rec, pin);
+        recv = &opt->packet_id.rec;
+    }
+    else if (epoch == opt->epoch_retiring_data_receive_key.epoch)
+    {
+        recv = &opt->epoch_retiring_key_pid_recv;
+    }
+    else
+    {
+        /* We have an epoch that is neither current or old recv key but
+         * is authenticated, ie we need to move to a new current recv key */
+        msg(D_GENKEY, "Received data packet with new epoch %d. Updating "
+            "receive key", epoch);
+        epoch_replace_update_recv_key(opt, epoch);
+        recv = &opt->packet_id.rec;
+    }
+
+    packet_id_reap_test(recv);
+    if (packet_id_test(recv, pin))
+    {
+        packet_id_add(recv, pin);
         if (opt->pid_persist && (opt->flags & CO_PACKET_ID_LONG_FORM))
         {
             packet_id_persist_save_obj(opt->pid_persist, &opt->packet_id);
@@ -408,8 +449,9 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     static const char error_prefix[] = "AEAD Decrypt error";
     struct packet_id_net pin = { 0 };
     const struct key_ctx *ctx = &opt->key_ctx_bi.decrypt;
-    int outlen;
     struct gc_arena gc;
+    const bool use_epoch_data_format = opt->flags & CO_EPOCH_DATA_KEY_FORMAT;
+    const int tag_size = OPENVPN_AEAD_TAG_LENGTH;
 
     gc_init(&gc);
 
@@ -428,20 +470,58 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     /* IV and Packet ID required for this mode */
     ASSERT(packet_id_initialized(&opt->packet_id));
 
+    /* Ensure that the packet size is long enough */
+    int min_packet_len = packet_id_size(false) + tag_size + 1;
+
+    if (use_epoch_data_format)
+    {
+        min_packet_len += sizeof(uint32_t);
+    }
+
+    if (buf->len < min_packet_len)
+    {
+        CRYPT_ERROR("missing IV info, missing tag or no payload");
+    }
+
+    uint16_t epoch = 0;
     /* Combine IV from explicit part from packet and implicit part from context */
     {
         uint8_t iv[OPENVPN_MAX_IV_LENGTH] = { 0 };
         const int iv_len = cipher_ctx_iv_length(ctx->cipher);
-        const size_t packet_iv_len = packet_id_size(false);
 
-        if (buf->len < packet_id_size(false))
+        /* Read packet id. For epoch data format also lookup the epoch key
+         * to be able to use the implicit IV of the correct decryption key */
+        if (use_epoch_data_format)
         {
-            CRYPT_ERROR("missing IV info");
+            /* packet ID format is 16 bit epoch + 48 per epoch packet-counter */
+            const size_t packet_iv_len = sizeof(uint64_t);
+
+            /* copy the epoch-counter part into the IV */
+            memcpy(iv, BPTR(buf), packet_iv_len);
+
+            epoch = packet_id_read_epoch(&pin, buf);
+            if (epoch == 0)
+            {
+                CRYPT_ERROR("error reading packet-id");
+            }
+            ctx = lookup_decrypt_epoch_key(opt, epoch);
+            if (!ctx)
+            {
+                CRYPT_ERROR("data packet with unknown epoch");
+            }
+        }
+        else
+        {
+            const size_t packet_iv_len = packet_id_size(false);
+            /* Packet ID form is a 32 bit packet counter */
+            memcpy(iv, BPTR(buf), packet_iv_len);
+            if (!packet_id_read(&pin, buf, false))
+            {
+                CRYPT_ERROR("error reading packet-id");
+            }
         }
 
-        memcpy(iv, BPTR(buf), packet_iv_len);
-
-        /* Remainder of IV consists of implicit part (unique per session)
+        /* Remainder of IV consists of implicit part (unique per session/epoch key)
          * XOR of packet counter and implicit IV */
         for (int i = 0; i < iv_len; i++)
         {
@@ -457,25 +537,12 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
         }
     }
 
-    /* Read packet ID from packet */
-    if (!packet_id_read(&pin, buf, false))
-    {
-        CRYPT_ERROR("error reading packet-id");
-    }
-
-    /* keep the tag value to feed in later */
-    const int tag_size = OPENVPN_AEAD_TAG_LENGTH;
-    if (buf->len < tag_size + 1)
-    {
-        CRYPT_ERROR("missing tag or no payload");
-    }
-
     const int ad_size = BPTR(buf) - ad_start;
 
     uint8_t *tag_ptr = NULL;
     int data_len = 0;
 
-    if (opt->flags & CO_EPOCH_DATA_KEY_FORMAT)
+    if (use_epoch_data_format)
     {
         data_len = BLEN(buf) - tag_size;
         tag_ptr = BPTR(buf) + data_len;
@@ -496,13 +563,13 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
         CRYPT_ERROR("potential buffer overflow");
     }
 
-
     /* feed in tag and the authenticated data */
     ASSERT(cipher_ctx_update_ad(ctx->cipher, ad_start, ad_size));
     dmsg(D_PACKET_CONTENT, "DECRYPT AD: %s",
          format_hex(ad_start, ad_size, 0, &gc));
 
     /* Decrypt and authenticate packet */
+    int outlen;
     if (!cipher_ctx_update(ctx->cipher, BPTR(&work), &outlen, BPTR(buf),
                            data_len))
     {
@@ -525,7 +592,7 @@ openvpn_decrypt_aead(struct buffer *buf, struct buffer work,
     dmsg(D_PACKET_CONTENT, "DECRYPT TO: %s",
          format_hex(BPTR(&work), BLEN(&work), 80, &gc));
 
-    if (!crypto_check_replay(opt, &pin, error_prefix, &gc))
+    if (!crypto_check_replay(opt, &pin, epoch, error_prefix, &gc))
     {
         goto error_exit;
     }
@@ -696,7 +763,7 @@ openvpn_decrypt_v1(struct buffer *buf, struct buffer work,
             }
         }
 
-        if (have_pin && !crypto_check_replay(opt, &pin, error_prefix, &gc))
+        if (have_pin && !crypto_check_replay(opt, &pin, 0, error_prefix, &gc))
         {
             goto error_exit;
         }
