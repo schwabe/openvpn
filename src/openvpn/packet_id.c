@@ -366,6 +366,21 @@ packet_id_send_update(struct packet_id_send *p, bool long_form)
     return true;
 }
 
+static bool
+packet_id_send_update_epoch(struct packet_id_send *p)
+{
+    if (!p->time)
+    {
+        p->time = now;
+    }
+    if (p->id == PACKET_ID_EPOCH_MAX)
+    {
+        return false;
+    }
+    p->id++;
+    return true;
+}
+
 bool
 packet_id_write(struct packet_id_send *p, struct buffer *buf, bool long_form,
                 bool prepend)
@@ -656,5 +671,47 @@ packet_id_debug_print(int msglevel,
     msg(msglevel, "%s", BSTR(&out));
     gc_free(&gc);
 }
+
+uint16_t
+packet_id_read_epoch(struct packet_id_net *pin, struct buffer *buf)
+{
+    uint64_t packet_id;
+
+
+    if (!buf_read(buf, &packet_id, sizeof(packet_id)))
+    {
+        return 0;
+    }
+
+    uint64_t id = ntohll(packet_id);
+    /* top most 16 bits */
+    uint16_t epoch = id >> 48;
+
+    pin->id = id & 0xffffffffffffull;
+    return epoch;
+}
+
+bool
+packet_id_write_epoch(struct packet_id_send *p, uint16_t epoch, struct buffer *buf)
+{
+    if (!packet_id_send_update_epoch(p))
+    {
+        return false;
+    }
+
+    /* First 16 bits of packet id is the epoch
+     *
+     * Next 48 bits are the per-epoch packet id counter. Since we are
+     * writing a big endian counter, the last 6 bytes of the 64 bit
+     * integer contain our counter but the upper two bytes are always 0 */
+
+    uint64_t net_id = ((uint64_t) epoch) << 48 | p->id;
+
+    /* convert to network order */
+    net_id = htonll(net_id);
+
+    return buf_write(buf, &net_id, sizeof(net_id));
+}
+
 
 #endif /* ifdef ENABLE_DEBUG */
