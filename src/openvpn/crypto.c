@@ -354,6 +354,9 @@ openvpn_encrypt(struct buffer *buf, struct buffer work,
 int64_t
 cipher_get_aead_limits(const char *ciphername)
 {
+    /* TESTING: Make AEAD key limits really really really small to force
+     * key rollever super quickly */
+    return 256;
     if (!cipher_kt_mode_aead(ciphername))
     {
         return 0;

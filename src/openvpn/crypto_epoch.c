@@ -391,8 +391,13 @@ epoch_check_send_iterate(struct crypto_options *opt)
         if (aead_usage_limit_reached(opt->aead_usage_limit, &opt->key_ctx_bi.encrypt,
                                      opt->packet_id.send.id))
         {
-            /* Send key limit reached */
-            epoch_iterate_send_key(opt);
+            int forward = rand() % 8 + 1;
+            /* Send key limit reached, go one key forward or in this TEST
+             * gremlin mode, 1 to 8 to test the other side future key stuff */
+            for (int i = 0; i < forward; i++)
+            {
+                epoch_iterate_send_key(opt);
+            }
         }
         else if (opt->key_ctx_bi.encrypt.epoch == opt->key_ctx_bi.decrypt.epoch
                  && aead_usage_limit_reached(opt->aead_usage_limit,
@@ -402,7 +407,13 @@ epoch_check_send_iterate(struct crypto_options *opt)
             /* Receive key limit reached. Increase our own send key to signal
              * that we want to use a new epoch. Peer should then also move its
              * key but is not required to do this */
-            epoch_iterate_send_key(opt);
+            int forward = rand() % 8 + 1;
+            /* gremlin mode, 1 to 8 to test the other side future key stuff */
+            for (int i = 0; i < forward; i++)
+            {
+                epoch_iterate_send_key(opt);
+            }
+
         }
     }
 
