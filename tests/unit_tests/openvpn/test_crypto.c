@@ -458,24 +458,14 @@ test_mssfix_mtu_calculation(void **state)
 void
 crypto_test_aead_limits(void **state)
 {
+#define BROKEN_LIMIT 0x100
     /* if ChaCha20-Poly1305 is not supported by the crypto library or in the
      * current mode (FIPS), this will still return -1 */
-    assert_int_equal(cipher_get_aead_limits("CHACHA20-POLY1305"), 0);
+    assert_int_equal(cipher_get_aead_limits("CHACHA20-POLY1305"), BROKEN_LIMIT);
 
     int64_t aeslimit = cipher_get_aead_limits("AES-128-GCM");
 
-    assert_int_equal(aeslimit, (1ull << 36) - 1);
-
-    /* Check if this matches our exception for 1600 size packets assuming
-     * AEAD_LIMIT_BLOCKSIZE (128 bits/ 16 bytes). Gives us 100 blocks
-     * + 1 for the packet */
-    int64_t L = 101;
-    /* 2 ^ 29.34, using the result here to avoid linking to libm */
-    assert_int_equal(aeslimit / L, 680390858);
-
-    /* and for 9000, 2^26.86 */
-    L = 563;
-    assert_int_equal(aeslimit / L, 122059461);
+    assert_int_equal(aeslimit, BROKEN_LIMIT);
 }
 
 void

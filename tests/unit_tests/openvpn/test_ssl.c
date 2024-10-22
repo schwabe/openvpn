@@ -398,7 +398,7 @@ init_crypto_options(const char *cipher, const char *auth, bool epoch,
         struct epoch_key e1 = { .epoch = 1, .epoch_key = { 0 }};
         memcpy(e1.epoch_key, key2.keys[0].cipher, sizeof(e1.epoch_key));
         co.flags |= CO_EPOCH_DATA_KEY_FORMAT;
-        epoch_init_key_ctx(&co, &kt, &e1, &e1, 5);
+        epoch_init_key_ctx(&co, &kt, &e1, &e1, 9);
 
         /* Do a little of dancing for the epoch_send_key_iterate to test
          * that this works too */
