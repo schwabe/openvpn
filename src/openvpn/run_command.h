@@ -59,6 +59,19 @@ bool openvpn_execve_allowed(const unsigned int flags);
 int openvpn_execve_check(const struct argv *a, const struct env_set *es,
                          const unsigned int flags, const char *error_message);
 
+
+/** Checks if a running process is still running. This is mainly useful
+ * for processes started with \c S_NOWAITPID
+ * @param pid               pid of the process to be checked
+ * @param msg_prefix     prefixed of the message that be printed
+ * @param msglevel          msglevel of the messages to be printed
+ * @return                  true if the process is still running, false if
+ *                          an error condition occurred
+ */
+bool
+openvpn_waitpid_check(pid_t pid, const char *msg_prefix,
+                      int msglevel);
+
 /**
  * Will run a script and return the exit code of the script if between
  * 0 and 255, -1 otherwise

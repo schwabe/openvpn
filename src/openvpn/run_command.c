@@ -107,6 +107,45 @@ system_error_message(int stat, struct gc_arena *gc)
 }
 
 bool
+openvpn_waitpid_check(pid_t pid, const char *msg_prefix, int msglevel)
+{
+    if (pid == 0)
+    {
+        return false;
+    }
+    int status;
+    pid_t pidret = waitpid(pid, &status, WNOHANG);
+    if (pidret != pid)
+    {
+        return true;
+    }
+
+    if (WIFEXITED(status))
+    {
+        int exitcode = WEXITSTATUS(status);
+
+        if (exitcode == OPENVPN_EXECVE_FAILURE)
+        {
+            msg(msglevel, "%scould not execute external program (exit code 127)",
+                msg_prefix);
+        }
+        else
+        {
+            msg(msglevel, "%sexternal program exited with error status: %d",
+                msg_prefix, exitcode);
+        }
+
+    }
+    else if (WIFSIGNALED(status))
+    {
+        msg(msglevel, "%sexternal program received signal %d",
+            msg_prefix, WTERMSIG(status));
+    }
+
+    return false;
+}
+
+bool
 openvpn_execve_allowed(const unsigned int flags)
 {
     if (flags & S_SCRIPT)
