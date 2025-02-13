@@ -39,10 +39,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        abi: [ arm64-v8a ]
+        abi: [ armeabi-v7a, arm64-v8a, x86_64, x86 ]
         include:
+          - abi: armeabi-v7a
+            vcpkg_triplet: arm-neon-android
           - abi: arm64-v8a
             vcpkg_triplet: arm64-android
+          - abi: x86_64
+            vcpkg_triplet: x64-android
+          - abi: x86
+            vcpkg_triplet: x86-android
     runs-on: ubuntu-24.04
     name: "Android - ${{ matrix.abi }}"
     # Github images already setup NDK with ANDROID_NDK_ROOT pointing to the root
