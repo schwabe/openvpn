@@ -104,6 +104,7 @@ print_bypass_addresses(const struct route_bypass *rb)
 #define RTA_SUCCESS 1   /* route addition succeeded */
 #define RTA_EEXIST  2   /* route not added as it already exists */
 
+#ifndef TARGET_ANDROID
 static bool
 add_bypass_address(struct route_bypass *rb, const in_addr_t a)
 {
@@ -125,6 +126,7 @@ add_bypass_address(struct route_bypass *rb, const in_addr_t a)
         return false;
     }
 }
+#endif /* ifndef TARGET_ANDROID */
 
 struct route_option_list *
 new_route_option_list(struct gc_arena *a)
@@ -750,6 +752,7 @@ init_route_list(struct route_list *rl,
  * (not the most beautiful implementation in the world, but portable and
  * "good enough")
  */
+#ifndef TARGET_ANDROID
 static bool
 route_ipv6_match_host( const struct route_ipv6 *r6,
                        const struct in6_addr *host )
@@ -785,6 +788,7 @@ route_ipv6_match_host( const struct route_ipv6 *r6,
 
     return false;
 }
+#endif /* ifndef TARGET_ANDROID */
 
 bool
 init_route_ipv6_list(struct route_ipv6_list *rl6,
@@ -2183,7 +2187,7 @@ delete_route(struct route_ipv4 *r,
              const struct env_set *es,
              openvpn_net_ctx_t *ctx)
 {
-#if !defined(TARGET_LINUX)
+#if !defined(TARGET_LINUX) && !defined(TARGET_ANDROID)
     const char *network;
 #if !defined(TARGET_AIX)
     const char *netmask;
@@ -2191,8 +2195,10 @@ delete_route(struct route_ipv4 *r,
 #if !defined(TARGET_ANDROID)
     const char *gateway;
 #endif
-#else  /* if !defined(TARGET_LINUX) */
+#else  /* if !defined(TARGET_LINUX) && !defined(TARGET_ANDROID) */
+#if !defined(TARGET_ANDROID)
     int metric;
+#endif
 #endif
     int is_local_route;
 
@@ -2204,7 +2210,7 @@ delete_route(struct route_ipv4 *r,
     struct gc_arena gc = gc_new();
     struct argv argv = argv_new();
 
-#if !defined(TARGET_LINUX)
+#if !defined(TARGET_LINUX) && !defined(TARGET_ANDROID)
     network = print_in_addr_t(r->network, 0, &gc);
 #if !defined(TARGET_AIX)
     netmask = print_in_addr_t(r->netmask, 0, &gc);
@@ -2394,10 +2400,10 @@ delete_route_ipv6(const struct route_ipv6 *r6, const struct tuntap *tt,
     }
 
 #if !defined(_WIN32)
-#if !defined(TARGET_LINUX)
+#if !defined(TARGET_LINUX) && !defined(TARGET_ANDROID)
     const char *gateway;
 #endif
-#if !defined(TARGET_SOLARIS)
+#if !defined(TARGET_SOLARIS) && !defined(TARGET_ANDROID)
     bool gateway_needed = false;
     const char *device = tt->actual_name;
     if (r6->iface != NULL)              /* vpn server special route */
@@ -2421,7 +2427,7 @@ delete_route_ipv6(const struct route_ipv6 *r6, const struct tuntap *tt,
     struct argv argv = argv_new();
 
     network = print_in6_addr( r6->network, 0, &gc);
-#if !defined(TARGET_LINUX) && !defined(_WIN32)
+#if !defined(TARGET_LINUX) && !defined(_WIN32) && !defined(TARGET_ANDROID)
     gateway = print_in6_addr( r6->gateway, 0, &gc);
 #endif
 
