@@ -47,9 +47,6 @@
 #include "push.h"
 #include "ssl_util.h"
 
-/** Maximum length of common name */
-#define TLS_USERNAME_LEN 64
-
 static void
 string_mod_remap_name(char *str)
 {
@@ -84,10 +81,7 @@ tls_deauthenticate(struct tls_multi *multi)
     }
 }
 
-/*
- * Set the given session's common_name
- */
-static void
+void
 set_common_name(struct tls_session *session, const char *common_name)
 {
     if (session->common_name)
@@ -152,7 +146,10 @@ tls_lock_username(struct tls_multi *multi, const char *username)
 {
     if (multi->locked_username)
     {
-        if (!username || strcmp(username, multi->locked_username))
+        /* If the username has been overridden, we accept both the original
+         * username and the changed username */
+        if (strcmp(username, multi->locked_username) != 0
+            &&  (!multi->locked_original_username || strcmp(username, multi->locked_original_username) != 0))
         {
             msg(D_TLS_ERRORS, "TLS Auth Error: username attempted to change from '%s' to '%s' -- tunnel disabled",
                 multi->locked_username,
@@ -1614,6 +1611,17 @@ verify_user_pass(struct user_pass *up, struct tls_multi *multi,
      * methods unless otherwise specified
      */
     bool skip_auth = false;
+
+    /* Replace username early if override-username is in effect but only
+     * if client is sending the original username */
+    if (multi->locked_original_username
+        && strncmp(up->username, multi->locked_original_username, sizeof(up->username)) == 0)
+    {
+        msg(D_MULTI_LOW, "TLS: Replacing client provided username '%s' with "
+            "username from override-user '%s'", up->username,
+            multi->locked_username);
+        strncpy(up->username, multi->locked_username, sizeof(up->username));
+    }
 
     /*
      * If server is configured with --auth-gen-token and the client sends
