@@ -1743,9 +1743,17 @@ resolve_bind_local(struct link_socket *sock, const sa_family_t af)
                 gai_strerror(status));
         }
 
-        /* the resolved 'local entry' might have a different family than what
-         * was globally configured */
-        sock->info.af = sock->info.lsa->bind_local->ai_family;
+        /* the resolved family makes sense only if the host is not ANY,
+         * otherwise getaddrinfo() may return v4 and break connections
+         * to v6 only remotes
+         */
+        if (sock->local_host)
+        {
+            /* the resolved 'local entry' might have a different family than
+             * what was globally configured
+             */
+            sock->info.af = sock->info.lsa->bind_local->ai_family;
+        }
     }
 
     gc_free(&gc);
