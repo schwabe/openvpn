@@ -535,7 +535,11 @@ init_ssl(const struct options *options, struct tls_root_ctx *new_ctx, bool in_ch
     {
         tls_ctx_server_new(new_ctx);
 
-        if (options->dh_file)
+        if (options->dh_file && !strcmp(options->dh_file, "auto"))
+        {
+            tls_ctx_use_dh_params_builtin(new_ctx);
+        }
+        else if  (options->dh_file)
         {
             tls_ctx_load_dh_params(new_ctx, options->dh_file,
                                    options->dh_file_inline);

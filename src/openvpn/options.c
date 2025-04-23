@@ -3739,8 +3739,12 @@ options_postprocess_mutate(struct options *o, struct env_set *es)
 
     if (o->tls_server)
     {
-        /* Check that DH file is specified, or explicitly disabled */
-        notnull(o->dh_file, "DH file (--dh)");
+        if (streq(o->dh_file, "auto"))
+        {
+            o->dh_file = "auto";
+            /* do not check existence of the "auto" file */
+            o->dh_file_inline = true;
+        }
         if (streq(o->dh_file, "none"))
         {
             o->dh_file = NULL;

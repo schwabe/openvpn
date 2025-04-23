@@ -223,6 +223,13 @@ void tls_ctx_load_dh_params(struct tls_root_ctx *ctx, const char *dh_file,
                             bool dh_file_inline);
 
 /**
+ * Instructs the TLS library to use builtin Diffie Hellman Parameters instead
+ * of loading specific ones (e.g. the ones from RFC 7919)
+ * @param ctx
+ */
+void tls_ctx_use_dh_params_builtin(struct tls_root_ctx *ctx);
+
+/**
  * Load Elliptic Curve Parameters, and load them into the library-specific
  * TLS context.
  *

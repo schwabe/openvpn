@@ -714,6 +714,16 @@ tls_ctx_load_dh_params(struct tls_root_ctx *ctx, const char *dh_file,
 }
 
 void
+tls_ctx_use_dh_params_builtin(struct tls_root_ctx *ctx)
+{
+    if (!SSL_CTX_set_dh_auto(ctx->ctx, 1))
+    {
+        crypto_msg(M_FATAL, "SSL_CTX_set_dh_auto");
+    }
+
+}
+
+void
 tls_ctx_load_ecdh_params(struct tls_root_ctx *ctx, const char *curve_name)
 {
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L

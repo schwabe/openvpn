@@ -482,6 +482,13 @@ tls_ctx_load_dh_params(struct tls_root_ctx *ctx, const char *dh_file,
 }
 
 void
+tls_ctx_use_dh_params_builtin(struct tls_root_ctx *ctx)
+{
+    msg(M_FATAL, "mbed TLS does not support --dh auto. Use --dh none or "
+        "manually specify Diffie-Hellmann parameters");
+}
+
+void
 tls_ctx_load_ecdh_params(struct tls_root_ctx *ctx, const char *curve_name
                          )
 {

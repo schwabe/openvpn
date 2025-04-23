@@ -110,6 +110,12 @@ User-visible Changes
 - ``--x509-username-field`` will no longer automatically convert fieldnames to
   uppercase. This is deprecated since OpenVPN 2.4, and has now been removed.
 
+- ``--dh none`` is now the default if ``--dh`` is specified. Modern TLS
+  implementations will prefer ECDH and other more modern algorithm anyway.
+
+- ``--dh auto`` instructs the TLS library - if supported - to use internal
+  Diffie-Hellmann parameters.
+
 Overview of changes in 2.6
 ==========================
 
