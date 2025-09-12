@@ -670,8 +670,14 @@ dco_install_iroute(struct multi_context *m, struct multi_instance *mi, struct mr
         dco_win_add_iroute_ipv6(&c->c1.tuntap->dco, addr->v6.addr, addr->netbits,
                                 c->c2.tls_multi->peer_id);
 #else
+        const struct in6_addr *gateway = &mi->context.c2.push_ifconfig_ipv6_local;
+        if (addr->type & MR_ONLINK_ADDR)
+        {
+            gateway = NULL;
+        }
+
         net_route_v6_add(&m->top.net_ctx, &addr->v6.addr, addr->netbits,
-                         &mi->context.c2.push_ifconfig_ipv6_local, c->c1.tuntap->actual_name, 0,
+                         gateway, c->c1.tuntap->actual_name, 0,
                          DCO_IROUTE_METRIC);
 #endif
     }
@@ -682,7 +688,13 @@ dco_install_iroute(struct multi_context *m, struct multi_instance *mi, struct mr
                                 c->c2.tls_multi->peer_id);
 #else
         in_addr_t dest = htonl(addr->v4.addr);
-        net_route_v4_add(&m->top.net_ctx, &dest, addr->netbits, &mi->context.c2.push_ifconfig_local,
+        const in_addr_t *gateway = &mi->context.c2.push_ifconfig_local;
+        if (addr->type & MR_ONLINK_ADDR)
+        {
+            gateway = NULL;
+        }
+
+        net_route_v4_add(&m->top.net_ctx, &dest, addr->netbits, gateway,
                          c->c1.tuntap->actual_name, 0, DCO_IROUTE_METRIC);
 #endif
     }
@@ -713,6 +725,18 @@ dco_delete_iroutes(struct multi_context *m, struct multi_instance *mi)
                              DCO_IROUTE_METRIC);
 #endif
         }
+
+        /* Check if we added a host route as the assigned client IP address was
+         * not in the on link scope defined by --ifconfig */
+        if (multi_check_push_ifconfig_extra_route(mi))
+        {
+#if defined(_WIN32)
+            dco_win_del_iroute_ipv4(&c->c1.tuntap->dco, mi->context.c2.push_ifconfig_local, 32);
+#else
+            net_route_v4_del(&m->top.net_ctx, &mi->context.c2.push_ifconfig_local, 32,
+                             NULL, c->c1.tuntap->actual_name, 0, DCO_IROUTE_METRIC);
+#endif
+        }
     }
 
     if (mi->context.c2.push_ifconfig_ipv6_defined)
@@ -725,6 +749,18 @@ dco_delete_iroutes(struct multi_context *m, struct multi_instance *mi)
             net_route_v6_del(&m->top.net_ctx, &ir6->network, ir6->netbits,
                              &mi->context.c2.push_ifconfig_ipv6_local, c->c1.tuntap->actual_name, 0,
                              DCO_IROUTE_METRIC);
+#endif
+        }
+
+        /* Checked if we added a host route as the assigned client IP address was
+         * outside the --ifconfig-ipv6 tun interface config */
+        if (multi_check_push_ifconfig_ipv6_extra_route(mi))
+        {
+#if defined(_WIN32)
+            dco_win_del_iroute_ipv6(&c->c1.tuntap->dco, mi->context.c2.push_ifconfig_ipv6_local, 128);
+#else
+            net_route_v6_del(&m->top.net_ctx, &mi->context.c2.push_ifconfig_ipv6_local, 128,
+                             NULL, c->c1.tuntap->actual_name, 0, DCO_IROUTE_METRIC);
 #endif
         }
     }
