@@ -428,7 +428,7 @@ route_did_redirect_default_gateway(const struct route_list *rl)
 
 
 /**
- * check whether an IPv6 host address is covered by a given route_ipv6
+ * check whether an IPv6 host address is covered by a given network/bits
  * @param network the network address
  * @param bits the network mask
  * @param host the host address to be checked if it is contained by the network
@@ -437,6 +437,6 @@ route_did_redirect_default_gateway(const struct route_list *rl)
  *         network mask by bits
  */
 bool
-route_ipv6_match_host(const struct in6_addr *network, unsigned int bits, const struct in6_addr *host);
+ipv6_net_contains_host(const struct in6_addr *network, unsigned int bits, const struct in6_addr *host);
 
 #endif /* ifndef ROUTE_H */

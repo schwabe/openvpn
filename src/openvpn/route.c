@@ -711,7 +711,7 @@ init_route_list(struct route_list *rl, const struct route_option_list *opt,
 }
 
 bool
-route_ipv6_match_host(const struct in6_addr *network, unsigned int bits, const struct in6_addr *host)
+ipv6_net_contains_host(const struct in6_addr *network, unsigned int bits, const struct in6_addr *host)
 {
     /* (not the most beautiful implementation in the world, but portable and
      * "good enough") */
@@ -826,7 +826,7 @@ init_route_ipv6_list(struct route_ipv6_list *rl6, const struct route_ipv6_option
                  * need_remote_ipv6_route always evaluate to false
                  */
                 if (remote_host_ipv6
-                    && route_ipv6_match_host(&r6->network, r6->netbits, remote_host_ipv6))
+                    && ipv6_net_contains_host(&r6->network, r6->netbits, remote_host_ipv6))
                 {
                     need_remote_ipv6_route = true;
                     msg(D_ROUTE,
