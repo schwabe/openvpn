@@ -739,26 +739,20 @@ init_route_list(struct route_list *rl,
     return ret;
 }
 
-/* check whether an IPv6 host address is covered by a given route_ipv6
- * (not the most beautiful implementation in the world, but portable and
- * "good enough")
- */
-static bool
-route_ipv6_match_host( const struct route_ipv6 *r6,
-                       const struct in6_addr *host )
+bool
+ipv6_net_contains_host(const struct in6_addr *network, unsigned int bits, const struct in6_addr *host)
 {
-    unsigned int bits = r6->netbits;
-    int i;
-    unsigned int mask;
-
-    if (bits>128)
+    /* not the most beautiful implementation in the world, but portable and
+     * "good enough" */
+    if (bits > 128)
     {
         return false;
     }
 
+    int i;
     for (i = 0; bits >= 8; i++, bits -= 8)
     {
-        if (r6->network.s6_addr[i] != host->s6_addr[i])
+        if (network->s6_addr[i] != host->s6_addr[i])
         {
             return false;
         }
@@ -769,9 +763,9 @@ route_ipv6_match_host( const struct route_ipv6 *r6,
         return true;
     }
 
-    mask = 0xff << (8-bits);
+    unsigned int mask = 0xff << (8 - bits);
 
-    if ( (r6->network.s6_addr[i] & mask) == (host->s6_addr[i] & mask ))
+    if ((network->s6_addr[i] & mask) == (host->s6_addr[i] & mask))
     {
         return true;
     }
@@ -864,7 +858,7 @@ init_route_ipv6_list(struct route_ipv6_list *rl6,
                  * need_remote_ipv6_route always evaluate to false
                  */
                 if (remote_host_ipv6
-                    && route_ipv6_match_host( r6, remote_host_ipv6 ) )
+                    && ipv6_net_contains_host(&r6->network, r6->netbits, remote_host_ipv6))
                 {
                     need_remote_ipv6_route = true;
                     msg(D_ROUTE, "ROUTE6: %s/%d overlaps IPv6 remote %s, adding host route to VPN endpoint",
