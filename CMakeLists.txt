@@ -572,6 +572,7 @@ set(SOURCE_FILES
     src/openvpn/shaper.h
     src/openvpn/sig.c
     src/openvpn/sig.h
+    src/openvpn/siphash.c
     src/openvpn/siphash.h
     src/openvpn/siphash_reference.c
     src/openvpn/socket.c
@@ -835,7 +836,10 @@ if (BUILD_TESTING)
         src/openvpn/options_util.c
         src/openvpn/ssl_util.c
         src/openvpn/list.c
-        )
+        src/openvpn/siphash.h
+        src/openvpn/siphash.c
+        src/openvpn/siphash_reference.c
+    )
 
     target_sources(test_ncp PRIVATE
         src/openvpn/crypto_epoch.c
