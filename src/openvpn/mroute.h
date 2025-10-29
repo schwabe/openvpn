@@ -21,6 +21,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+
 #ifndef MROUTE_H
 #define MROUTE_H
 
@@ -72,10 +73,15 @@
 /* Indicates than IPv4 addr was extracted from ARP packet */
 #define MR_ARP                   16
 
-struct mroute_addr {
-    uint8_t len;    /* length of address */
+/* MRoute is an on link/scope address needed for DCO on Unix platforms */
+#define MR_ONLINK_DCO_ADDR 64
+
+struct mroute_addr
+{
+    uint8_t len;     /* length of address */
     uint8_t unused;
-    uint8_t type;   /* MR_ADDR/MR_WITH flags */
+    uint8_t type;    /* MR_ADDR/MR_WITH flags */
+
     uint8_t netbits; /* number of bits in network part of address,
                       * valid if MR_WITH_NETBITS is set */
     union {

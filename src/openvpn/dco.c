@@ -630,21 +630,45 @@ dco_install_iroute(struct multi_context *m, struct multi_instance *mi,
         return;
     }
 
+#if defined(_WIN32)
+    if (addr->type & MR_ONLINK_DCO_ADDR)
+    {
+        /* Windows does not need these extra routes, so we ignore/skip them */
+        return;
+    }
+#endif
+
     struct context *c = &mi->context;
     const char *dev = c->c1.tuntap->actual_name;
 
     if (addrtype == MR_ADDR_IPV6)
     {
+#if defined(_WIN32)
+        dco_win_add_iroute_ipv6(&c->c1.tuntap->dco, addr->v6.addr, addr->netbits,
+                                c->c2.tls_multi->peer_id);
+#else
+        const struct in6_addr *gateway = &mi->context.c2.push_ifconfig_ipv6_local;
+        if (addr->type & MR_ONLINK_DCO_ADDR)
+        {
+            gateway = NULL;
+        }
+
         net_route_v6_add(&m->top.net_ctx, &addr->v6.addr, addr->netbits,
-                         &mi->context.c2.push_ifconfig_ipv6_local, dev, 0,
+                         gateway, c->c1.tuntap->actual_name, 0,
                          DCO_IROUTE_METRIC);
     }
     else if (addrtype == MR_ADDR_IPV4)
     {
         in_addr_t dest = htonl(addr->v4.addr);
-        net_route_v4_add(&m->top.net_ctx, &dest, addr->netbits,
-                         &mi->context.c2.push_ifconfig_local, dev, 0,
-                         DCO_IROUTE_METRIC);
+        const in_addr_t *gateway = &mi->context.c2.push_ifconfig_local;
+        if (addr->type & MR_ONLINK_DCO_ADDR)
+        {
+            gateway = NULL;
+        }
+
+        net_route_v4_add(&m->top.net_ctx, &dest, addr->netbits, gateway,
+                         c->c1.tuntap->actual_name, 0, DCO_IROUTE_METRIC);
+#endif
     }
 #endif /* if defined(TARGET_LINUX) || defined(TARGET_FREEBSD) */
 }
@@ -672,6 +696,20 @@ dco_delete_iroutes(struct multi_context *m, struct multi_instance *mi)
                              &mi->context.c2.push_ifconfig_local, dev,
                              0, DCO_IROUTE_METRIC);
         }
+
+#if !defined(_WIN32)
+        /* Check if we added a host route as the assigned client IP address was
+         * not in the on link scope defined by --ifconfig */
+        in_addr_t ifconfig_local = mi->context.c2.push_ifconfig_local;
+
+        if (multi_check_push_ifconfig_extra_route(mi, htonl(ifconfig_local)))
+        {
+            /* On windows we do not install these routes, so we also do not need to delete them */
+            net_route_v4_del(&m->top.net_ctx, &ifconfig_local,
+                             32, NULL, c->c1.tuntap->actual_name, 0,
+                             DCO_IROUTE_METRIC);
+        }
+#endif
     }
 
     if (mi->context.c2.push_ifconfig_ipv6_defined)
@@ -684,6 +722,18 @@ dco_delete_iroutes(struct multi_context *m, struct multi_instance *mi)
                              &mi->context.c2.push_ifconfig_ipv6_local, dev,
                              0, DCO_IROUTE_METRIC);
         }
+
+        /* Checked if we added a host route as the assigned client IP address was
+         * outside the --ifconfig-ipv6 tun interface config */
+#if !defined(_WIN32)
+        struct in6_addr *dest = &mi->context.c2.push_ifconfig_ipv6_local;
+        if (multi_check_push_ifconfig_ipv6_extra_route(mi, dest))
+        {
+            /* On windows we do not install these routes, so we also do not need to delete them */
+            net_route_v6_del(&m->top.net_ctx, dest, 128, NULL,
+                             c->c1.tuntap->actual_name, 0, DCO_IROUTE_METRIC);
+        }
+#endif
     }
 #endif /* if defined(TARGET_LINUX) || defined(TARGET_FREEBSD) */
 }
