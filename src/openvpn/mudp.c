@@ -32,6 +32,7 @@
 
 #include "memdbg.h"
 #include "ssl_pkt.h"
+#include "sid_hash.h"
 
 #ifdef HAVE_SYS_INOTIFY_H
 #include <sys/inotify.h>
@@ -186,7 +187,7 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
         }
         else
         {
-            msg(D_MULTI_DEBUG,
+            msg(D_MULTI_MEDIUM,
                 "Valid packet (%s) with HMAC challenge from peer (%s), "
                 "accepting new connection.",
                 packet_opcode_name(op), peer);
@@ -212,7 +213,6 @@ handle_connection_attempt(struct multi_context *m,
                           struct link_socket *sock,
                           struct mroute_addr *real)
 {
-    struct hash *hash = m->hash;
     struct tls_pre_decrypt_state state = { 0 };
     struct multi_instance *mi = NULL;
     struct gc_arena gc = gc_new();
@@ -243,11 +243,6 @@ handle_connection_attempt(struct multi_context *m,
             mi = multi_create_instance(m, real, sock);
             if (mi)
             {
-                const uint64_t hv = hash_value(hash, real);
-                struct hash_bucket *bucket = hash_bucket(hash, hv);
-                hash_add_fast(hash, bucket, &mi->real, hv, mi);
-
-                mi->did_real_hash = true;
                 multi_assign_peer_id(m, mi);
 
                 /* If we have a session id already, ensure that the
@@ -262,6 +257,7 @@ handle_connection_attempt(struct multi_context *m,
                     {
                         session_skip_to_pre_start(session, &state, &m->top.c2.from);
                     }
+                    multi_hash_sid_add(m, &state.peer_session_id, mi);
                 }
             }
         }
@@ -298,15 +294,26 @@ multi_get_instance_udp_real(struct multi_context *m, struct mroute_addr *real)
     return NULL;
 }
 
-struct multi_instance *
-multi_get_instance_udp_control(struct multi_context *m, struct link_socket *sock)
-{
-    struct mroute_addr real = { 0 };
-    real.proto = sock->info.proto;
 
-    if (mroute_extract_openvpn_sockaddr(&real, &m->top.c2.from.dest, true) && m->top.c2.buf.len > 0)
+static struct multi_instance *
+multi_get_instance_udp_control(struct multi_context *m)
+{
+    /* Copy buffer, to a tmp buffer, so that reading the sesison does not
+     * modify the internal pointers */
+    struct buffer tmp = m->top.c2.buf;
+
+    /* op code */
+    uint8_t op = (uint8_t)buf_read_u8(&tmp) >> P_OPCODE_SHIFT;
+    (void)op;
+
+    struct session_id sid = { 0 };
+    session_id_read(&sid, &tmp);
+
+    struct hash_element *he_sid = multi_hash_sid_lookup(m, &sid);
+
+    if (he_sid)
     {
-        return multi_get_instance_udp_real(m, &real);
+        return he_sid->value;
     }
 
     return NULL;
@@ -392,7 +399,14 @@ multi_get_create_instance_udp(struct multi_context *m, bool *floated, struct lin
     }
     else
     {
-        mi = multi_get_instance_udp_control(m, sock);
+        if (m->top.c2.buf.len < (int)SID_SIZE + 1)
+        {
+            /* control packets must be at least the opcode byte + session id
+             * (8 byte) long, otherwise they are not valid packets */
+            return NULL;
+        }
+
+        mi = multi_get_instance_udp_control(m);
 
         /* we have no existing multi instance for this connection, control
          * packets can create a session. Data packets cannot */

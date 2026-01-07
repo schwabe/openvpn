@@ -383,7 +383,8 @@ misc_testdriver_SOURCES = test_misc.c \
 	$(top_srcdir)/src/openvpn/platform.c \
 	$(top_srcdir)/src/openvpn/list.c \
 	$(top_srcdir)/src/openvpn/siphash.c \
-	$(top_srcdir)/src/openvpn/siphash_reference.c
+	$(top_srcdir)/src/openvpn/siphash_reference.c \
+	$(top_srcdir)/src/openvpn/session_id.c
 
 push_update_msg_testdriver_CFLAGS = -I$(top_srcdir)/src/openvpn \
 	-I$(top_srcdir)/src/compat \

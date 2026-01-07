@@ -29,15 +29,17 @@ used when debugging or testing out special usage scenarios.
 
 --hash-size args
   Set the size of the real address hash table to ``r`` and the virtual
-  address table to ``v``.
+  address table to ``v``. If specified set the size of session id hash table
+  to ``s``. Otherwise ``s`` will be set to the same value as ``r``.
 
   Valid syntax:
   ::
 
-     hash-size r v
+     hash-size r v [s]
 
-  By default, both tables are sized at 4 times ``--max-clients`` buckets.
+  By default, all three tables are sized at 4 times ``--max-clients`` buckets.
   With the default of 1024 of ``--max-clients`` this gives 4096 buckets.
+
 
 --bcast-buffers n
   Allocate ``n`` buffers for broadcast datagrams (default :code:`256`).
