@@ -868,7 +868,8 @@ check_auth_pending_method(const char *peer_info, const char *method)
         return false;
     }
 
-    const char *client_method = strtok(iv_sso, ",");
+    char *lasts;
+    const char *client_method = strtok_r(iv_sso, ",", &lasts);
     bool supported = false;
 
     while (client_method)
@@ -878,7 +879,7 @@ check_auth_pending_method(const char *peer_info, const char *method)
             supported = true;
             break;
         }
-        client_method = strtok(NULL, ",");
+        client_method = strtok_r(NULL, ",", &lasts);
     }
 
     gc_free(&gc);

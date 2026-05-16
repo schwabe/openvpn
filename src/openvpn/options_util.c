@@ -48,7 +48,8 @@ parse_auth_failed_temp(struct options *o, const char *reason)
         message = strstr(reason, "]") + 1;
         /* null terminate the substring to only looks for flags between [ and ] */
         *endofflags = '\x00';
-        const char *token = strtok(m, "[,");
+        char *lasts;
+        const char *token = strtok_r(m, "[,", &lasts);
         while (token)
         {
             if (!strncmp(token, "backoff ", strlen("backoff ")))
@@ -81,7 +82,7 @@ parse_auth_failed_temp(struct options *o, const char *reason)
             {
                 msg(D_PUSH_ERRORS, "WARNING: unknown AUTH_FAIL,TEMP flag: %s", token);
             }
-            token = strtok(NULL, "[,");
+            token = strtok_r(NULL, "[,", &lasts);
         }
     }
 

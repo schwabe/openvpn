@@ -61,4 +61,9 @@ char *strsep(char **stringp, const char *delim);
 
 #endif
 
+#ifndef HAVE_STRTOK_R
+char *
+strtok_r(char *s, const char *delim, char **last);
+#endif
+
 #endif /* COMPAT_H */

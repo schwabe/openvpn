@@ -318,9 +318,10 @@ tls_ctx_restrict_ciphers(struct tls_root_ctx *ctx, const char *ciphers)
 
     /* Parse allowed ciphers, getting IDs */
     int i = 0;
+    char *lasts;
     tmp_ciphers_orig = tmp_ciphers = string_alloc(ciphers, NULL);
 
-    token = strtok(tmp_ciphers, ":");
+    token = strtok_r(tmp_ciphers, ":", &lasts);
     while (token)
     {
         ctx->allowed_ciphers[i] = mbedtls_ssl_get_ciphersuite_id(tls_translate_cipher_name(token));
@@ -328,7 +329,7 @@ tls_ctx_restrict_ciphers(struct tls_root_ctx *ctx, const char *ciphers)
         {
             i++;
         }
-        token = strtok(NULL, ":");
+        token = strtok_r(NULL, ":", &lasts);
     }
     free(tmp_ciphers_orig);
 }

@@ -100,7 +100,8 @@ mutate_ncp_cipher_list(const char *list, struct gc_arena *gc)
     struct buffer new_list = alloc_buf(MAX_NCP_CIPHERS_LENGTH);
 
     char *const tmp_ciphers = string_alloc(list, NULL);
-    const char *token = strtok(tmp_ciphers, ":");
+    char *lasts;
+    const char *token = strtok_r(tmp_ciphers, ":", &lasts);
     while (token)
     {
         /*
@@ -174,7 +175,7 @@ mutate_ncp_cipher_list(const char *list, struct gc_arena *gc)
                 buf_puts(&new_list, ovpn_cipher_name);
             }
         }
-        token = strtok(NULL, ":");
+        token = strtok_r(NULL, ":", &lasts);
     }
 
 
@@ -207,15 +208,16 @@ tls_item_in_cipher_list(const char *item, const char *list)
 {
     char *tmp_ciphers = string_alloc(list, NULL);
     char *tmp_ciphers_orig = tmp_ciphers;
+    char *lasts;
 
-    const char *token = strtok(tmp_ciphers, ":");
+    const char *token = strtok_r(tmp_ciphers, ":", &lasts);
     while (token)
     {
         if (0 == strcmp(token, item))
         {
             break;
         }
-        token = strtok(NULL, ":");
+        token = strtok_r(NULL, ":", &lasts);
     }
     free(tmp_ciphers_orig);
 

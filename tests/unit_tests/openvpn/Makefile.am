@@ -107,6 +107,7 @@ ssl_testdriver_SOURCES = test_ssl.c \
 	$(top_srcdir)/src/openvpn/base64.c \
 	$(top_srcdir)/src/openvpn/buffer.c \
 	$(top_srcdir)/src/compat/compat-strsep.c \
+	$(top_srcdir)/src/compat/compat-strtok_r.c \
 	$(top_srcdir)/src/openvpn/crypto.c \
 	$(top_srcdir)/src/openvpn/cryptoapi.c \
 	$(top_srcdir)/src/openvpn/crypto_epoch.c \
@@ -345,6 +346,7 @@ ncp_testdriver_SOURCES = test_ncp.c \
 	$(top_srcdir)/src/openvpn/platform.c \
 	$(top_srcdir)/src/openvpn/win32-util.c \
 	$(top_srcdir)/src/compat/compat-strsep.c \
+	$(top_srcdir)/src/compat/compat-strtok_r.c \
 	$(top_srcdir)/src/openvpn/ssl_util.c
 
 mbuf_testdriver_CFLAGS  = \

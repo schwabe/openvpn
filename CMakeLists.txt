@@ -248,6 +248,7 @@ endif()
 check_symbol_exists(chsize io.h HAVE_CHSIZE)
 check_symbol_exists(getrlimit sys/resource.h HAVE_GETRLIMIT)
 check_symbol_exists(strsep string.h HAVE_STRSEP)
+check_symbol_exists(strtok_r string.h HAVE_STRTOK_R)
 
 # Some OS (e.g. FreeBSD) need some basic headers to allow
 # including network headers
@@ -413,6 +414,7 @@ set(SOURCE_FILES
     src/compat/compat-dirname.c
     src/compat/compat-gettimeofday.c
     src/compat/compat-strsep.c
+    src/compat/compat-strtok_r.c
     src/openvpn/argv.c
     src/openvpn/argv.h
     src/openvpn/base64.c
@@ -733,6 +735,8 @@ if (BUILD_TESTING)
             src/openvpn/platform.c
             src/openvpn/win32-util.c
             src/compat/compat-gettimeofday.c
+            src/compat/compat-strsep.c
+            src/compat/compat-strtok_r.c
             )
 
         add_library_deps(${test_name})
