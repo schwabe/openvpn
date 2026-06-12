@@ -57,6 +57,7 @@
 #include "ssl.h"
 #include "ssl_verify.h"
 #include "ssl_backend.h"
+#include "ssl_cert_hash.h"
 #include "ssl_ncp.h"
 #include "ssl_util.h"
 #include "auth_token.h"

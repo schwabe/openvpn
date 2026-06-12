@@ -121,20 +121,6 @@ enum tls_auth_status tls_authentication_status(struct tls_multi *multi);
 void key_state_rm_auth_control_files(struct auth_deferred_status *ads);
 
 /**
- * Frees the given set of certificate hashes.
- *
- * @param chs   The certificate hash set to free.
- */
-void cert_hash_free(struct cert_hash_set *chs);
-
-/**
- * Locks the certificate hash set used in the given tunnel
- *
- * @param multi The tunnel to lock
- */
-void tls_lock_cert_hash_set(struct tls_multi *multi);
-
-/**
  * Locks the common name field for the given tunnel
  *
  * @param multi The tunnel to lock

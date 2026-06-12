@@ -610,6 +610,8 @@ set(SOURCE_FILES
     src/openvpn/ssl_ncp.h
     src/openvpn/ssl_pkt.c
     src/openvpn/ssl_pkt.h
+    src/openvpn/ssl_cert_hash.c
+    src/openvpn/ssl_cert_hash.h
     src/openvpn/ssl_util.c
     src/openvpn/ssl_util.h
     src/openvpn/vlan.c

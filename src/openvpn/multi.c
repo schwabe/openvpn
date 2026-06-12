@@ -50,6 +50,7 @@
 
 #include "crypto_backend.h"
 #include "ssl_util.h"
+#include "ssl_cert_hash.h"
 #include "dco.h"
 #include "reflect_filter.h"
 

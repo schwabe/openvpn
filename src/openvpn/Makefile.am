@@ -138,6 +138,7 @@ openvpn_SOURCES = \
 	ssl_ncp.c ssl_ncp.h \
 	ssl_pkt.c ssl_pkt.h \
 	ssl_util.c ssl_util.h \
+	ssl_cert_hash.c ssl_cert_hash.h \
 	ssl_common.h \
 	ssl_verify.c ssl_verify.h ssl_verify_backend.h \
 	ssl_verify_openssl.c ssl_verify_openssl.h \
