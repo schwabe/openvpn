@@ -73,9 +73,15 @@ send_hmac_reset_packet(struct multi_context *m, struct tls_pre_decrypt_state *st
     msg_set_prefix(NULL);
 }
 
+enum pre_decrypt_verdict
+{
+    PRE_DECRYPT_NO_ACTION,
+    PRE_DECRYPT_CREATE_SESSION,
+    PRE_DECRYPT_CREATE_SESSION_SKIP
+};
 
 /* Returns true if this packet should create a new session */
-static bool
+static enum pre_decrypt_verdict
 do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *state,
                      struct mroute_addr addr, struct link_socket *sock)
 {
@@ -97,7 +103,7 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
          * responses */
         if (!reflect_filter_rate_limit_check(m->initial_rate_limiter))
         {
-            return false;
+            return PRE_DECRYPT_NO_ACTION;
         }
     }
 
@@ -122,7 +128,7 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
                 calculate_session_id_hmac(state->peer_session_id, from, hmac_key, handwindow, 0);
             send_hmac_reset_packet(m, state, tas, &sid, true, sock);
 
-            return false;
+            return PRE_DECRYPT_NO_ACTION;
         }
         else
         {
@@ -139,11 +145,11 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
                     "ignoring connection attempt from old client (%s)",
                     peer);
                 gc_free(&gc);
-                return false;
+                return PRE_DECRYPT_NO_ACTION;
             }
             else
             {
-                return true;
+                return PRE_DECRYPT_CREATE_SESSION;
             }
         }
     }
@@ -156,7 +162,7 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
         send_hmac_reset_packet(m, state, tas, &sid, false, sock);
 
         /* We have a reply do not create a new session */
-        return false;
+        return PRE_DECRYPT_NO_ACTION;
     }
     else if (verdict == VERDICT_VALID_CONTROL_V1 || verdict == VERDICT_VALID_ACK_V1
              || verdict == VERDICT_VALID_WKC_V1)
@@ -187,11 +193,11 @@ do_pre_decrypt_check(struct multi_context *m, struct tls_pre_decrypt_state *stat
         }
         gc_free(&gc);
 
-        return ret;
+        return PRE_DECRYPT_CREATE_SESSION_SKIP;
     }
 
     /* VERDICT_INVALID */
-    return false;
+    return PRE_DECRYPT_NO_ACTION;
 }
 
 /**
@@ -217,8 +223,11 @@ handle_connection_attempt(struct multi_context *m,
             "MULTI: Connection attempt from %s ignored while server is "
             "shutting down",
             mroute_addr_print(real, &gc));
+        return NULL;
     }
-    else if (do_pre_decrypt_check(m, &state, *real, sock))
+    enum pre_decrypt_verdict verdict = do_pre_decrypt_check(m, &state, *real, sock);
+
+    if (verdict != PRE_DECRYPT_NO_ACTION)
     {
         /* This is an unknown session but with valid tls-auth/tls-crypt
          * (or no auth at all).  If this is the initial packet of a
@@ -243,13 +252,16 @@ handle_connection_attempt(struct multi_context *m,
 
                 /* If we have a session id already, ensure that the
                  * state is using the same */
-                if (session_id_defined(&state.server_session_id)
-                    && session_id_defined((&state.peer_session_id)))
+                if (session_id_defined((&state.peer_session_id)))
                 {
                     mi->context.c2.tls_multi->n_sessions++;
                     struct tls_session *session =
                         &mi->context.c2.tls_multi->session[TM_INITIAL];
-                    session_skip_to_pre_start(session, &state, &m->top.c2.from);
+
+                    if (verdict == PRE_DECRYPT_CREATE_SESSION_SKIP)
+                    {
+                        session_skip_to_pre_start(session, &state, &m->top.c2.from);
+                    }
                 }
             }
         }
