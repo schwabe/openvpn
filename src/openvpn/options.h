@@ -446,6 +446,8 @@ struct options
     const char *management_addr;
     const char *management_port;
     const char *management_user_pass;
+    /** Script executed to talk to the management interface */
+    const char *management_script;
     int management_log_history_cache;
     int management_echo_buffer_size;
     int management_state_buffer_size;

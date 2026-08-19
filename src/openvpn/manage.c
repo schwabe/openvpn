@@ -333,10 +333,12 @@ static void
 man_delete_unix_socket(struct management *man)
 {
 #if UNIX_SOCK_SUPPORT
-    if ((man->settings.flags & (MF_UNIX_SOCK | MF_CONNECT_AS_CLIENT)) == MF_UNIX_SOCK)
+    if ((man->settings.flags & (MF_UNIX_SOCK | MF_CONNECT_AS_CLIENT)) == MF_UNIX_SOCK
+        || man->settings.flags & MF_UNIX_SOCK_SCRIPT)
     {
         socket_delete_unix(&man->settings.local_unix);
     }
+
 #endif
 }
 
@@ -2195,10 +2197,18 @@ man_reset_client_socket(struct management *man, const bool exiting)
             }
         }
 
+        if (man->settings.flags & MF_UNIX_SOCK_SCRIPT && !man_password_needed(man))
+        {
+            msg(D_MANAGEMENT, "MANAGEMENT: Triggering exit on unix-script disconnect");
+            throw_signal_soft(SIGTERM, "management-exit");
+        }
+
         if (man->settings.flags & MF_CONNECT_AS_CLIENT)
         {
-            msg(D_MANAGEMENT, "MANAGEMENT: Triggering management exit");
-            throw_signal_soft(SIGTERM, "management-exit");
+            {
+                msg(D_MANAGEMENT, "MANAGEMENT: Triggering management exit");
+                throw_signal_soft(SIGTERM, "management-exit");
+            }
         }
         else
         {
@@ -2643,6 +2653,15 @@ man_settings_init(struct man_settings *ms, const char *addr, const char *port,
         {
             get_user_pass(&ms->up, pass_file, "Management", GET_USER_PASS_PASSWORD_ONLY);
         }
+        else if (ms->flags & MF_UNIX_SOCK_SCRIPT)
+        {
+            /* Set random password. The password is only
+             * alphanumerical [0-9a-f] but still has 128 bit of randomness,
+             * which is more than enough */
+            snprintf(ms->up.password, sizeof(ms->up.password),
+                     "%" PRIx64 "%" PRIx64, get_random(), get_random());
+            ms->up.defined = true;
+        }
 
 #if UNIX_SOCK_SUPPORT
         /*
@@ -2787,6 +2806,13 @@ man_connection_close(struct management *man)
     {
         man_close_socket(man, mc->sd_cli);
     }
+
+#if UNIX_SOCK_SUPPORT
+    if (mc->unix_script_pid)
+    {
+        kill(mc->unix_script_pid, SIGINT);
+    }
+#endif
 
     command_line_free(mc->in);
     buffer_list_free(mc->out);

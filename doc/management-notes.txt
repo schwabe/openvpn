@@ -35,6 +35,10 @@ Once OpenVPN has started with the management layer enabled,
 you can telnet to the management port (make sure to use
 a telnet client which understands "raw" mode).
 
+When password authentication is enabled, the management interface
+will require sending the password on its own line after establishing
+the connection.
+
 Once connected to the management port, you can use
 the "help" command to list all commands.
 

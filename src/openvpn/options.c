@@ -1726,7 +1726,7 @@ options_postprocess_verify_ce(const struct options *options, const struct connec
      * Check for consistency of management options
      */
 #ifdef ENABLE_MANAGEMENT
-    if (!options->management_addr
+    if (!options->management_addr && !(options->management_flags & MF_UNIX_SOCK_SCRIPT)
         && (options->management_flags
             || options->management_log_history_cache != defaults.management_log_history_cache))
     {
@@ -4311,7 +4311,7 @@ add_option(struct options *options, char *p[], bool is_inline, const char *file,
     else if (streq(p[0], "management") && p[1] && p[2] && !p[4])
     {
         VERIFY_PERMISSION(OPT_P_GENERAL);
-        if (streq(p[2], "unix"))
+        if (streq(p[2], "unix") || streq(p[2], "unix-script"))
         {
 #if UNIX_SOCK_SUPPORT
             options->management_flags |= MF_UNIX_SOCK;
@@ -4321,7 +4321,16 @@ add_option(struct options *options, char *p[], bool is_inline, const char *file,
 #endif
         }
 
-        options->management_addr = p[1];
+        if (streq(p[2], "unix-script"))
+        {
+            options->management_flags |= MF_UNIX_SOCK_SCRIPT | MF_HOLD;
+            set_user_script(options, &options->management_script, p[1],
+                            "management unix-script", false);
+        }
+        else
+        {
+            options->management_addr = p[1];
+        }
         options->management_port = p[2];
         if (p[3])
         {

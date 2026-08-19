@@ -4341,19 +4341,62 @@ init_management(void)
     }
 }
 
+void
+run_management_script(struct context *c)
+{
+#if UNIX_SOCK_SUPPORT
+    struct gc_arena gc = gc_new();
+    struct argv argv = argv_new();
+    struct env_set *env = env_set_create(&gc);
+
+    setenv_str(env, "MANAGEMENT_USER", management->settings.up.username);
+    setenv_str(env, "MANAGEMENT_PASSWORD", management->settings.up.password);
+    setenv_str(env, "MANAGEMENT_SOCKET", c->options.management_addr);
+
+    argv_printf(&argv, "%s", c->options.management_script);
+
+    int flags = S_NOWAITPID | S_SCRIPT | S_FATAL;
+    int *pid = &management->connection.unix_script_pid;
+    const char *msg_prefix = "WARNING: Failed running management unix-script";
+    *pid = openvpn_execve_check(&argv, env, flags, msg_prefix);
+
+    if (!openvpn_waitpid_check(*pid, msg_prefix, M_FATAL))
+    {
+        *pid = 0;
+    }
+
+    argv_free(&argv);
+    gc_free(&gc);
+#else
+    msg(M_FATAL, "ERROR: Management unix-socket support is not available on this platform");
+#endif
+}
+
 bool
 open_management(struct context *c)
 {
     /* initialize management layer */
     if (management)
     {
+        unsigned int flags = c->options.management_flags;
+        if (flags & MF_UNIX_SOCK_SCRIPT)
+        {
+            /* This creates a filename that should be ungessuable */
+            char sockname[64] = { 0 };
+            snprintf(sockname, sizeof(sockname),
+                     PACKAGE_NAME "_omi_%08" PRIx64 "%08" PRIx64 ".sock",
+                     get_random(), get_random());
+
+            c->options.management_addr = platform_gen_path(platform_get_tmp_dir(), sockname, &c->gc);
+        }
+
         if (c->options.management_addr)
         {
-            unsigned int flags = c->options.management_flags;
             if (c->options.mode == MODE_SERVER)
             {
                 flags |= MF_SERVER;
             }
+
             if (management_open(
                     management, c->options.management_addr, c->options.management_port,
                     c->options.management_user_pass, c->options.management_client_user,
@@ -4363,6 +4406,11 @@ open_management(struct context *c)
             {
                 management_set_state(management, OPENVPN_STATE_CONNECTING, NULL, NULL, NULL, NULL,
                                      NULL);
+            }
+
+            if (flags & MF_UNIX_SOCK_SCRIPT)
+            {
+                run_management_script(c);
             }
 
             /* initial management hold, called early, before first context initialization */

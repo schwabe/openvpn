@@ -14,6 +14,7 @@ server and client mode operations.
     management socket-name unix pw-file  # (recommended)
     management IP port                   # (INSECURE)
     management IP port pw-file           #
+    management script unix-script
 
   ``pw-file``, if specified, is a password file where the password must
   be on first line. Instead of a filename it can use the keyword stdin
@@ -24,6 +25,14 @@ server and client mode operations.
   socket that may be connected to by any process. Use the
   ``--management-client-user`` and ``--management-client-group``
   directives to restrict access.
+
+  When the variant :code:`unix-script` is used, OpenVPN will start the
+  specified script on startup and enable ``--management-hold``.
+  OpenVPN will generate a random path for the unix socket
+  and management password. These are passed as environment
+  variables :code:`MANAGEMENT_SOCKET`, :code:`MANAGEMENT_PASSWORD`
+  to the script when being started. When OpenVPN terminates it sends
+  a :code:`SIGINT` signal to the running script.
 
   The management interface provides a special mode where the TCP
   management link can operate over the tunnel itself. To enable this mode,
@@ -127,10 +136,11 @@ server and client mode operations.
   (client-only).
 
 --management-signal
-  Send SIGUSR1 signal to OpenVPN if management session disconnects. This
-  is useful when you wish to disconnect an OpenVPN session on user logoff.
-  For ``--management-client`` this option is not needed since a disconnect
-  will always generate a :code:`SIGTERM`.
+  Send :code:`SIGUSR1` signal to OpenVPN if management session disconnects.
+  This is useful when you wish to disconnect an OpenVPN session on user
+  logoff. For ``--management-client`` or ``--management`` with
+  :code:`unixscript` this option has no effect since a disconnect will
+  always trigger sending a :code:`SIGTERM`.
 
 --management-up-down
   Report tunnel up/down events to management interface.

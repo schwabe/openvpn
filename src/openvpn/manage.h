@@ -42,6 +42,7 @@
 #define MF_EXTERNAL_CERT          (1u << 15)
 #define MF_EXTERNAL_KEY_PSSPAD    (1u << 16)
 #define MF_EXTERNAL_KEY_DIGEST    (1u << 17)
+#define MF_UNIX_SOCK_SCRIPT       (1u << 18)
 
 #ifdef ENABLE_MANAGEMENT
 
@@ -326,6 +327,9 @@ struct man_connection
 #ifdef TARGET_ANDROID
     int fdtosend;
     int lastfdreceived;
+#endif
+#if UNIX_SOCK_SUPPORT
+    pid_t unix_script_pid;
 #endif
     int client_version;
 };
