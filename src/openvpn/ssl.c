@@ -877,7 +877,10 @@ key_state_init(struct tls_session *session, struct key_state *ks)
     ks->crypto_options.pid_persist = NULL;
 
 #ifdef ENABLE_MANAGEMENT
-    ks->mda_key_id = session->opt->mda_context->mda_key_id_counter++;
+    /* Increment key ID before assigning to always have a key id >= 1 to
+     * make 0 signify an invalid key id */
+    session->opt->mda_context->mda_key_id_counter++;
+    ks->mda_key_id = session->opt->mda_context->mda_key_id_counter;
 #endif
 
     /*

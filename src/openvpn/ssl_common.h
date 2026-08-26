@@ -773,7 +773,7 @@ get_key_by_management_key_id(struct tls_multi *multi, unsigned int mda_key_id)
     for (int i = 0; i < KEY_SCAN_SIZE; ++i)
     {
         struct key_state *ks = get_key_scan(multi, i);
-        if (ks->mda_key_id == mda_key_id && ks->state > S_UNDEF)
+        if (ks->mda_key_id == mda_key_id)
         {
             return ks;
         }

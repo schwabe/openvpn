@@ -69,6 +69,8 @@ struct man_def_auth_context
 #define DAF_INITIAL_AUTH           (1u << 2)
     unsigned int flags;
 
+    /** Identify the key id in the management interface, always 1 or
+     * or greater if valid */
     unsigned int mda_key_id_counter;
 };
 
