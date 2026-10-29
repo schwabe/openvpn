@@ -96,7 +96,6 @@
 #define D_LOW              LOGLEV(4, 52, 0)         /* miscellaneous low-frequency debug info */
 #define D_DHCP_OPT         LOGLEV(4, 53, 0)         /* show DHCP options binary string */
 #define D_MBUF             LOGLEV(4, 54, 0)         /* mbuf.[ch] routines */
-#define D_PACKET_TRUNC_ERR LOGLEV(4, 55, 0)         /* PACKET_TRUNCATION_CHECK */
 #define D_MULTI_DROPPED    LOGLEV(4, 57, 0)         /* show point-to-multipoint packet drops */
 #define D_MULTI_MEDIUM     LOGLEV(4, 58, 0)         /* show medium frequency multi messages */
 #define D_X509_ATTR        LOGLEV(4, 59, 0)         /* show x509-track attributes on connection */
@@ -139,7 +138,6 @@
 #define D_SOCKET_DEBUG       LOGLEV(7, 70, M_DEBUG) /* show socket.[ch] debugging info */
 #define D_SHOW_PKCS11        LOGLEV(7, 70, M_DEBUG) /* show PKCS#11 actions */
 #define D_ALIGN_DEBUG        LOGLEV(7, 70, M_DEBUG) /* show verbose struct alignment info */
-#define D_PACKET_TRUNC_DEBUG LOGLEV(7, 70, M_DEBUG) /* PACKET_TRUNCATION_CHECK verbose */
 #define D_PING               LOGLEV(7, 70, M_DEBUG) /* PING send/receive messages */
 #define D_PS_PROXY_DEBUG     LOGLEV(7, 70, M_DEBUG) /* port share proxy debug */
 #define D_TLS_KEYSELECT      LOGLEV(7, 70, M_DEBUG) /* show key selection for data channel */
